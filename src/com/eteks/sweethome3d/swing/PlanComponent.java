@@ -133,7 +133,6 @@ import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.InputMap;
-import javax.swing.JApplet;
 import javax.swing.JComponent;
 import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
@@ -6004,8 +6003,22 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     // (except in Applets run with Java 7 under Mac OS X where the tooltips are buggy)
     this.toolTipWindow.setVisible(!OperatingSystem.isMacOSX()
         || !OperatingSystem.isJavaVersionGreaterOrEqual("1.7")
-        || SwingUtilities.getAncestorOfClass(JApplet.class, this) == null);
+        || !hasLegacyAppletAncestor());
     toolTipComponent.paintImmediately(toolTipComponent.getBounds());
+  }
+
+  /**
+   * Returns whether this component is hosted inside the legacy applet container.
+   * Modern JDKs no longer ship {@code javax.swing.JApplet}, so this lookup must stay reflective.
+   */
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  private boolean hasLegacyAppletAncestor() {
+    try {
+      Class appletClass = Class.forName("javax.swing.JApplet");
+      return SwingUtilities.getAncestorOfClass(appletClass, this) != null;
+    } catch (ClassNotFoundException ex) {
+      return false;
+    }
   }
 
   /**

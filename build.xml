@@ -124,6 +124,48 @@
     <move file="build/SweetHome3DStandalone.jar" tofile="build/SweetHome3D.jar"/>
   </target>
 
+  <!-- Modern local development target that skips obsolete applet classes removed from newer JDKs.
+       This keeps the stock release targets intact while restoring a desktop-only build path. -->
+  <target name="buildModernDesktop"
+          description="Builds build/SweetHome3D.jar for desktop-only development on modern JDKs">
+    <echo message="compiling Sweet Home 3D desktop-only for Java ${classTarget} minimum version"/>
+    <mkdir dir="build/classes"/>
+    <javac srcdir="src" destdir="build/classes"
+           encoding="ISO-8859-1" target="${classTarget}" source="${classSource}"
+           debug="false" debuglevel="lines,vars,source"
+           excludes="com/eteks/sweethome3d/applet/**">
+      <extdirs>
+        <pathelement location="lib"/>
+      </extdirs>
+      <classpath>
+        <pathelement location="libtest/AppleJavaExtensions.jar"/>
+        <pathelement location="libtest/javaAwtDesktop.jar"/>
+        <pathelement location="libtest/jnlp.jar"/>
+      </classpath>
+    </javac>
+
+    <copy todir="build/classes">
+      <fileset dir="src">
+        <include name="**"/>
+        <exclude name="**/*.java"/>
+        <exclude name="**/*.cpp"/>
+        <exclude name="**/*.h"/>
+        <exclude name="**/package.html"/>
+        <exclude name="com/eteks/sweethome3d/io/*Catalog*.properties"/>
+        <exclude name="com/eteks/sweethome3d/io/resources/**"/>
+        <exclude name="**/help/**"/>
+        <exclude name="**/*.svg"/>
+      </fileset>
+      <fileset dir="src">
+        <include name="com/eteks/sweethome3d/io/resources/patterns/**"/>
+      </fileset>
+    </copy>
+
+    <zip destfile="build/SweetHome3D.jar"
+         basedir="build/classes"/>
+    <delete dir="build/classes"/>
+  </target>
+
   <target name="furniture"
           description="Builds build/Furniture.jar that contains the furniture files">
     <mkdir dir="build"/>
