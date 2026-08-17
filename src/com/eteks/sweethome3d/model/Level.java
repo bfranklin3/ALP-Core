@@ -34,7 +34,7 @@ public class Level extends HomeObject {
    * The properties of a level that may change. <code>PropertyChangeListener</code>s added
    * to a level will be notified under a property name equal to the string value of one these properties.
    */
-  public enum Property {NAME, ELEVATION, HEIGHT, FLOOR_THICKNESS, BACKGROUND_IMAGE, VISIBLE, VIEWABLE, ELEVATION_INDEX};
+  public enum Property {NAME, ELEVATION, HEIGHT, FLOOR_THICKNESS, BACKGROUND_IMAGE, VISIBLE, VIEWABLE, ELEVATION_INDEX, LOCKED};
 
   private String              name;
   private float               elevation;
@@ -43,6 +43,7 @@ public class Level extends HomeObject {
   private BackgroundImage     backgroundImage;
   private boolean             visible;
   private boolean             viewable;
+  private boolean             locked;
   private int                 elevationIndex;
 
   /**
@@ -73,6 +74,7 @@ public class Level extends HomeObject {
     this.height = height;
     this.visible = true;
     this.viewable = true;
+    this.locked = false;
     this.elevationIndex = -1;
   }
 
@@ -83,6 +85,7 @@ public class Level extends HomeObject {
   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
     this.visible = true;
     this.viewable = true;
+    this.locked = false;
     this.elevationIndex = -1;
     in.defaultReadObject();
   }
@@ -226,6 +229,27 @@ public class Level extends HomeObject {
    */
   public boolean isViewableAndVisible() {
     return this.viewable && this.visible;
+  }
+
+  /**
+   * Returns <code>true</code> if this level is locked.
+   * @since 1.0
+   */
+  public boolean isLocked() {
+    return this.locked;
+  }
+
+  /**
+   * Sets whether this level is locked or not. Once this level is updated,
+   * listeners added to this level will receive a change notification.
+   * @since 1.0
+   */
+  public void setLocked(boolean locked) {
+    if (locked != this.locked) {
+      boolean oldLocked = this.locked;
+      this.locked = locked;
+      firePropertyChange(Property.LOCKED.name(), oldLocked, locked);
+    }
   }
 
   /**

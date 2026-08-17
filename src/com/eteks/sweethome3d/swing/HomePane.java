@@ -139,6 +139,7 @@ import javax.swing.JRootPane;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -3254,6 +3255,18 @@ public class HomePane extends JRootPane implements HomeView {
         furnitureView = furnitureScrollPane;
       }
     }
+
+    // Create a tabbed pane to host furniture and room tables
+    JTabbedPane inventoryTabbedPane = new JTabbedPane();
+    if (furnitureView != null) {
+      inventoryTabbedPane.addTab(preferences.getLocalizedString(HomePane.class, "furnitureTab.title"), furnitureView);
+    }
+    
+    // Add Room Table Panel
+    RoomTablePanel roomTablePanel = new RoomTablePanel(home, preferences, controller);
+    inventoryTabbedPane.addTab(preferences.getLocalizedString(HomePane.class, "areasTab.title"), roomTablePanel);
+    
+    furnitureView = inventoryTabbedPane;
 
     if (catalogView == null) {
       return furnitureView;
