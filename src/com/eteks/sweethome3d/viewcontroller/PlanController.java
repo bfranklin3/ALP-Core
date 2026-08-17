@@ -461,6 +461,11 @@ public class PlanController extends FurnitureController implements Controller {
     this.duplicationActivatedLastMousePress = duplicationActivated;
     this.magnetismToggledLastMousePress = magnetismToggled;
     this.pointerTypeLastMousePress = pointerType;
+    if (this.state.getMode() != Mode.SELECTION && this.state.getMode() != Mode.PANNING) {
+      if (this.home.getSelectedLevel() != null && this.home.getSelectedLevel().isLocked()) {
+        return;
+      }
+    }
     this.state.pressMouse(x, y, clickCount, shiftDown, duplicationActivated);
   }
 
@@ -892,6 +897,9 @@ public class PlanController extends FurnitureController implements Controller {
     List<Selectable> selectedItems = this.home.getSelectedItems();
     if (selectedItems.size() == 1) {
       Selectable item = selectedItems.get(0);
+      if (isItemLocked(item)) {
+        return;
+      }
       if (item instanceof HomePieceOfFurniture) {
         modifySelectedFurniture();
       } else if (item instanceof Wall) {
@@ -912,11 +920,30 @@ public class PlanController extends FurnitureController implements Controller {
     }
   }
 
+  @Override
+  public void modifySelectedFurniture() {
+    List<HomePieceOfFurniture> selectedFurniture = Home.getFurnitureSubList(this.home.getSelectedItems());
+    if (!selectedFurniture.isEmpty()) {
+      for (HomePieceOfFurniture piece : selectedFurniture) {
+        if (isItemLocked(piece)) {
+          return;
+        }
+      }
+      super.modifySelectedFurniture();
+    }
+  }
+
   /**
    * Controls the modification of selected walls.
    */
   public void modifySelectedWalls() {
-    if (!Home.getWallsSubList(this.home.getSelectedItems()).isEmpty()) {
+    List<Wall> selectedWalls = Home.getWallsSubList(this.home.getSelectedItems());
+    if (!selectedWalls.isEmpty()) {
+      for (Wall wall : selectedWalls) {
+        if (isItemLocked(wall)) {
+          return;
+        }
+      }
       new WallController(this.home, this.preferences, this.viewFactory,
           this.contentManager, this.undoSupport).displayView(getView());
     }
@@ -1055,10 +1082,27 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Returns <code>true</code> if the given <code>item</code> is locked because
+   * it belongs to a locked level.
+   */
+  protected boolean isItemLocked(Object item) {
+    if (item instanceof Elevatable) {
+      Level level = ((Elevatable)item).getLevel();
+      if (level != null && level.isLocked()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Returns <code>true</code> if the given <code>item</code> may be moved
    * in the plan. Default implementation returns <code>true</code>.
    */
   protected boolean isItemMovable(Selectable item) {
+    if (isItemLocked(item)) {
+      return false;
+    }
     if (item instanceof HomePieceOfFurniture) {
       return isPieceOfFurnitureMovable((HomePieceOfFurniture)item);
     } else {
@@ -1072,6 +1116,9 @@ public class PlanController extends FurnitureController implements Controller {
    * is a non resizable piece of furniture.
    */
   protected boolean isItemResizable(Selectable item) {
+    if (isItemLocked(item)) {
+      return false;
+    }
     if (item instanceof HomePieceOfFurniture) {
       return ((HomePieceOfFurniture)item).isResizable();
     } else {
@@ -1086,6 +1133,9 @@ public class PlanController extends FurnitureController implements Controller {
    * {@linkplain #isPieceOfFurnitureDeletable(HomePieceOfFurniture) deletable piece of furniture}.
    */
   protected boolean isItemDeletable(Selectable item) {
+    if (isItemLocked(item)) {
+      return false;
+    }
     if (item instanceof HomePieceOfFurniture) {
       return isPieceOfFurnitureDeletable((HomePieceOfFurniture)item);
     } else {
@@ -1897,7 +1947,13 @@ public class PlanController extends FurnitureController implements Controller {
    * Controls the modification of the selected rooms.
    */
   public void modifySelectedRooms() {
-    if (!Home.getRoomsSubList(this.home.getSelectedItems()).isEmpty()) {
+    List<Room> selectedRooms = Home.getRoomsSubList(this.home.getSelectedItems());
+    if (!selectedRooms.isEmpty()) {
+      for (Room room : selectedRooms) {
+        if (isItemLocked(room)) {
+          return;
+        }
+      }
       new RoomController(this.home, this.preferences, this.viewFactory,
           this.contentManager, this.undoSupport).displayView(getView());
     }
@@ -1925,7 +1981,13 @@ public class PlanController extends FurnitureController implements Controller {
    * Controls the modification of the selected labels.
    */
   public void modifySelectedLabels() {
-    if (!Home.getLabelsSubList(this.home.getSelectedItems()).isEmpty()) {
+    List<Label> selectedLabels = Home.getLabelsSubList(this.home.getSelectedItems());
+    if (!selectedLabels.isEmpty()) {
+      for (Label label : selectedLabels) {
+        if (isItemLocked(label)) {
+          return;
+        }
+      }
       new LabelController(this.home, this.preferences, this.viewFactory,
           this.undoSupport).displayView(getView());
     }
@@ -1936,18 +1998,30 @@ public class PlanController extends FurnitureController implements Controller {
    * @since 5.0
    */
   public void modifySelectedPolylines() {
-    if (!Home.getPolylinesSubList(this.home.getSelectedItems()).isEmpty()) {
+    List<Polyline> selectedPolylines = Home.getPolylinesSubList(this.home.getSelectedItems());
+    if (!selectedPolylines.isEmpty()) {
+      for (Polyline polyline : selectedPolylines) {
+        if (isItemLocked(polyline)) {
+          return;
+        }
+      }
       new PolylineController(this.home, this.preferences, this.viewFactory,
           this.contentManager, this.undoSupport).displayView(getView());
     }
   }
 
   /**
-   * Controls the modification of the selected labels.
+   * Controls the modification of the selected dimension lines.
    * @since 7.2
    */
   public void modifySelectedDimensionLines() {
-    if (!Home.getDimensionLinesSubList(this.home.getSelectedItems()).isEmpty()) {
+    List<DimensionLine> selectedDimensionLines = Home.getDimensionLinesSubList(this.home.getSelectedItems());
+    if (!selectedDimensionLines.isEmpty()) {
+      for (DimensionLine dimensionLine : selectedDimensionLines) {
+        if (isItemLocked(dimensionLine)) {
+          return;
+        }
+      }
       new DimensionLineController(this.home, this.preferences, this.viewFactory,
           this.undoSupport).displayView(getView());
     }
@@ -2605,6 +2679,9 @@ public class PlanController extends FurnitureController implements Controller {
    * during a drag and drop operation initiated from outside of plan view.
    */
   public void startDraggedItems(List<Selectable> draggedItems, float x, float y) {
+    if (this.home.getSelectedLevel() != null && this.home.getSelectedLevel().isLocked()) {
+      return;
+    }
     this.draggedItems = draggedItems;
     // If magnetism is enabled, adjust furniture size and elevation
     if (this.preferences.isMagnetismEnabled()) {
@@ -9545,71 +9622,130 @@ public class PlanController extends FurnitureController implements Controller {
         if (getPointerTypeLastMousePress() == View.PointerType.TOUCH) {
           moveMouse(x, y); // Update cursor
         }
-        if (getRotatedLabelAt(x, y) != null) {
-          setState(getLabelRotationState());
-        } else if (getYawRotatedCameraAt(x, y) != null) {
-          setState(getCameraYawRotationState());
-        } else if (getPitchRotatedCameraAt(x, y) != null) {
-          setState(getCameraPitchRotationState());
-        } else if (getElevatedLabelAt(x, y) != null) {
-          setState(getLabelElevationState());
-        } else if (getElevatedCameraAt(x, y) != null) {
-          setState(getCameraElevationState());
-        } else if (getRoomNameAt(x, y) != null) {
-          setState(getRoomNameOffsetState());
-        } else if (getRoomRotatedNameAt(x, y) != null) {
-          setState(getRoomNameRotationState());
-        } else if (getRoomAreaAt(x, y) != null) {
-          setState(getRoomAreaOffsetState());
-        } else if (getRoomRotatedAreaAt(x, y) != null) {
-          setState(getRoomAreaRotationState());
-        } else if (getResizedDimensionLineStartAt(x, y) != null
-            || getResizedDimensionLineEndAt(x, y) != null) {
-          setState(getDimensionLineResizeState());
-        } else if (getHeightResizedDimensionLineAt(x, y) != null) {
-          setState(getDimensionLineHeightState());
-        } else if (getWidthAndDepthResizedPieceOfFurnitureAt(x, y) != null) {
-          setState(getPieceOfFurnitureResizeState());
-        } else if (getResizedWallStartAt(x, y) != null
-            || getResizedWallEndAt(x, y) != null) {
-          setState(getWallResizeState());
-        } else if (getResizedRoomAt(x, y) != null) {
-          setState(getRoomResizeState());
-        } else if (getOffsetDimensionLineAt(x, y) != null) {
-          setState(getDimensionLineOffsetState());
-        } else if (getResizedPolylineAt(x, y) != null) {
-          setState(getPolylineResizeState());
-        } else if (getPitchRotatedPieceOfFurnitureAt(x, y) != null) {
-          setState(getPieceOfFurniturePitchRotationState());
-        } else if (getRollRotatedPieceOfFurnitureAt(x, y) != null) {
-          setState(getPieceOfFurnitureRollRotationState());
-        } else if (getModifiedLightPowerAt(x, y) != null) {
-          setState(getLightPowerModificationState());
-        } else if (getHeightResizedPieceOfFurnitureAt(x, y) != null) {
-          setState(getPieceOfFurnitureHeightState());
-        } else if (getArcExtentWallAt(x, y) != null) {
-          setState(getWallArcExtentState());
-        } else if (getRotatedPieceOfFurnitureAt(x, y) != null) {
-          setState(getPieceOfFurnitureRotationState());
-        } else if (getPitchRotatedDimensionLineAt(x, y) != null) {
-          setState(getDimensionLinePitchRotationState());
-        } else if (getElevatedPieceOfFurnitureAt(x, y) != null) {
-          setState(getPieceOfFurnitureElevationState());
-        } else if (getElevatedDimensionLineAt(x, y) != null) {
-          setState(getDimensionLineElevationState());
-        } else if (getPieceOfFurnitureNameAt(x, y) != null) {
-          setState(getPieceOfFurnitureNameOffsetState());
-        } else if (getPieceOfFurnitureRotatedNameAt(x, y) != null) {
-          setState(getPieceOfFurnitureNameRotationState());
-        } else if (getRotatedCompassAt(x, y) != null) {
-          setState(getCompassRotationState());
-        } else if (getResizedCompassAt(x, y) != null) {
-          setState(getCompassResizeState());
+        Object item;
+        if ((item = getRotatedLabelAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getLabelRotationState());
+          }
+        } else if ((item = getYawRotatedCameraAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getCameraYawRotationState());
+          }
+        } else if ((item = getPitchRotatedCameraAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getCameraPitchRotationState());
+          }
+        } else if ((item = getElevatedLabelAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getLabelElevationState());
+          }
+        } else if ((item = getElevatedCameraAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getCameraElevationState());
+          }
+        } else if ((item = getRoomNameAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getRoomNameOffsetState());
+          }
+        } else if ((item = getRoomRotatedNameAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getRoomNameRotationState());
+          }
+        } else if ((item = getRoomAreaAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getRoomAreaOffsetState());
+          }
+        } else if ((item = getRoomRotatedAreaAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getRoomAreaRotationState());
+          }
+        } else if ((item = getResizedDimensionLineStartAt(x, y)) != null
+            || (item = getResizedDimensionLineEndAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getDimensionLineResizeState());
+          }
+        } else if ((item = getHeightResizedDimensionLineAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getDimensionLineHeightState());
+          }
+        } else if ((item = getWidthAndDepthResizedPieceOfFurnitureAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getPieceOfFurnitureResizeState());
+          }
+        } else if ((item = getResizedWallStartAt(x, y)) != null
+            || (item = getResizedWallEndAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getWallResizeState());
+          }
+        } else if ((item = getResizedRoomAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getRoomResizeState());
+          }
+        } else if ((item = getOffsetDimensionLineAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getDimensionLineOffsetState());
+          }
+        } else if ((item = getResizedPolylineAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getPolylineResizeState());
+          }
+        } else if ((item = getPitchRotatedPieceOfFurnitureAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getPieceOfFurniturePitchRotationState());
+          }
+        } else if ((item = getRollRotatedPieceOfFurnitureAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getPieceOfFurnitureRollRotationState());
+          }
+        } else if ((item = getModifiedLightPowerAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getLightPowerModificationState());
+          }
+        } else if ((item = getHeightResizedPieceOfFurnitureAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getPieceOfFurnitureHeightState());
+          }
+        } else if ((item = getArcExtentWallAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getWallArcExtentState());
+          }
+        } else if ((item = getRotatedPieceOfFurnitureAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getPieceOfFurnitureRotationState());
+          }
+        } else if ((item = getPitchRotatedDimensionLineAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getDimensionLinePitchRotationState());
+          }
+        } else if ((item = getElevatedPieceOfFurnitureAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getPieceOfFurnitureElevationState());
+          }
+        } else if ((item = getElevatedDimensionLineAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getDimensionLineElevationState());
+          }
+        } else if ((item = getPieceOfFurnitureNameAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getPieceOfFurnitureNameOffsetState());
+          }
+        } else if ((item = getPieceOfFurnitureRotatedNameAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getPieceOfFurnitureNameRotationState());
+          }
+        } else if ((item = getRotatedCompassAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getCompassRotationState());
+          }
+        } else if ((item = getResizedCompassAt(x, y)) != null) {
+          if (!isItemLocked(item)) {
+            setState(getCompassResizeState());
+          }
         } else {
           // If shift isn't pressed, and an item is under cursor position
           if (!shiftDown
               && (getPointerTypeLastMousePress() == View.PointerType.TOUCH
-                  || getSelectableItemAt(x, y) != null)) {
+                  || (item = getSelectableItemAt(x, y)) != null)) {
             // Change state to SelectionMoveState
             setState(getSelectionMoveState());
           } else {
@@ -11016,7 +11152,7 @@ public class PlanController extends FurnitureController implements Controller {
       Wall previousWall = this.wallEndAtStart != null
           ? this.wallEndAtStart
           : this.wallStartAtStart;
-      // Create a new wall with an angle equal to previous wall angle - 90°
+      // Create a new wall with an angle equal to previous wall angle - 90?
       double previousWallAngle = Math.PI - Math.atan2(previousWall.getYStart() - previousWall.getYEnd(),
           previousWall.getXStart() - previousWall.getXEnd());
       previousWallAngle -=  Math.PI / 2;
@@ -12568,7 +12704,7 @@ public class PlanController extends FurnitureController implements Controller {
       float newPitch = (float)(this.oldPitch
           + (y - getYLastMousePress()) * Math.cos(this.selectedCamera.getYaw()) * Math.PI / 360
           - (x - getXLastMousePress()) * Math.sin(this.selectedCamera.getYaw()) * Math.PI / 360);
-      // Check new angle is between -90° and 90°
+      // Check new angle is between -90? and 90?
       newPitch = Math.max(newPitch, -(float)Math.PI / 2);
       newPitch = Math.min(newPitch, (float)Math.PI / 2);
 
@@ -14273,7 +14409,7 @@ public class PlanController extends FurnitureController implements Controller {
       float [][] points = this.newRoom.getPoints();
       this.xPreviousPoint = points [points.length - 1][0];
       this.yPreviousPoint = points [points.length - 1][1];
-      // Create a new side with an angle equal to previous side angle - 90°
+      // Create a new side with an angle equal to previous side angle - 90?
       double previousSideAngle = Math.PI - Math.atan2(points [points.length - 2][1] - points [points.length - 1][1],
           points [points.length - 2][0] - points [points.length - 1][0]);
       previousSideAngle -=  Math.PI / 2;
@@ -15258,7 +15394,7 @@ public class PlanController extends FurnitureController implements Controller {
       float [][] points = this.newPolyline.getPoints();
       this.xPreviousPoint = points [points.length - 1][0];
       this.yPreviousPoint = points [points.length - 1][1];
-      // Create a new segment with an angle equal to previous segment angle - 90°
+      // Create a new segment with an angle equal to previous segment angle - 90?
       double previousSegmentAngle = Math.PI - Math.atan2(points [points.length - 2][1] - points [points.length - 1][1],
           points [points.length - 2][0] - points [points.length - 1][0]);
       previousSegmentAngle -=  Math.PI / 2;

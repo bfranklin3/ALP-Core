@@ -44,7 +44,7 @@ public class LevelController implements Controller {
   /**
    * The properties that may be edited by the view associated to this controller.
    */
-  public enum Property {VIEWABLE, NAME, ELEVATION, ELEVATION_INDEX, FLOOR_THICKNESS, HEIGHT, LEVELS, SELECT_LEVEL_INDEX}
+  public enum Property {VIEWABLE, NAME, ELEVATION, ELEVATION_INDEX, FLOOR_THICKNESS, HEIGHT, LEVELS, SELECT_LEVEL_INDEX, LOCKED}
 
   private final Home                  home;
   private final UserPreferences       preferences;
@@ -59,6 +59,7 @@ public class LevelController implements Controller {
   private Integer  elevationIndex;
   private Float    floorThickness;
   private Float    height;
+  private Boolean  locked;
   private Level [] levels;
   private Integer  selectedLevelIndex;
 
@@ -123,6 +124,7 @@ public class LevelController implements Controller {
       setElevation(null, false);
       setFloorThickness(null);
       setHeight(null);
+      setLocked(Boolean.FALSE);
       setElevationIndex(null, false);
     } else {
       setSelectedLevelIndex(this.home.getLevels().indexOf(selectedLevel));
@@ -131,6 +133,7 @@ public class LevelController implements Controller {
       setElevation(selectedLevel.getElevation(), false);
       setFloorThickness(selectedLevel.getFloorThickness());
       setHeight(selectedLevel.getHeight());
+      setLocked(selectedLevel.isLocked());
       setElevationIndex(selectedLevel.getElevationIndex(), false);
     }
   }
@@ -364,6 +367,28 @@ public class LevelController implements Controller {
   }
 
   /**
+   * Sets the edited locked attribute.
+   */
+  public void setLocked(Boolean locked) {
+    if (locked != this.locked) {
+      Boolean oldLocked = this.locked;
+      this.locked = locked;
+      this.propertyChangeSupport.firePropertyChange(Property.LOCKED.name(), oldLocked, locked);
+      if (locked != null && this.selectedLevelIndex != null) {
+        this.levels [this.selectedLevelIndex].setLocked(locked);
+        this.propertyChangeSupport.firePropertyChange(Property.LEVELS.name(), null, this.levels);
+      }
+    }
+  }
+
+  /**
+   * Returns the edited locked attribute.
+   */
+  public Boolean getLocked() {
+    return this.locked;
+  }
+
+  /**
    * Sets home levels.
    */
   private void setLevels(Level [] levels) {
@@ -411,15 +436,16 @@ public class LevelController implements Controller {
       Float elevation = getElevation();
       Float floorThickness = getFloorThickness();
       Float height = getHeight();
+      Boolean locked = getLocked();
       Integer elevationIndex = getElevationIndex();
 
       ModifiedLevel modifiedLevel = new ModifiedLevel(selectedLevel);
       // Apply modification
-      doModifyLevel(this.home, modifiedLevel, name, viewable, elevation, floorThickness, height, elevationIndex);
+      doModifyLevel(this.home, modifiedLevel, name, viewable, elevation, floorThickness, height, locked, elevationIndex);
       if (this.undoSupport != null) {
         UndoableEdit undoableEdit = new LevelModificationUndoableEdit(
             this.home, this.preferences, oldSelection.toArray(new Selectable [oldSelection.size()]),
-            modifiedLevel, name, viewable,  elevation, floorThickness, height, elevationIndex);
+            modifiedLevel, name, viewable,  elevation, floorThickness, height, locked, elevationIndex);
         this.undoSupport.postEdit(undoableEdit);
       }
       if (name != null) {
@@ -441,6 +467,7 @@ public class LevelController implements Controller {
     private final Float         elevation;
     private final Float         floorThickness;
     private final Float         height;
+    private final Boolean       locked;
     private final Integer       elevationIndex;
 
     private LevelModificationUndoableEdit(Home home,
@@ -452,6 +479,7 @@ public class LevelController implements Controller {
                                           Float elevation,
                                           Float floorThickness,
                                           Float height,
+                                          Boolean locked,
                                           Integer elevationIndex) {
       super(preferences, LevelController.class, "undoModifyLevelName");
       this.home = home;
@@ -462,6 +490,7 @@ public class LevelController implements Controller {
       this.elevation = elevation;
       this.floorThickness = floorThickness;
       this.height = height;
+      this.locked = locked;
       this.elevationIndex = elevationIndex;
     }
 
@@ -478,7 +507,7 @@ public class LevelController implements Controller {
       super.redo();
       this.home.setSelectedLevel(this.modifiedLevel.getLevel());
       doModifyLevel(this.home, this.modifiedLevel, this.name, this.viewable,
-          this.elevation, this.floorThickness, this.height, this.elevationIndex);
+          this.elevation, this.floorThickness, this.height, this.locked, this.elevationIndex);
     }
   }
 
@@ -487,7 +516,7 @@ public class LevelController implements Controller {
    */
   private static void doModifyLevel(Home home, ModifiedLevel modifiedLevel,
                                     String name, Boolean viewable, Float elevation,
-                                    Float floorThickness, Float height,
+                                    Float floorThickness, Float height, Boolean locked,
                                     Integer elevationIndex) {
     Level level = modifiedLevel.getLevel();
     if (name != null) {
@@ -521,6 +550,9 @@ public class LevelController implements Controller {
     }
     if (height != null) {
       level.setHeight(height);
+    }
+    if (locked != null) {
+      level.setLocked(locked);
     }
   }
 
@@ -562,6 +594,7 @@ public class LevelController implements Controller {
     private final float   elevation;
     private final float   floorThickness;
     private final float   height;
+    private final boolean locked;
     private final int     elevationIndex;
 
     public ModifiedLevel(Level level) {
@@ -571,6 +604,7 @@ public class LevelController implements Controller {
       this.elevation = level.getElevation();
       this.floorThickness = level.getFloorThickness();
       this.height = level.getHeight();
+      this.locked = level.isLocked();
       this.elevationIndex = level.getElevationIndex();
     }
 
@@ -591,6 +625,7 @@ public class LevelController implements Controller {
       this.level.setViewable(this.viewable);
       this.level.setFloorThickness(this.floorThickness);
       this.level.setHeight(this.height);
+      this.level.setLocked(this.locked);
     }
   }
 }

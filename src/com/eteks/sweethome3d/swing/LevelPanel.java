@@ -65,6 +65,7 @@ import com.eteks.sweethome3d.viewcontroller.View;
 public class LevelPanel extends JPanel implements DialogView {
   private final LevelController controller;
   private NullableCheckBox      viewableCheckBox;
+  private NullableCheckBox      lockedCheckBox;
   private JLabel                nameLabel;
   private JTextField            nameTextField;
   private JLabel                elevationLabel;
@@ -117,6 +118,25 @@ public class LevelPanel extends JPanel implements DialogView {
           new PropertyChangeListener() {
               public void propertyChange(PropertyChangeEvent ev) {
                 viewableCheckBox.setValue(controller.getViewable());
+              }
+            });
+    }
+
+    if (controller.isPropertyEditable(LevelController.Property.LOCKED)) {
+      // Create locked check box bound to LOCKED controller property
+      this.lockedCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(preferences,
+          LevelPanel.class, "lockedCheckBox.text"));
+      this.lockedCheckBox.setNullable(controller.getLocked() == null);
+      this.lockedCheckBox.setValue(controller.getLocked());
+      this.lockedCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            controller.setLocked(lockedCheckBox.getValue());
+          }
+        });
+      controller.addPropertyChangeListener(LevelController.Property.LOCKED,
+          new PropertyChangeListener() {
+              public void propertyChange(PropertyChangeEvent ev) {
+                lockedCheckBox.setValue(controller.getLocked());
               }
             });
     }
@@ -263,7 +283,8 @@ public class LevelPanel extends JPanel implements DialogView {
          SwingTools.getLocalizedLabelText(preferences, LevelPanel.class, "nameColumn"),
          SwingTools.getLocalizedLabelText(preferences, LevelPanel.class, "elevationColumn"),
          SwingTools.getLocalizedLabelText(preferences, LevelPanel.class, "floorThicknessColumn"),
-         SwingTools.getLocalizedLabelText(preferences, LevelPanel.class, "heightColumn")};
+         SwingTools.getLocalizedLabelText(preferences, LevelPanel.class, "heightColumn"),
+         SwingTools.getLocalizedLabelText(preferences, LevelPanel.class, "lockedColumn")};
     this.levelsSummaryTable = new JTable(new LevelsTableModel(controller, columnNames));
     float resolutionScale = SwingTools.getResolutionScale();
     if (resolutionScale != 1) {
@@ -276,7 +297,7 @@ public class LevelPanel extends JPanel implements DialogView {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus,
                                                        int row, int column) {
-          setEnabled((Boolean)table.getModel().getValueAt(row, 4));
+          setEnabled((Boolean)table.getModel().getValueAt(row, 5));
           return super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
         }
       });
@@ -288,13 +309,23 @@ public class LevelPanel extends JPanel implements DialogView {
             value = preferences.getLengthUnit().getFormat().format((Float)value);
             setHorizontalAlignment(JLabel.RIGHT);
           }
-          setEnabled((Boolean)table.getModel().getValueAt(row, 4));
+          setEnabled((Boolean)table.getModel().getValueAt(row, 5));
           return super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
         }
       };
     columnModel.getColumn(1).setCellRenderer(lengthRenderer);
     columnModel.getColumn(2).setCellRenderer(lengthRenderer);
     columnModel.getColumn(3).setCellRenderer(lengthRenderer);
+    columnModel.getColumn(4).setCellRenderer(new DefaultTableCellRenderer() {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus,
+                                                       int row, int column) {
+          JComponent component = (JComponent)table.getDefaultRenderer(Boolean.class).getTableCellRendererComponent(
+              table, value, isSelected, hasFocus, row, column);
+          component.setEnabled((Boolean)table.getModel().getValueAt(row, 5));
+          return component;
+        }
+      });
     // Ensure only selected level is selected in the table
     this.levelsSummaryTable.setSelectionModel(new DefaultListSelectionModel() {
         {
@@ -396,6 +427,10 @@ public class LevelPanel extends JPanel implements DialogView {
         this.viewableCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
             LevelPanel.class, "viewableCheckBox.mnemonic")).getKeyCode());
       }
+      if (this.lockedCheckBox != null) {
+        this.lockedCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
+            LevelPanel.class, "lockedCheckBox.mnemonic")).getKeyCode());
+      }
       if (this.nameLabel != null) {
         this.nameLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
             LevelPanel.class, "nameLabel.mnemonic")).getKeyCode());
@@ -430,11 +465,18 @@ public class LevelPanel extends JPanel implements DialogView {
     int standardGap = Math.round(5 * SwingTools.getResolutionScale());
     Insets labelInsets = new Insets(0, 0, standardGap, standardGap);
     Insets rightComponentInsets = new Insets(0, 0, standardGap, 0);
-    if (this.viewableCheckBox != null) {
+    if (this.viewableCheckBox != null || this.lockedCheckBox != null) {
       // First row
-      add(this.viewableCheckBox, new GridBagConstraints(
-          1, 0, 2, 1, 0, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.NONE, new Insets(0, -4, standardGap, 0), 0, 0));
+      if (this.viewableCheckBox != null) {
+        add(this.viewableCheckBox, new GridBagConstraints(
+            1, 0, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.NONE, new Insets(0, -4, standardGap, 0), 0, 0));
+      }
+      if (this.lockedCheckBox != null) {
+        add(this.lockedCheckBox, new GridBagConstraints(
+            2, 0, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.NONE, new Insets(0, standardGap, standardGap, 0), 0, 0));
+      }
     }
     if (this.nameLabel != null) {
       // Second row
@@ -544,7 +586,7 @@ public class LevelPanel extends JPanel implements DialogView {
     }
 
     public int getColumnCount() {
-      return 4;
+      return 5;
     }
 
     public Object getValueAt(int rowIndex, int columnIndex) {
@@ -559,11 +601,20 @@ public class LevelPanel extends JPanel implements DialogView {
             return level.getFloorThickness();
           }
         case 3 : return level.getHeight();
-        case 4 :
-          // Use not visible 5th column to retrieve viewable information
+        case 4 : return level.isLocked();
+        case 5 :
+          // Use not visible 6th column to retrieve viewable information
           return level.isViewable();
       }
       return null;
+    }
+
+    @Override
+    public Class<?> getColumnClass(int columnIndex) {
+      if (columnIndex == 4) {
+        return Boolean.class;
+      }
+      return super.getColumnClass(columnIndex);
     }
 
     @Override
