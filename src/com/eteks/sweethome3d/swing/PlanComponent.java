@@ -341,6 +341,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
   private static final Shape       LIGHT_POWER_POINT_INDICATOR;
   private static final GeneralPath WALL_ORIENTATION_INDICATOR;
   private static final Shape       WALL_POINT;
+  private static final Shape       SHARP_ROOM_POINT;
   private static final GeneralPath WALL_ARC_EXTENT_INDICATOR;
   private static final GeneralPath WALL_AND_LINE_RESIZE_INDICATOR;
   private static final Shape       CAMERA_YAW_ROTATION_INDICATOR;
@@ -480,6 +481,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     WALL_ORIENTATION_INDICATOR.lineTo(-4, 4);
 
     WALL_POINT = new Ellipse2D.Float(-3, -3, 6, 6);
+    SHARP_ROOM_POINT = new Rectangle2D.Float(-3, -3, 6, 6);
 
     // Create a path used as arc extent indicator for wall
     WALL_ARC_EXTENT_INDICATOR = new GeneralPath();
@@ -922,6 +924,10 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
             otherLevelsRoomAreaCache = null;
             otherLevelsRoomsCache = null;
             revalidate();
+          } else if (Room.Property.FLOOR_OPACITY.name().equals(propertyName)
+              || Room.Property.SMOOTHED.name().equals(propertyName)
+              || Room.Property.SHARP_CORNERS.name().equals(propertyName)) {
+            repaint();
           } else if (preferences.isRoomFloorColoredOrTextured()
                      && (Room.Property.FLOOR_COLOR.name().equals(propertyName)
                          || Room.Property.FLOOR_TEXTURE.name().equals(propertyName)
@@ -3247,14 +3253,14 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           }
         }
 
-        Composite oldComposite = setTransparency(g2D, room.isFloorVisible() ? 0.75f : 0.5f);
+        Composite oldComposite = setTransparency(g2D, room.getFloorOpacity());
         // Rotate graphics to rotate texture with requested angle
         // and draw shape rotated with the opposite angle
         g2D.rotate(textureAngle, 0, 0);
         AffineTransform rotation = textureAngle != 0
             ? AffineTransform.getRotateInstance(-textureAngle, 0, 0)
             : null;
-        Shape roomShape = ShapeTools.getShape(room.getPoints(), true, rotation);
+        Shape roomShape = getRoomShape(room, rotation);
         fillShape(g2D, roomShape, paintMode);
         g2D.setComposite(oldComposite);
 
@@ -3263,6 +3269,13 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         g2D.rotate(-textureAngle, 0, 0);
       }
     }
+  }
+
+  /**
+   * Returns the shape used to paint a room in plan view.
+   */
+  private Shape getRoomShape(Room room, AffineTransform rotation) {
+    return ShapeTools.getRoomShape(room.getPoints(), room.isSmoothed(), room.getSharpCorners(), rotation);
   }
 
   /**
@@ -3436,16 +3449,20 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       if (isViewableAtLevel(room, level)) {
         g2D.setPaint(selectionOutlinePaint);
         g2D.setStroke(selectionOutlineStroke);
-        g2D.draw(ShapeTools.getShape(room.getPoints(), true, null));
+        g2D.draw(getRoomShape(room, null));
 
         if (indicatorPaint != null) {
           g2D.setPaint(indicatorPaint);
           // Draw points of the room
-          for (float [] point : room.getPoints()) {
+          float [][] roomPoints = room.getPoints();
+          for (int i = 0; i < roomPoints.length; i++) {
+            float [] point = roomPoints [i];
             g2D.translate(point [0], point [1]);
             g2D.scale(scaleInverse, scaleInverse);
             g2D.setStroke(POINT_STROKE);
-            g2D.fill(WALL_POINT);
+            g2D.fill(room.isSmoothed() && room.isCornerSharp(i)
+                ? SHARP_ROOM_POINT
+                : WALL_POINT);
             g2D.setTransform(previousTransform);
           }
         }
@@ -3457,7 +3474,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     g2D.setStroke(new BasicStroke(getStrokeWidth(Room.class, PaintMode.PAINT) / planScale));
     for (Room room : rooms) {
       if (isViewableAtLevel(room, level)) {
-        g2D.draw(ShapeTools.getShape(room.getPoints(), true, null));
+        g2D.draw(getRoomShape(room, null));
       }
     }
 

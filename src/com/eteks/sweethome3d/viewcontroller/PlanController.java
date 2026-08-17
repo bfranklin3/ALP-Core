@@ -7380,6 +7380,56 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Toggles whether the room corner under (<code>x</code>, <code>y</code>) stays sharp when smoothed.
+   */
+  private void toggleRoomCornerSharp(Room room, float x, float y) {
+    int pointIndex = room.getPointIndexAt(x, y, getIndicatorMargin());
+    if (pointIndex != -1) {
+      boolean oldSharp = room.isCornerSharp(pointIndex);
+      room.setCornerSharp(pointIndex, !oldSharp);
+      if (this.undoSupport != null) {
+        this.undoSupport.postEdit(new RoomCornerSharpUndoableEdit(this, this.preferences,
+            room, pointIndex, oldSharp, !oldSharp));
+      }
+    }
+  }
+
+  /**
+   * Undoable edit for toggling a sharp room corner.
+   */
+  private static class RoomCornerSharpUndoableEdit extends LocalizedUndoableEdit {
+    private final PlanController controller;
+    private final Room           room;
+    private final int            pointIndex;
+    private final boolean        oldSharp;
+    private final boolean        newSharp;
+
+    public RoomCornerSharpUndoableEdit(PlanController controller, UserPreferences preferences,
+                                       Room room, int pointIndex, boolean oldSharp, boolean newSharp) {
+      super(preferences, PlanController.class, "undoToggleRoomCornerSharpName");
+      this.controller = controller;
+      this.room = room;
+      this.pointIndex = pointIndex;
+      this.oldSharp = oldSharp;
+      this.newSharp = newSharp;
+    }
+
+    @Override
+    public void undo() throws CannotUndoException {
+      super.undo();
+      this.room.setCornerSharp(this.pointIndex, this.oldSharp);
+      this.controller.selectAndShowItems(Arrays.asList(new Room [] {this.room}));
+    }
+
+    @Override
+    public void redo() throws CannotRedoException {
+      super.redo();
+      this.room.setCornerSharp(this.pointIndex, this.newSharp);
+      this.controller.selectAndShowItems(Arrays.asList(new Room [] {this.room}));
+    }
+  }
+
+  /**
    * Posts an undoable operation about <code>room</code> resizing.
    */
   private void postRoomResize(final Room room, final float oldX, final float oldY,
@@ -9679,7 +9729,12 @@ public class PlanController extends FurnitureController implements Controller {
           }
         } else if ((item = getResizedRoomAt(x, y)) != null) {
           if (!isItemLocked(item)) {
-            setState(getRoomResizeState());
+            Room resizedRoom = (Room)item;
+            if (resizedRoom.isSmoothed() && wasDuplicationActivatedLastMousePress()) {
+              toggleRoomCornerSharp(resizedRoom, x, y);
+            } else {
+              setState(getRoomResizeState());
+            }
           }
         } else if ((item = getOffsetDimensionLineAt(x, y)) != null) {
           if (!isItemLocked(item)) {

@@ -41,7 +41,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
    */
   public enum Property {NAME, NAME_X_OFFSET, NAME_Y_OFFSET, NAME_STYLE, NAME_ANGLE,
       POINTS, AREA_VISIBLE, AREA_X_OFFSET, AREA_Y_OFFSET, AREA_STYLE, AREA_ANGLE,
-      FLOOR_COLOR, FLOOR_TEXTURE, FLOOR_VISIBLE, FLOOR_SHININESS, 
+      FLOOR_COLOR, FLOOR_TEXTURE, FLOOR_VISIBLE, FLOOR_SHININESS, FLOOR_OPACITY, SMOOTHED, SHARP_CORNERS,
       CEILING_COLOR, CEILING_TEXTURE, CEILING_VISIBLE, CEILING_SHININESS, CEILING_FLAT, LEVEL}
 
   private static final long serialVersionUID = 1L;
@@ -63,6 +63,10 @@ public class Room extends HomeObject implements Selectable, Elevatable {
   private Integer             floorColor;
   private HomeTexture         floorTexture;
   private float               floorShininess;
+  private float               floorOpacity;
+  private boolean             smoothed;
+  // Experimental SPIKE-06 follow-up: null means every corner is smooth when smoothed is true
+  private boolean []          sharpCorners;
   private boolean             ceilingVisible;
   private Integer             ceilingColor;
   private HomeTexture         ceilingTexture;
@@ -93,6 +97,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
     this.areaVisible = true;
     this.nameYOffset = -40f;
     this.floorVisible = true;
+    this.floorOpacity = 0.75f;
     this.ceilingVisible = true;
     this.ceilingFlat = true;
   }
@@ -103,6 +108,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
    */
   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
     this.ceilingFlat = false;
+    this.floorOpacity = 0.75f;
     in.defaultReadObject();
   }
 
@@ -251,6 +257,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
     this.shapeCache = null;
     this.boundsCache = null;
     this.areaCache  = null;
+    syncSharpCornersLength();
     firePropertyChange(Property.POINTS.name(), oldPoints, points);
   }
 
@@ -282,6 +289,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
     this.shapeCache = null;
     this.boundsCache = null;
     this.areaCache  = null;
+    insertSharpCorner(index);
     firePropertyChange(Property.POINTS.name(), oldPoints, deepCopy(this.points));
   }
 
@@ -328,6 +336,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
     this.shapeCache = null;
     this.boundsCache = null;
     this.areaCache  = null;
+    removeSharpCorner(index);
     firePropertyChange(Property.POINTS.name(), oldPoints, deepCopy(this.points));
   }
 
@@ -557,6 +566,137 @@ public class Room extends HomeObject implements Selectable, Elevatable {
       this.floorShininess = floorShininess;
       firePropertyChange(Property.FLOOR_SHININESS.name(), oldFloorShininess, floorShininess);
     }
+  }
+
+  /**
+   * Returns the floor opacity of this room in plan view.
+   * @return a value between 0 (transparent) and 1 (opaque)
+   */
+  public float getFloorOpacity() {
+    return this.floorOpacity;
+  }
+
+  /**
+   * Sets the floor opacity of this room in plan view. Once this room is updated,
+   * listeners added to this room will receive a change notification.
+   */
+  public void setFloorOpacity(float floorOpacity) {
+    if (floorOpacity != this.floorOpacity) {
+      float oldFloorOpacity = this.floorOpacity;
+      this.floorOpacity = floorOpacity;
+      firePropertyChange(Property.FLOOR_OPACITY.name(), oldFloorOpacity, floorOpacity);
+    }
+  }
+
+  /**
+   * Returns whether the corners of this room are smoothed in plan view.
+   */
+  public boolean isSmoothed() {
+    return this.smoothed;
+  }
+
+  /**
+   * Sets whether the corners of this room are smoothed in plan view.
+   */
+  public void setSmoothed(boolean smoothed) {
+    if (smoothed != this.smoothed) {
+      this.smoothed = smoothed;
+      firePropertyChange(Property.SMOOTHED.name(), !smoothed, smoothed);
+    }
+  }
+
+  /**
+   * Returns whether the corner at <code>index</code> stays sharp when this room is smoothed.
+   */
+  public boolean isCornerSharp(int index) {
+    return this.sharpCorners != null
+        && index >= 0
+        && index < this.sharpCorners.length
+        && this.sharpCorners [index];
+  }
+
+  /**
+   * Sets whether the corner at <code>index</code> stays sharp when this room is smoothed.
+   */
+  public void setCornerSharp(int index, boolean sharp) {
+    if (index < 0 || index >= this.points.length) {
+      throw new IndexOutOfBoundsException("Invalid index " + index);
+    }
+    boolean oldSharp = isCornerSharp(index);
+    if (sharp == oldSharp) {
+      return;
+    }
+    ensureSharpCornersArray();
+    this.sharpCorners [index] = sharp;
+    if (!sharp && !hasAnySharpCorner()) {
+      this.sharpCorners = null;
+    }
+    firePropertyChange(Property.SHARP_CORNERS.name(), oldSharp, sharp);
+  }
+
+  /**
+   * Returns the per-vertex sharp-corner flags, or <code>null</code> if every corner is smooth.
+   */
+  public boolean [] getSharpCorners() {
+    return this.sharpCorners;
+  }
+
+  private void ensureSharpCornersArray() {
+    if (this.sharpCorners == null || this.sharpCorners.length != this.points.length) {
+      boolean [] next = new boolean [this.points.length];
+      if (this.sharpCorners != null) {
+        System.arraycopy(this.sharpCorners, 0, next, 0,
+            Math.min(this.sharpCorners.length, next.length));
+      }
+      this.sharpCorners = next;
+    }
+  }
+
+  private boolean hasAnySharpCorner() {
+    if (this.sharpCorners != null) {
+      for (boolean sharp : this.sharpCorners) {
+        if (sharp) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private void insertSharpCorner(int index) {
+    if (this.sharpCorners != null) {
+      boolean [] next = new boolean [this.points.length];
+      System.arraycopy(this.sharpCorners, 0, next, 0, index);
+      System.arraycopy(this.sharpCorners, index, next, index + 1, this.sharpCorners.length - index);
+      this.sharpCorners = hasAnySharpCorner(next) ? next : null;
+    }
+  }
+
+  private void removeSharpCorner(int index) {
+    if (this.sharpCorners != null) {
+      boolean [] next = new boolean [this.points.length];
+      System.arraycopy(this.sharpCorners, 0, next, 0, index);
+      System.arraycopy(this.sharpCorners, index + 1, next, index, this.sharpCorners.length - index - 1);
+      this.sharpCorners = hasAnySharpCorner(next) ? next : null;
+    }
+  }
+
+  private void syncSharpCornersLength() {
+    if (this.sharpCorners != null && this.sharpCorners.length != this.points.length) {
+      boolean [] next = new boolean [this.points.length];
+      System.arraycopy(this.sharpCorners, 0, next, 0,
+          Math.min(this.sharpCorners.length, next.length));
+      this.sharpCorners = hasAnySharpCorner(next) ? next : null;
+    }
+  }
+
+  private static boolean hasAnySharpCorner(boolean [] corners) {
+    for (boolean sharp : corners) {
+      if (sharp) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -859,6 +999,9 @@ public class Room extends HomeObject implements Selectable, Elevatable {
   public Room clone() {
     Room clone = (Room)super.clone();
     clone.level = null;
+    clone.sharpCorners = this.sharpCorners != null
+        ? this.sharpCorners.clone()
+        : null;
     return clone;
   }
 }

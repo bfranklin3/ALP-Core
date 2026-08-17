@@ -649,6 +649,8 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           writer.writeBooleanAttribute("floorVisible", room.isFloorVisible(), true);
           writer.writeColorAttribute("floorColor", room.getFloorColor());
           writer.writeFloatAttribute("floorShininess", room.getFloorShininess(), 0);
+          writer.writeFloatAttribute("floorOpacity", room.getFloorOpacity(), 0.75f);
+          writer.writeBooleanAttribute("smoothed", room.isSmoothed(), false);
           writer.writeBooleanAttribute("ceilingVisible", room.isCeilingVisible(), true);
           writer.writeColorAttribute("ceilingColor", room.getCeilingColor());
           writer.writeFloatAttribute("ceilingShininess", room.getCeilingShininess(), 0);
@@ -662,10 +664,12 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           writeTextStyle(writer, room.getAreaStyle(), "areaStyle");
           writeTexture(writer, room.getFloorTexture(), "floorTexture");
           writeTexture(writer, room.getCeilingTexture(), "ceilingTexture");
-          for (float [] point : room.getPoints()) {
+          for (int i = 0; i < room.getPointCount(); i++) {
+            float [] point = room.getPoints() [i];
             writer.writeStartElement("point");
             writer.writeFloatAttribute("x", point [0]);
             writer.writeFloatAttribute("y", point [1]);
+            writer.writeBooleanAttribute("sharp", room.isCornerSharp(i), false);
             writer.writeEndElement();
           }
         }

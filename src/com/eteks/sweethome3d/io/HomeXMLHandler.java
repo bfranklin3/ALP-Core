@@ -406,6 +406,8 @@ import com.eteks.sweethome3d.tools.URLContent;
  *       floorVisible (false | true) "true"
  *       floorColor CDATA #IMPLIED
  *       floorShininess CDATA "0"
+ *       floorOpacity CDATA "0.75"
+ *       smoothed (false | true) "false"
  *       ceilingVisible (false | true) "true"
  *       ceilingColor CDATA #IMPLIED
  *       ceilingShininess CDATA "0"
@@ -414,7 +416,8 @@ import com.eteks.sweethome3d.tools.URLContent;
  * &lt;!ELEMENT point EMPTY>
  * &lt;!ATTLIST point
  *       x CDATA #REQUIRED
- *       y CDATA #REQUIRED>
+ *       y CDATA #REQUIRED
+ *       sharp (false | true) "false">
  *
  * &lt;!ELEMENT polyline (property*, point+)>
  * &lt;!ATTLIST polyline
@@ -497,6 +500,7 @@ public class HomeXMLHandler extends DefaultHandler {
   private final List<BoxBounds>    shelfBoxes = new ArrayList<BoxBounds>();
   private final List<Float>        shelfElevations = new ArrayList<Float>();
   private final List<float[]>      points = new ArrayList<float[]>();
+  private final List<Boolean>      pointSharpFlags = new ArrayList<Boolean>();
   private final List<String>       furnitureVisiblePropertyNames = new ArrayList<String>();
   private final List<String>       printedLevelIds = new ArrayList<String>();
 
@@ -570,8 +574,10 @@ public class HomeXMLHandler extends DefaultHandler {
     } else if ("room".equals(name)) {
       this.textures.clear();
       this.points.clear();
+      this.pointSharpFlags.clear();
     } else if ("polyline".equals(name)) {
       this.points.clear();
+      this.pointSharpFlags.clear();
     } else if ("label".equals(name)) {
       this.labelText = null;
     } else if ("wall".equals(name)) {
@@ -683,6 +689,11 @@ public class HomeXMLHandler extends DefaultHandler {
     } else if ("room".equals(name)) {
       Room room = createRoom(name, attributesMap, this.points.toArray(new float [this.points.size()][]));
       setRoomAttributes(room, name, attributesMap);
+      for (int i = 0; i < this.pointSharpFlags.size(); i++) {
+        if (Boolean.TRUE.equals(this.pointSharpFlags.get(i))) {
+          room.setCornerSharp(i, true);
+        }
+      }
       this.home.addRoom(room);
       String levelId = attributesMap.get("level");
       if (levelId != null) {
@@ -763,6 +774,7 @@ public class HomeXMLHandler extends DefaultHandler {
       this.points.add(new float [] {
           parseFloat(attributesMap, "x"),
           parseFloat(attributesMap, "y")});
+      this.pointSharpFlags.add("true".equals(attributesMap.get("sharp")));
     } else if ("sash".equals(name)) {
       Sash sash = new Sash(
           parseFloat(attributesMap, "xAxis"),
@@ -1567,6 +1579,13 @@ public class HomeXMLHandler extends DefaultHandler {
     Float floorShininess = parseOptionalFloat(attributes, "floorShininess");
     if (floorShininess != null) {
       room.setFloorShininess(floorShininess);
+    }
+    Float floorOpacity = parseOptionalFloat(attributes, "floorOpacity");
+    if (floorOpacity != null) {
+      room.setFloorOpacity(floorOpacity);
+    }
+    if ("true".equals(attributes.get("smoothed"))) {
+      room.setSmoothed(true);
     }
     room.setCeilingVisible(!"false".equals(attributes.get("ceilingVisible")));
     room.setCeilingColor(parseOptionalColor(attributes, "ceilingColor"));

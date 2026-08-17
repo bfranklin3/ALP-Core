@@ -126,9 +126,6 @@ public class ShapeTools {
   /**
    * Returns the shape matching the coordinates in <code>points</code> array.
    */
-  /**
-   * Returns the shape matching the coordinates in <code>points</code> array.
-   */
   public static Shape getShape(float [][] points, boolean closedPath, AffineTransform transform) {
     GeneralPath path = new GeneralPath();
     path.moveTo(points [0][0], points [0][1]);
@@ -142,6 +139,69 @@ public class ShapeTools {
       path.transform(transform);
     }
     return path;
+  }
+
+  /**
+   * Returns the shape of a room in plan view, optionally with smoothed corners.
+   */
+  public static Shape getRoomShape(float [][] points, boolean smoothed, AffineTransform transform) {
+    return getRoomShape(points, smoothed, null, transform);
+  }
+
+  /**
+   * Returns the shape of a room in plan view.
+   * When <code>smoothed</code> is true, corners listed in <code>sharpCorners</code> stay pointed.
+   */
+  public static Shape getRoomShape(float [][] points, boolean smoothed, boolean [] sharpCorners,
+                                   AffineTransform transform) {
+    if (smoothed && points.length >= 3) {
+      Shape shape = getSmoothedRoomShape(points, sharpCorners);
+      if (transform != null) {
+        GeneralPath path = new GeneralPath(shape);
+        path.transform(transform);
+        return path;
+      }
+      return shape;
+    } else {
+      return getShape(points, true, transform);
+    }
+  }
+
+  /**
+   * Builds a closed path that curves through smooth vertices and stays pointed at sharp ones.
+   */
+  private static Shape getSmoothedRoomShape(float [][] points, boolean [] sharpCorners) {
+    GeneralPath path = new GeneralPath();
+    path.moveTo(points [0][0], points [0][1]);
+    int n = points.length;
+    for (int i = 0; i < n; i++) {
+      float [] point = points [i];
+      float [] nextPoint = points [(i + 1) % n];
+      boolean startSharp = isSharpCorner(sharpCorners, i);
+      boolean endSharp = isSharpCorner(sharpCorners, (i + 1) % n);
+      if (startSharp && endSharp) {
+        path.lineTo(nextPoint [0], nextPoint [1]);
+      } else {
+        float [] previousPoint = points [i == 0 ? n - 1 : i - 1];
+        float [] nextNextPoint = points [(i + 2) % n];
+        float [] vectorToBisectorPoint = new float [] {nextPoint [0] - previousPoint [0], nextPoint [1] - previousPoint [1]};
+        float [] vectorToBisectorNextPoint = new float [] {point [0] - nextNextPoint [0], point [1] - nextNextPoint [1]};
+        float cp1x = startSharp ? point [0] : point [0] + vectorToBisectorPoint [0] / 3.625f;
+        float cp1y = startSharp ? point [1] : point [1] + vectorToBisectorPoint [1] / 3.625f;
+        float cp2x = endSharp ? nextPoint [0] : nextPoint [0] + vectorToBisectorNextPoint [0] / 3.625f;
+        float cp2y = endSharp ? nextPoint [1] : nextPoint [1] + vectorToBisectorNextPoint [1] / 3.625f;
+        path.curveTo(cp1x, cp1y, cp2x, cp2y, nextPoint [0], nextPoint [1]);
+      }
+    }
+    path.closePath();
+    return path;
+  }
+
+  private static boolean isSharpCorner(boolean [] sharpCorners, int index) {
+    return sharpCorners != null
+        && index >= 0
+        && index < sharpCorners.length
+        && sharpCorners [index];
   }
 
   /**

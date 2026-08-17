@@ -26,6 +26,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.text.DecimalFormat;
+import java.text.Format;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JCheckBox;
@@ -35,6 +37,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JSeparator;
+import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.event.ChangeEvent;
@@ -60,12 +63,15 @@ public class RoomPanel extends JPanel implements DialogView {
   private JTextField            nameTextField;
   private NullableCheckBox      areaVisibleCheckBox;
   private NullableCheckBox      floorVisibleCheckBox;
+  private NullableCheckBox      smoothedCheckBox;
   private JRadioButton          floorColorRadioButton;
   private ColorButton           floorColorButton;
   private JRadioButton          floorTextureRadioButton;
   private JComponent            floorTextureComponent;
   private JRadioButton          floorMattRadioButton;
   private JRadioButton          floorShinyRadioButton;
+  private JLabel                floorOpacityLabel;
+  private JSpinner              floorOpacitySpinner;
   private NullableCheckBox      ceilingVisibleCheckBox;
   private JRadioButton          ceilingColorRadioButton;
   private ColorButton           ceilingColorButton;
@@ -186,6 +192,28 @@ public class RoomPanel extends JPanel implements DialogView {
         });
     }
 
+    if (controller.isPropertyEditable(RoomController.Property.SMOOTHED)) {
+      // Create smoothed check box bound to SMOOTHED controller property
+      this.smoothedCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(preferences,
+          RoomPanel.class, "smoothedCheckBox.text"));
+      this.smoothedCheckBox.setNullable(controller.getSmoothed() == null);
+      this.smoothedCheckBox.setValue(controller.getSmoothed());
+      final PropertyChangeListener smoothedChangeListener = new PropertyChangeListener() {
+        public void propertyChange(PropertyChangeEvent ev) {
+          smoothedCheckBox.setNullable(ev.getNewValue() == null);
+          smoothedCheckBox.setValue((Boolean)ev.getNewValue());
+        }
+      };
+      controller.addPropertyChangeListener(RoomController.Property.SMOOTHED, smoothedChangeListener);
+      this.smoothedCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            controller.removePropertyChangeListener(RoomController.Property.SMOOTHED, smoothedChangeListener);
+            controller.setSmoothed(smoothedCheckBox.getValue());
+            controller.addPropertyChangeListener(RoomController.Property.SMOOTHED, smoothedChangeListener);
+          }
+        });
+    }
+
     if (controller.isPropertyEditable(RoomController.Property.FLOOR_PAINT)) {
       // Floor color and texture buttons bound to floor controller properties
       this.floorColorRadioButton = new JRadioButton(SwingTools.getLocalizedLabelText(preferences,
@@ -275,6 +303,47 @@ public class RoomPanel extends JPanel implements DialogView {
       floorShininessButtonGroup.add(this.floorMattRadioButton);
       floorShininessButtonGroup.add(this.floorShinyRadioButton);
       updateFloorShininessRadioButtons(controller);
+    }
+
+    if (controller.isPropertyEditable(RoomController.Property.FLOOR_OPACITY)) {
+      // Create floor opacity label and spinner bound to FLOOR_OPACITY controller property
+      this.floorOpacityLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
+          RoomPanel.class, "floorOpacityLabel.text", "%"));
+      final NullableSpinner.NullableSpinnerNumberModel floorOpacitySpinnerModel =
+          new NullableSpinner.NullableSpinnerNumberModel(75f, 0f, 100f, 5f) {
+            @Override
+            Format getFormat() {
+              return new DecimalFormat("0.#");
+            }
+          };
+      this.floorOpacitySpinner = new NullableSpinner(floorOpacitySpinnerModel);
+      floorOpacitySpinnerModel.setNullable(controller.getFloorOpacity() == null);
+      floorOpacitySpinnerModel.setValue(controller.getFloorOpacity() != null
+          ? controller.getFloorOpacity() * 100
+          : null);
+      final PropertyChangeListener floorOpacityChangeListener = new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            Float floorOpacity = (Float)ev.getNewValue();
+            floorOpacitySpinnerModel.setNullable(floorOpacity == null);
+            floorOpacitySpinnerModel.setValue(floorOpacity != null
+                ? floorOpacity * 100
+                : null);
+            updateFloorOpacityEnabled(controller);
+          }
+        };
+      controller.addPropertyChangeListener(RoomController.Property.FLOOR_OPACITY, floorOpacityChangeListener);
+      controller.addPropertyChangeListener(RoomController.Property.FLOOR_VISIBLE, floorOpacityChangeListener);
+      floorOpacitySpinnerModel.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            controller.removePropertyChangeListener(RoomController.Property.FLOOR_OPACITY, floorOpacityChangeListener);
+            Number value = (Number)floorOpacitySpinnerModel.getValue();
+            controller.setFloorOpacity(value != null
+                ? value.floatValue() / 100f
+                : null);
+            controller.addPropertyChangeListener(RoomController.Property.FLOOR_OPACITY, floorOpacityChangeListener);
+          }
+        });
+      updateFloorOpacityEnabled(controller);
     }
 
     if (controller.isPropertyEditable(RoomController.Property.CEILING_VISIBLE)) {
@@ -580,6 +649,17 @@ public class RoomPanel extends JPanel implements DialogView {
   }
 
   /**
+   * Updates floor opacity spinner enabled state.
+   */
+  private void updateFloorOpacityEnabled(RoomController controller) {
+    if (this.floorOpacitySpinner != null) {
+      Boolean floorVisible = controller.getFloorVisible();
+      this.floorOpacitySpinner.setEnabled(floorVisible == null || floorVisible);
+      this.floorOpacityLabel.setEnabled(floorVisible == null || floorVisible);
+    }
+  }
+
+  /**
    * Updates ceiling color radio buttons.
    */
   private void updateCeilingColorRadioButtons(RoomController controller) {
@@ -658,6 +738,10 @@ public class RoomPanel extends JPanel implements DialogView {
         this.floorVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(
             preferences.getLocalizedString(RoomPanel.class, "floorVisibleCheckBox.mnemonic")).getKeyCode());
       }
+      if (this.smoothedCheckBox != null) {
+        this.smoothedCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            preferences.getLocalizedString(RoomPanel.class, "smoothedCheckBox.mnemonic")).getKeyCode());
+      }
       if (this.floorColorRadioButton != null) {
         this.floorColorRadioButton.setMnemonic(KeyStroke.getKeyStroke(
             preferences.getLocalizedString(RoomPanel.class, "floorColorRadioButton.mnemonic")).getKeyCode());
@@ -669,6 +753,11 @@ public class RoomPanel extends JPanel implements DialogView {
             preferences.getLocalizedString(RoomPanel.class, "floorMattRadioButton.mnemonic")).getKeyCode());
         this.floorShinyRadioButton.setMnemonic(KeyStroke.getKeyStroke(
             preferences.getLocalizedString(RoomPanel.class, "floorShinyRadioButton.mnemonic")).getKeyCode());
+      }
+      if (this.floorOpacityLabel != null) {
+        this.floorOpacityLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(
+            preferences.getLocalizedString(RoomPanel.class, "floorOpacityLabel.mnemonic")).getKeyCode());
+        this.floorOpacityLabel.setLabelFor(this.floorOpacitySpinner);
       }
       if (this.ceilingVisibleCheckBox != null) {
         this.ceilingVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(
@@ -746,14 +835,17 @@ public class RoomPanel extends JPanel implements DialogView {
           GridBagConstraints.HORIZONTAL, rowInsets, 0, 0));
     }
     // Last row
-    if (this.floorVisibleCheckBox != null || this.floorColorRadioButton != null || this.floorMattRadioButton != null) {
+    if (this.floorVisibleCheckBox != null || this.floorColorRadioButton != null || this.floorMattRadioButton != null
+        || this.floorOpacitySpinner != null || this.smoothedCheckBox != null) {
       JComponent filler = new JLabel();
       filler.setPreferredSize(new JCheckBox().getPreferredSize());
       JPanel floorPanel = createVerticalTitledPanel(preferences.getLocalizedString(
           RoomPanel.class, "floorPanel.title"),
           new JComponent [][] {{this.floorVisibleCheckBox, null,
+                                this.smoothedCheckBox, null,
                                 this.floorColorRadioButton, this.floorColorButton,
                                 this.floorTextureRadioButton, this.floorTextureComponent,
+                                this.floorOpacityLabel, this.floorOpacitySpinner,
                                 this.ceilingFlatCheckBox != null ? filler : null, null},
                                 {this.floorMattRadioButton, this.floorShinyRadioButton}});
       add(floorPanel, new GridBagConstraints(
