@@ -557,6 +557,71 @@ public class LevelController implements Controller {
   }
 
   /**
+   * Returns whether {@code level} can move by {@code direction} in home level order
+   * ({@code +1} = up / higher stack, {@code -1} = down) among levels at the same elevation.
+   */
+  public static boolean canMoveLevelElevationIndex(Home home, Level level, int direction) {
+    List<Level> levels = home.getLevels();
+    int index = levels.indexOf(level);
+    if (index < 0) {
+      return false;
+    }
+    int neighborIndex = index + direction;
+    if (neighborIndex < 0 || neighborIndex >= levels.size()) {
+      return false;
+    }
+    return levels.get(neighborIndex).getElevation() == level.getElevation();
+  }
+
+  /**
+   * Moves {@code level} up or down in overlay stack order and posts an undo edit if requested.
+   */
+  public static void moveLevelElevationIndex(Home home, UserPreferences preferences,
+                                             UndoableEditSupport undoSupport, Level level, int direction) {
+    if (!canMoveLevelElevationIndex(home, level, direction)) {
+      return;
+    }
+    int oldElevationIndex = level.getElevationIndex();
+    int newElevationIndex = oldElevationIndex + direction;
+    updateLevelElevationIndex(level, newElevationIndex, home.getLevels());
+    if (undoSupport != null) {
+      undoSupport.postEdit(new LevelElevationIndexUndoableEdit(home, preferences, level,
+          oldElevationIndex, newElevationIndex, direction > 0));
+    }
+  }
+
+  /**
+   * Undoable edit for a level elevation index change (overlay order).
+   */
+  private static class LevelElevationIndexUndoableEdit extends LocalizedUndoableEdit {
+    private final Home  home;
+    private final Level level;
+    private final int   oldElevationIndex;
+    private final int   newElevationIndex;
+
+    public LevelElevationIndexUndoableEdit(Home home, UserPreferences preferences, Level level,
+                                           int oldElevationIndex, int newElevationIndex, boolean moveUp) {
+      super(preferences, LevelController.class, moveUp ? "undoMoveLayerUp" : "undoMoveLayerDown");
+      this.home = home;
+      this.level = level;
+      this.oldElevationIndex = oldElevationIndex;
+      this.newElevationIndex = newElevationIndex;
+    }
+
+    @Override
+    public void undo() throws CannotUndoException {
+      super.undo();
+      updateLevelElevationIndex(this.level, this.oldElevationIndex, this.home.getLevels());
+    }
+
+    @Override
+    public void redo() throws CannotRedoException {
+      super.redo();
+      updateLevelElevationIndex(this.level, this.newElevationIndex, this.home.getLevels());
+    }
+  }
+
+  /**
    * Returns a sub list of <code>items</code> that are at a viewable level.
    */
   private static List<Selectable> getViewableSublist(List<? extends Selectable> items) {

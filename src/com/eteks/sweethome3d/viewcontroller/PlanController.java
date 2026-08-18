@@ -4142,6 +4142,46 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Returns whether the selected level can move up in overlay stack order.
+   */
+  public boolean canMoveSelectedLayerUp() {
+    Level selectedLevel = this.home.getSelectedLevel();
+    return selectedLevel != null
+        && LevelController.canMoveLevelElevationIndex(this.home, selectedLevel, 1);
+  }
+
+  /**
+   * Returns whether the selected level can move down in overlay stack order.
+   */
+  public boolean canMoveSelectedLayerDown() {
+    Level selectedLevel = this.home.getSelectedLevel();
+    return selectedLevel != null
+        && LevelController.canMoveLevelElevationIndex(this.home, selectedLevel, -1);
+  }
+
+  /**
+   * Moves the selected level up in overlay stack order.
+   */
+  public void moveSelectedLayerUp() {
+    Level selectedLevel = this.home.getSelectedLevel();
+    if (selectedLevel != null) {
+      LevelController.moveLevelElevationIndex(this.home, this.preferences, this.undoSupport,
+          selectedLevel, 1);
+    }
+  }
+
+  /**
+   * Moves the selected level down in overlay stack order.
+   */
+  public void moveSelectedLayerDown() {
+    Level selectedLevel = this.home.getSelectedLevel();
+    if (selectedLevel != null) {
+      LevelController.moveLevelElevationIndex(this.home, this.preferences, this.undoSupport,
+          selectedLevel, -1);
+    }
+  }
+
+  /**
    * Deletes the selected level and the items that belongs to it.
    */
   public void deleteSelectedLevel() {

@@ -451,6 +451,8 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
                      || HomeView.ActionType.MAKE_LEVEL_ONLY_VIEWABLE_ONE.name().equals(((JMenuItem)component).getAction().getValue(ResourceAction.RESOURCE_PREFIX))
                      || HomeView.ActionType.MAKE_ALL_LEVELS_VIEWABLE.name().equals(((JMenuItem)component).getAction().getValue(ResourceAction.RESOURCE_PREFIX))
                      || HomeView.ActionType.MODIFY_LEVEL.name().equals(((JMenuItem)component).getAction().getValue(ResourceAction.RESOURCE_PREFIX))
+                     || HomeView.ActionType.MOVE_LAYER_UP.name().equals(((JMenuItem)component).getAction().getValue(ResourceAction.RESOURCE_PREFIX))
+                     || HomeView.ActionType.MOVE_LAYER_DOWN.name().equals(((JMenuItem)component).getAction().getValue(ResourceAction.RESOURCE_PREFIX))
                      || HomeView.ActionType.DELETE_LEVEL.name().equals(((JMenuItem)component).getAction().getValue(ResourceAction.RESOURCE_PREFIX)))) {
         tabbedPanePopup.add(component);
       } else {

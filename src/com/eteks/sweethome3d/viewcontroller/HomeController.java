@@ -353,6 +353,11 @@ public class HomeController implements Controller {
     homeView.setEnabled(HomeView.ActionType.MAKE_LEVEL_ONLY_VIEWABLE_ONE, homeContainsOneSelectedLevel);
     homeView.setEnabled(HomeView.ActionType.MAKE_ALL_LEVELS_VIEWABLE, levels.size() > 1);
     homeView.setEnabled(HomeView.ActionType.MODIFY_LEVEL, homeContainsOneSelectedLevel);
+    PlanController planController = getPlanController();
+    homeView.setEnabled(HomeView.ActionType.MOVE_LAYER_UP,
+        !modificationState && planController.canMoveSelectedLayerUp());
+    homeView.setEnabled(HomeView.ActionType.MOVE_LAYER_DOWN,
+        !modificationState && planController.canMoveSelectedLayerDown());
     homeView.setEnabled(HomeView.ActionType.DELETE_LEVEL, !modificationState && homeContainsOneSelectedLevel);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_ALL_LEVELS, levels.size() > 1);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_SELECTED_LEVEL, levels.size() > 1);

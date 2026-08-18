@@ -526,6 +526,8 @@ public class HomePane extends JRootPane implements HomeView {
       createAction(ActionType.MAKE_LEVEL_ONLY_VIEWABLE_ONE, preferences, planController, "setSelectedLevelOnlyViewable");
       createAction(ActionType.MAKE_ALL_LEVELS_VIEWABLE, preferences, planController, "setAllLevelsViewable");
       createAction(ActionType.MODIFY_LEVEL, preferences, planController, "modifySelectedLevel");
+      createAction(ActionType.MOVE_LAYER_UP, preferences, planController, "moveSelectedLayerUp");
+      createAction(ActionType.MOVE_LAYER_DOWN, preferences, planController, "moveSelectedLayerDown");
       createAction(ActionType.DELETE_LEVEL, preferences, planController, "deleteSelectedLevel");
       createAction(ActionType.ZOOM_IN, preferences, controller, "zoomIn");
       createAction(ActionType.ZOOM_OUT, preferences, controller, "zoomOut");
@@ -3521,6 +3523,8 @@ public class HomePane extends JRootPane implements HomeView {
       addActionToPopupMenu(ActionType.MAKE_LEVEL_ONLY_VIEWABLE_ONE, planViewPopup);
       addActionToPopupMenu(ActionType.MAKE_ALL_LEVELS_VIEWABLE, planViewPopup);
       addActionToPopupMenu(ActionType.MODIFY_LEVEL, planViewPopup);
+      addActionToPopupMenu(ActionType.MOVE_LAYER_UP, planViewPopup);
+      addActionToPopupMenu(ActionType.MOVE_LAYER_DOWN, planViewPopup);
       addActionToPopupMenu(ActionType.DELETE_LEVEL, planViewPopup);
       planViewPopup.addSeparator();
       addActionToPopupMenu(ActionType.ZOOM_OUT, planViewPopup);
