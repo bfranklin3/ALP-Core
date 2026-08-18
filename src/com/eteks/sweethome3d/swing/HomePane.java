@@ -2688,6 +2688,8 @@ public class HomePane extends JRootPane implements HomeView {
     addActionToToolBar(ActionType.ZOOM_IN, toolBar);
     addActionToToolBar(ActionType.ZOOM_OUT, toolBar);
 
+    addActionToToolBar(ActionType.ADD_LEVEL, toolBar);
+
     JComponent draftModeButton = createDraftModeButton(home);
     if (draftModeButton != null) {
       toolBar.add(Box.createRigidArea(new Dimension(2, 2)));
