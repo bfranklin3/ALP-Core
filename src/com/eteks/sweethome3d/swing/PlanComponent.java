@@ -1117,6 +1117,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       });
     home.addPropertyChangeListener(Home.Property.DRAFT_MODE, new PropertyChangeListener() {
         public void propertyChange(PropertyChangeEvent ev) {
+          clearFurnitureTopViewIconsCache();
           repaint();
         }
       });
@@ -1177,13 +1178,11 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           case FURNITURE_VIEWED_FROM_TOP :
             if (planComponent.furnitureTopViewIconKeys != null
                 && !preferences.isFurnitureViewedFromTop()) {
-              planComponent.furnitureTopViewIconKeys = null;
-              planComponent.furnitureTopViewIconsCache = null;
+              planComponent.clearFurnitureTopViewIconsCache();
             }
             break;
           case FURNITURE_MODEL_ICON_SIZE :
-            planComponent.furnitureTopViewIconKeys = null;
-            planComponent.furnitureTopViewIconsCache = null;
+            planComponent.clearFurnitureTopViewIconsCache();
             break;
           default:
             break;
@@ -1191,6 +1190,14 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         planComponent.repaint();
       }
     }
+  }
+
+  /**
+   * Clears cached top view furniture icons (e.g. when draft mode toggles plan icon source).
+   */
+  private void clearFurnitureTopViewIconsCache() {
+    this.furnitureTopViewIconKeys = null;
+    this.furnitureTopViewIconsCache = null;
   }
 
   /**
@@ -4181,7 +4188,12 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
 
             boolean viewedFromTop;
             if (isDraftMode(paintMode)) {
-              viewedFromTop = false;
+              if (this.preferences.isFurnitureViewedFromTop()
+                  && getPlanIconContentForPaint(piece, paintMode) != null) {
+                viewedFromTop = true;
+              } else {
+                viewedFromTop = false;
+              }
             } else if (this.preferences.isFurnitureViewedFromTop()) {
               if (piece.getPlanIcon() != null
                   || piece instanceof HomeDoorOrWindow) {
@@ -4576,6 +4588,21 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     g2D.setClip(previousClip);
   }
 
+  private static final String PLAN_ICON_LINE_PROPERTY = "planIconLine";
+
+  /**
+   * Returns plan icon content for painting (line art in Draft when available).
+   */
+  private Content getPlanIconContentForPaint(HomePieceOfFurniture piece, PaintMode paintMode) {
+    if (isDraftMode(paintMode)) {
+      Content planIconLine = piece.getContentProperty(PLAN_ICON_LINE_PROPERTY);
+      if (planIconLine != null) {
+        return planIconLine;
+      }
+    }
+    return piece.getPlanIcon();
+  }
+
   /**
    * Paints <code>piece</code> top icon with <code>g2D</code>.
    */
@@ -4588,18 +4615,19 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       this.furnitureTopViewIconKeys = new WeakHashMap<HomePieceOfFurniture, HomePieceOfFurnitureTopViewIconKey>();
       this.furnitureTopViewIconsCache = new WeakHashMap<HomePieceOfFurnitureTopViewIconKey, PieceOfFurnitureTopViewIcon>();
     }
+    Content planIconContent = getPlanIconContentForPaint(piece, paintMode);
     HomePieceOfFurnitureTopViewIconKey topViewIconKey = this.furnitureTopViewIconKeys.get(piece);
     PieceOfFurnitureTopViewIcon icon;
     if (topViewIconKey == null) {
-      topViewIconKey = new HomePieceOfFurnitureTopViewIconKey(piece.clone());
+      topViewIconKey = new HomePieceOfFurnitureTopViewIconKey(piece.clone(), planIconContent);
       icon = this.furnitureTopViewIconsCache.get(topViewIconKey);
       if (icon == null
           || icon.isWaitIcon()
              && paintMode != PaintMode.PAINT) {
         PlanComponent waitingComponent = paintMode == PaintMode.PAINT ? this : null;
         // Prefer use plan icon if it exists
-        if (piece.getPlanIcon() != null) {
-          icon = new PieceOfFurniturePlanIcon(piece, waitingComponent);
+        if (planIconContent != null) {
+          icon = new PieceOfFurniturePlanIcon(piece, planIconContent, waitingComponent);
         } else {
           icon = new PieceOfFurnitureModelIcon(piece, this.object3dFactory, waitingComponent, this.preferences.getFurnitureModelIconSize());
         }
@@ -6810,8 +6838,9 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
      *            be read immediately in the current thread.
      */
     public PieceOfFurniturePlanIcon(final HomePieceOfFurniture piece,
+                                    final Content planIconContent,
                                     final Component waitingComponent) {
-      super(IconManager.getInstance().getIcon(piece.getPlanIcon(), waitingComponent));
+      super(IconManager.getInstance().getIcon(planIconContent, waitingComponent));
       this.pieceWidth = piece.getWidth();
       this.pieceDepth = piece.getDepth();
       this.pieceColor = piece.getColor();
@@ -7167,11 +7196,14 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
    */
   private static class HomePieceOfFurnitureTopViewIconKey {
     private HomePieceOfFurniture piece;
+    private Content              planIconContent;
     private int                  hashCode;
 
-    public HomePieceOfFurnitureTopViewIconKey(HomePieceOfFurniture piece) {
+    public HomePieceOfFurnitureTopViewIconKey(HomePieceOfFurniture piece, Content planIconContent) {
       this.piece = piece;
-      this.hashCode = (piece.getPlanIcon() != null ? piece.getPlanIcon().hashCode() : piece.getModel().hashCode())
+      this.planIconContent = planIconContent;
+      this.hashCode = (planIconContent != null ? planIconContent.hashCode()
+          : piece.getPlanIcon() != null ? piece.getPlanIcon().hashCode() : piece.getModel().hashCode())
           + (piece.getColor() != null ? 37 * piece.getColor().hashCode() : 1234);
       if (piece.isHorizontallyRotated()
           || piece.getTexture() != null) {
@@ -7203,7 +7235,10 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         HomePieceOfFurniture piece2 = ((HomePieceOfFurnitureTopViewIconKey)obj).piece;
         // Test all furniture data that could make change the plan icon
         // (see HomePieceOfFurniture3D and PlanComponent#addModelListeners for changes conditions)
-        return (this.piece.getPlanIcon() != null
+        HomePieceOfFurnitureTopViewIconKey key2 = (HomePieceOfFurnitureTopViewIconKey)obj;
+        return (this.planIconContent == key2.planIconContent
+                || this.planIconContent != null && this.planIconContent.equals(key2.planIconContent))
+            && (this.piece.getPlanIcon() != null
                   ? this.piece.getPlanIcon().equals(piece2.getPlanIcon())
                   : this.piece.getModel().equals(piece2.getModel()))
             && (this.piece.getColor() == piece2.getColor()
