@@ -227,6 +227,7 @@ public class HomeController implements Controller {
     boolean applicationExists = this.application != null;
 
     homeView.setEnabled(HomeView.ActionType.NEW_HOME, applicationExists);
+    homeView.setEnabled(HomeView.ActionType.NEW_SITE_PLAN, applicationExists);
     homeView.setEnabled(HomeView.ActionType.NEW_HOME_FROM_EXAMPLE, applicationExists);
     homeView.setEnabled(HomeView.ActionType.OPEN, applicationExists);
     homeView.setEnabled(HomeView.ActionType.DELETE_RECENT_HOMES,
@@ -2006,6 +2007,20 @@ public class HomeController implements Controller {
       AlpLevelDefaults.addDefaultPlanLevel(home, this.preferences);
     }
     this.application.addHome(home);
+  }
+
+  /**
+   * Creates a new home with the ALP five-level site-plan template.
+   */
+  public void newSitePlan() {
+    Home home;
+    if (this.application != null) {
+      home = this.application.createSitePlanHome();
+      this.application.addHome(home);
+    } else {
+      home = new Home(this.preferences.getNewWallHeight());
+      AlpLevelDefaults.addStarterSitePlanLevels(home, this.preferences);
+    }
   }
 
   /**

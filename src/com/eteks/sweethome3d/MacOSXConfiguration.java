@@ -525,6 +525,7 @@ class MacOSXConfiguration {
       switch (action) {
         case ABOUT :
         case NEW_HOME :
+        case NEW_SITE_PLAN :
         case NEW_HOME_FROM_EXAMPLE :
         case OPEN :
         case DELETE_RECENT_HOMES :

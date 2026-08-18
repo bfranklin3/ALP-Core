@@ -319,6 +319,7 @@ public class HomePane extends JRootPane implements HomeView {
                              UserPreferences preferences,
                              final HomeController controller) {
     createAction(ActionType.NEW_HOME, preferences, controller, "newHome");
+    createAction(ActionType.NEW_SITE_PLAN, preferences, controller, "newSitePlan");
     createAction(ActionType.NEW_HOME_FROM_EXAMPLE, preferences, controller, "newHomeFromExample");
     createAction(ActionType.OPEN, preferences, controller, "open");
     createAction(ActionType.DELETE_RECENT_HOMES, preferences, controller, "deleteRecentHomes");
@@ -1161,6 +1162,7 @@ public class HomePane extends JRootPane implements HomeView {
     // Create File menu
     JMenu fileMenu = new JMenu(this.menuActionMap.get(MenuActionType.FILE_MENU));
     addActionToMenu(ActionType.NEW_HOME, fileMenu);
+    addActionToMenu(ActionType.NEW_SITE_PLAN, fileMenu);
     if (preferences.getHomeExamples().size() > 0) {
       addActionToMenu(ActionType.NEW_HOME_FROM_EXAMPLE, fileMenu);
     }

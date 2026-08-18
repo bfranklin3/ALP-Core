@@ -58,6 +58,16 @@ public abstract class HomeApplication {
   }
 
   /**
+   * Returns a new home preloaded with the ALP five-level site-plan template.
+   * @since ALP SPIKE-16
+   */
+  public Home createSitePlanHome() {
+    Home home = new Home(getUserPreferences().getNewWallHeight());
+    AlpLevelDefaults.addStarterSitePlanLevels(home, getUserPreferences());
+    return home;
+  }
+
+  /**
    * Returns an unmodifiable collection of the homes of this application.
    */
   public List<Home> getHomes() {
