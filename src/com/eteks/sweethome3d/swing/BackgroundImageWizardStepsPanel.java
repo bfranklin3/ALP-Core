@@ -200,12 +200,17 @@ public class BackgroundImageWizardStepsPanel extends JPanel implements View {
 
     // Image scale panel components
     this.scaleLabel = new JLabel(preferences.getLocalizedString(
-        BackgroundImageWizardStepsPanel.class, "scaleLabel.text"));
+        BackgroundImageWizardStepsPanel.class,
+        preferences.getLengthUnit().isMetric() ? "scaleLabel.text" : "scaleLabel.imperial.text"));
     this.scaleDistanceLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
-        BackgroundImageWizardStepsPanel.class, "scaleDistanceLabel.text", unitName));
+        BackgroundImageWizardStepsPanel.class,
+        preferences.getLengthUnit().isMetric()
+            ? "scaleDistanceLabel.text"
+            : "scaleDistanceLabel.imperial.text",
+        unitName));
     final float maximumLength = preferences.getLengthUnit().getMaximumLength();
     final NullableSpinner.NullableSpinnerLengthModel scaleDistanceSpinnerModel =
-        new NullableSpinner.NullableSpinnerLengthModel(preferences, preferences.getLengthUnit().getMinimumLength(), maximumLength);
+        new NullableSpinner.NullableSpinnerCalibrationLengthModel(preferences, preferences.getLengthUnit().getMinimumLength(), maximumLength);
     this.scaleDistanceSpinner = new NullableSpinner(scaleDistanceSpinnerModel);
     this.scaleDistanceSpinner.getModel().addChangeListener(new ChangeListener () {
         public void stateChanged(ChangeEvent ev) {

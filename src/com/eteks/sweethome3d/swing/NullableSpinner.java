@@ -470,4 +470,26 @@ public class NullableSpinner extends AutoCommitSpinner {
       return this.preferences.getLengthUnit();
     }
   }
+
+  /**
+   * Length model for background-image calibration that accepts feet and inches
+   * when the user preference is inch-based but not foot/inch formatted.
+   */
+  public static class NullableSpinnerCalibrationLengthModel extends NullableSpinnerLengthModel {
+    public NullableSpinnerCalibrationLengthModel(UserPreferences preferences, float minimum, float maximum) {
+      super(preferences, minimum, maximum);
+    }
+
+    @Override
+    Format getFormat() {
+      LengthUnit unit = getLengthUnit();
+      if (unit.isMetric()
+          || unit == LengthUnit.INCH
+          || unit == LengthUnit.FOOT_DECIMALS) {
+        return unit.getFormatWithUnit();
+      } else {
+        return LengthUnit.INCH.getFormatWithUnit();
+      }
+    }
+  }
 }
