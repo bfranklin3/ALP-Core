@@ -170,6 +170,10 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
               // May happen with a row of tabs is full
               multipleLevelsTabbedPane.setSelectedIndex(multipleLevelsTabbedPane.getTabCount() - 2);
             }
+            Component tabComponent = multipleLevelsTabbedPane.getComponentAt(indexAtLocation);
+            if (tabComponent instanceof LevelLabel) {
+              controller.setSelectedLevel(((LevelLabel)tabComponent).getLevel());
+            }
             controller.modifySelectedLevel();
           }
         }

@@ -67,6 +67,8 @@ import com.eteks.sweethome3d.viewcontroller.ViewFactory;
 import com.eteks.sweethome3d.viewcontroller.WallController;
 import com.eteks.sweethome3d.viewcontroller.WizardController;
 
+import javax.swing.undo.UndoableEditSupport;
+
 /**
  * View factory that instantiates the Swing components of this package.
  * @author Emmanuel Puybaret
@@ -192,6 +194,16 @@ public class SwingViewFactory implements ViewFactory {
    */
   public DialogView createLevelView(UserPreferences preferences, LevelController levelController) {
     return new LevelPanel(preferences, levelController);
+  }
+
+  /**
+   * Returns a new view that manages all home levels.
+   */
+  public DialogView createManageLayersView(Home home,
+                                           UserPreferences preferences,
+                                           PlanController planController,
+                                           UndoableEditSupport undoSupport) {
+    return new ManageLayersPanel(home, preferences, planController, undoSupport);
   }
 
   /**

@@ -26,6 +26,8 @@ import com.eteks.sweethome3d.model.FurnitureCatalog;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.UserPreferences;
 
+import javax.swing.undo.UndoableEditSupport;
+
 /**
  * A view factory with all its methods throwing
  * <code>UnsupportedOperationException</code> exception.
@@ -75,6 +77,16 @@ public class ViewFactoryAdapter implements ViewFactory {
    * @throws UnsupportedOperationException
    */
   public DialogView createLevelView(UserPreferences preferences, LevelController levelController) {
+    throw new UnsupportedOperationException();
+  }
+
+  /**
+   * @throws UnsupportedOperationException
+   */
+  public DialogView createManageLayersView(Home home,
+                                           UserPreferences preferences,
+                                           PlanController planController,
+                                           UndoableEditSupport undoSupport) {
     throw new UnsupportedOperationException();
   }
 

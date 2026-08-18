@@ -525,6 +525,7 @@ public class HomePane extends JRootPane implements HomeView {
       createAction(ActionType.MAKE_LEVEL_UNVIEWABLE, preferences, planController, "toggleSelectedLevelViewability");
       createAction(ActionType.MAKE_LEVEL_ONLY_VIEWABLE_ONE, preferences, planController, "setSelectedLevelOnlyViewable");
       createAction(ActionType.MAKE_ALL_LEVELS_VIEWABLE, preferences, planController, "setAllLevelsViewable");
+      createAction(ActionType.MANAGE_LAYERS, preferences, planController, "manageLayers");
       createAction(ActionType.MODIFY_LEVEL, preferences, planController, "modifySelectedLevel");
       createAction(ActionType.MOVE_LAYER_UP, preferences, planController, "moveSelectedLayerUp");
       createAction(ActionType.MOVE_LAYER_DOWN, preferences, planController, "moveSelectedLayerDown");
@@ -2090,6 +2091,7 @@ public class HomePane extends JRootPane implements HomeView {
     }
     addActionToMenu(ActionType.MAKE_LEVEL_ONLY_VIEWABLE_ONE, levelsMenu);
     addActionToMenu(ActionType.MAKE_ALL_LEVELS_VIEWABLE, levelsMenu);
+    addActionToMenu(ActionType.MANAGE_LAYERS, levelsMenu);
     addActionToMenu(ActionType.MODIFY_LEVEL, levelsMenu);
     addActionToMenu(ActionType.DELETE_LEVEL, levelsMenu);
     return levelsMenu;
@@ -2692,7 +2694,7 @@ public class HomePane extends JRootPane implements HomeView {
     addActionToToolBar(ActionType.ZOOM_IN, toolBar);
     addActionToToolBar(ActionType.ZOOM_OUT, toolBar);
 
-    addActionToToolBar(ActionType.ADD_LEVEL, toolBar);
+    addActionToToolBar(ActionType.MANAGE_LAYERS, toolBar);
 
     JComponent draftModeButton = createDraftModeButton(home);
     if (draftModeButton != null) {

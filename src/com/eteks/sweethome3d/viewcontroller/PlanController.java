@@ -3991,6 +3991,43 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Sets the viewability of a level with undo support.
+   */
+  public void setLevelViewable(Level level, boolean viewable) {
+    if (level.isViewable() != viewable) {
+      level.setViewable(viewable);
+      this.undoSupport.postEdit(new LevelViewabilityModificationUndoableEdit(this, this.preferences, level));
+      if (!viewable && level == this.home.getSelectedLevel()) {
+        selectTopmostViewableLevel();
+      }
+    }
+  }
+
+  /**
+   * Selects the topmost viewable level when the current level is hidden.
+   */
+  private void selectTopmostViewableLevel() {
+    List<Level> levels = this.home.getLevels();
+    for (int i = levels.size() - 1; i >= 0; i--) {
+      Level candidate = levels.get(i);
+      if (candidate.isViewable()) {
+        setSelectedLevel(candidate);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Sets the locked state of a level with undo support.
+   */
+  public void setLevelLocked(Level level, boolean locked) {
+    if (level.isLocked() != locked) {
+      level.setLocked(locked);
+      this.undoSupport.postEdit(new LevelLockedModificationUndoableEdit(this, this.preferences, level));
+    }
+  }
+
+  /**
    * Undoable edit for level viewability modification.
    */
   private static class LevelViewabilityModificationUndoableEdit extends LocalizedUndoableEdit {
@@ -4016,6 +4053,35 @@ public class PlanController extends FurnitureController implements Controller {
       super.redo();
       this.controller.setSelectedLevel(this.selectedLevel);
       this.selectedLevel.setViewable(!this.selectedLevel.isViewable());
+    }
+  }
+
+  /**
+   * Undoable edit for level locked state modification.
+   */
+  private static class LevelLockedModificationUndoableEdit extends LocalizedUndoableEdit {
+    private final PlanController controller;
+    private final Level          selectedLevel;
+
+    public LevelLockedModificationUndoableEdit(PlanController controller, UserPreferences preferences,
+                                               Level selectedLevel) {
+      super(preferences, LevelController.class, "undoModifyLevelName");
+      this.controller = controller;
+      this.selectedLevel = selectedLevel;
+    }
+
+    @Override
+    public void undo() throws CannotUndoException {
+      super.undo();
+      this.controller.setSelectedLevel(this.selectedLevel);
+      this.selectedLevel.setLocked(!this.selectedLevel.isLocked());
+    }
+
+    @Override
+    public void redo() throws CannotRedoException {
+      super.redo();
+      this.controller.setSelectedLevel(this.selectedLevel);
+      this.selectedLevel.setLocked(!this.selectedLevel.isLocked());
     }
   }
 
@@ -4139,6 +4205,14 @@ public class PlanController extends FurnitureController implements Controller {
       new LevelController(this.home, this.preferences, this.viewFactory,
           this.undoSupport).displayView(getView());
     }
+  }
+
+  /**
+   * Displays a dialog to manage all layers (order, viewability, properties).
+   */
+  public void manageLayers() {
+    this.viewFactory.createManageLayersView(this.home, this.preferences, this,
+        this.undoSupport).displayView(getView());
   }
 
   /**

@@ -26,6 +26,8 @@ import com.eteks.sweethome3d.model.FurnitureCatalog;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.UserPreferences;
 
+import javax.swing.undo.UndoableEditSupport;
+
 /**
  * A factory that specifies how to create the views displayed in Sweet Home 3D.
  * @author Emmanuel Puybaret
@@ -111,6 +113,14 @@ public interface ViewFactory {
    * Returns a new view that edits level values.
    */
   public abstract DialogView createLevelView(UserPreferences preferences, LevelController levelController);
+
+  /**
+   * Returns a new view that manages all home levels.
+   */
+  public abstract DialogView createManageLayersView(Home home,
+                                                    UserPreferences preferences,
+                                                    PlanController planController,
+                                                    UndoableEditSupport undoSupport);
 
   /**
    * Returns a new view that edits furniture values.

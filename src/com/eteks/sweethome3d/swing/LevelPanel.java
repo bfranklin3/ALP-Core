@@ -25,11 +25,14 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 
+import javax.swing.DefaultCellEditor;
 import javax.swing.DefaultListSelectionModel;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -65,7 +68,7 @@ import com.eteks.sweethome3d.viewcontroller.View;
 public class LevelPanel extends JPanel implements DialogView {
   private final LevelController controller;
   private NullableCheckBox      viewableCheckBox;
-  private NullableCheckBox      lockedCheckBox;
+  private JCheckBox             lockedCheckBox;
   private JLabel                nameLabel;
   private JTextField            nameTextField;
   private JLabel                elevationLabel;
@@ -124,19 +127,18 @@ public class LevelPanel extends JPanel implements DialogView {
 
     if (controller.isPropertyEditable(LevelController.Property.LOCKED)) {
       // Create locked check box bound to LOCKED controller property
-      this.lockedCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(preferences,
+      this.lockedCheckBox = new JCheckBox(SwingTools.getLocalizedLabelText(preferences,
           LevelPanel.class, "lockedCheckBox.text"));
-      this.lockedCheckBox.setNullable(controller.getLocked() == null);
-      this.lockedCheckBox.setValue(controller.getLocked());
-      this.lockedCheckBox.addChangeListener(new ChangeListener() {
-          public void stateChanged(ChangeEvent ev) {
-            controller.setLocked(lockedCheckBox.getValue());
+      this.lockedCheckBox.setSelected(Boolean.TRUE.equals(controller.getLocked()));
+      this.lockedCheckBox.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            controller.setLocked(lockedCheckBox.isSelected());
           }
         });
       controller.addPropertyChangeListener(LevelController.Property.LOCKED,
           new PropertyChangeListener() {
               public void propertyChange(PropertyChangeEvent ev) {
-                lockedCheckBox.setValue(controller.getLocked());
+                lockedCheckBox.setSelected(Boolean.TRUE.equals(controller.getLocked()));
               }
             });
     }
@@ -322,10 +324,13 @@ public class LevelPanel extends JPanel implements DialogView {
                                                        int row, int column) {
           JComponent component = (JComponent)table.getDefaultRenderer(Boolean.class).getTableCellRendererComponent(
               table, value, isSelected, hasFocus, row, column);
-          component.setEnabled((Boolean)table.getModel().getValueAt(row, 5));
+          component.setEnabled(table.isCellEditable(row, column));
           return component;
         }
       });
+    DefaultCellEditor lockedEditor = new DefaultCellEditor(new JCheckBox());
+    lockedEditor.setClickCountToStart(1);
+    columnModel.getColumn(4).setCellEditor(lockedEditor);
     // Ensure only selected level is selected in the table
     this.levelsSummaryTable.setSelectionModel(new DefaultListSelectionModel() {
         {
@@ -567,10 +572,12 @@ public class LevelPanel extends JPanel implements DialogView {
    * The model of the table used to show levels information.
    */
   private static final class LevelsTableModel extends AbstractTableModel {
+    private final LevelController controller;
     private Level  [] levels;
     private String [] columnNames;
 
     private LevelsTableModel(final LevelController controller, String [] columnNames) {
+      this.controller = controller;
       this.levels = controller.getLevels();
       this.columnNames = columnNames;
       controller.addPropertyChangeListener(LevelController.Property.LEVELS, new PropertyChangeListener() {
@@ -607,6 +614,23 @@ public class LevelPanel extends JPanel implements DialogView {
           return level.isViewable();
       }
       return null;
+    }
+
+    @Override
+    public boolean isCellEditable(int rowIndex, int columnIndex) {
+      if (columnIndex == 4) {
+        Integer selectedLevelIndex = controller.getSelectedLevelIndex();
+        return selectedLevelIndex != null
+            && selectedLevelIndex == this.levels.length - rowIndex - 1;
+      }
+      return false;
+    }
+
+    @Override
+    public void setValueAt(Object value, int rowIndex, int columnIndex) {
+      if (columnIndex == 4 && value instanceof Boolean) {
+        controller.setLocked((Boolean)value);
+      }
     }
 
     @Override
