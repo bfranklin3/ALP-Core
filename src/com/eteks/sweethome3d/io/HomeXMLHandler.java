@@ -86,6 +86,7 @@ import com.eteks.sweethome3d.tools.URLContent;
  *       selectedLevel CDATA #IMPLIED
  *       wallHeight CDATA #IMPLIED
  *       basePlanLocked (false | true) "false"
+ *       draftMode (false | true) "false"
  *       furnitureSortedProperty CDATA #IMPLIED
  *       furnitureDescendingSorted (false | true) "false">
  *
@@ -460,6 +461,7 @@ import com.eteks.sweethome3d.tools.URLContent;
  *       angle CDATA "0"
  *       elevation CDATA "0"
  *       pitch CDATA #IMPLIED
+ *       width CDATA #IMPLIED
  *       color CDATA #IMPLIED
  *       outlineColor CDATA #IMPLIED>
  *
@@ -953,6 +955,7 @@ public class HomeXMLHandler extends DefaultHandler {
       this.home.setCamera(this.home.getObserverCamera());
     }
     home.setBasePlanLocked("true".equals(attributes.get("basePlanLocked")));
+    home.setDraftMode("true".equals(attributes.get("draftMode")));
     String furnitureSortedPropertyName = attributes.get("furnitureSortedProperty");
     if (furnitureSortedPropertyName != null) {
       try {
@@ -1769,6 +1772,10 @@ public class HomeXMLHandler extends DefaultHandler {
     Float pitch = parseOptionalFloat(attributes, "pitch");
     if (pitch != null) {
       label.setPitch(pitch);
+    }
+    Float width = parseOptionalFloat(attributes, "width");
+    if (width != null) {
+      label.setWidth(width);
     }
     label.setColor(parseOptionalColor(attributes, "color"));
     label.setOutlineColor(parseOptionalColor(attributes, "outlineColor"));

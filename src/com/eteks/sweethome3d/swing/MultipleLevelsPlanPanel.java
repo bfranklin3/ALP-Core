@@ -650,6 +650,14 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
   }
 
   /**
+   * Returns the coordinates of the bounding rectangle of the <code>text</code> displayed at
+   * the point (<code>x</code>,<code>y</code>).
+   */
+  public float [][] getTextBounds(String text, TextStyle style, float x, float y, float angle, Float maxWidth) {
+    return ((PlanView)this.planComponent).getTextBounds(text, style, x, y, angle, maxWidth);
+  }
+
+  /**
    * Sets the cursor of this component.
    */
   public void setCursor(CursorType cursorType) {

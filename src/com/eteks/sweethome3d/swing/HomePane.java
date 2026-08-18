@@ -486,6 +486,8 @@ public class HomePane extends JRootPane implements HomeView {
       createAction(ActionType.DELETE_SELECTION, preferences, planController, "deleteSelection");
       createAction(ActionType.LOCK_BASE_PLAN, preferences, planController, "lockBasePlan");
       createAction(ActionType.UNLOCK_BASE_PLAN, preferences, planController, "unlockBasePlan");
+      createAction(ActionType.ENABLE_DRAFT_MODE, preferences, planController, "enableDraftMode");
+      createAction(ActionType.DISABLE_DRAFT_MODE, preferences, planController, "disableDraftMode");
       createAction(ActionType.ENABLE_MAGNETISM, preferences, controller, "enableMagnetism");
       createAction(ActionType.DISABLE_MAGNETISM, preferences, controller, "disableMagnetism");
       createAction(ActionType.FLIP_HORIZONTALLY, preferences, planController, "flipHorizontally");
@@ -1265,6 +1267,10 @@ public class HomePane extends JRootPane implements HomeView {
     if (lockUnlockBasePlanMenuItem != null) {
       planMenu.add(lockUnlockBasePlanMenuItem);
     }
+    JMenuItem draftModeMenuItem = createDraftModeMenuItem(home, false);
+    if (draftModeMenuItem != null) {
+      planMenu.add(draftModeMenuItem);
+    }
     addActionToMenu(ActionType.FLIP_HORIZONTALLY, planMenu);
     addActionToMenu(ActionType.FLIP_VERTICALLY, planMenu);
     addActionToMenu(ActionType.MODIFY_COMPASS, planMenu);
@@ -1918,6 +1924,76 @@ public class HomePane extends JRootPane implements HomeView {
             }
           });
       return lockUnlockBasePlanButton;
+    } else {
+      return null;
+    }
+  }
+
+  /**
+   * Creates the menu item used to switch draft mode on or off.
+   */
+  private JMenuItem createDraftModeMenuItem(final Home home,
+                                            boolean popup) {
+    ActionMap actionMap = getActionMap();
+    final Action disableDraftModeAction = actionMap.get(ActionType.DISABLE_DRAFT_MODE);
+    final Action enableDraftModeAction = actionMap.get(ActionType.ENABLE_DRAFT_MODE);
+    if (disableDraftModeAction != null
+        && disableDraftModeAction.getValue(Action.NAME) != null
+        && enableDraftModeAction.getValue(Action.NAME) != null) {
+      final JMenuItem draftModeMenuItem = new JMenuItem(
+          createDraftModeAction(home, popup));
+      home.addPropertyChangeListener(Home.Property.DRAFT_MODE,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              draftModeMenuItem.setAction(createDraftModeAction(home, popup));
+            }
+          });
+      return draftModeMenuItem;
+    } else {
+      return null;
+    }
+  }
+
+  /**
+   * Returns the action active on draft mode menu item.
+   */
+  private Action createDraftModeAction(Home home, boolean popup) {
+    ActionType actionType = home.isDraftMode()
+        ? ActionType.DISABLE_DRAFT_MODE
+        : ActionType.ENABLE_DRAFT_MODE;
+    Action action = getActionMap().get(actionType);
+    return popup
+        ? new ResourceAction.PopupMenuItemAction(action)
+        : new ResourceAction.MenuItemAction(action);
+  }
+
+  /**
+   * Returns draft mode button.
+   */
+  private JComponent createDraftModeButton(final Home home) {
+    ActionMap actionMap = getActionMap();
+    final Action disableDraftModeAction = actionMap.get(ActionType.DISABLE_DRAFT_MODE);
+    final Action enableDraftModeAction = actionMap.get(ActionType.ENABLE_DRAFT_MODE);
+    if (disableDraftModeAction != null
+        && disableDraftModeAction.getValue(Action.NAME) != null
+        && enableDraftModeAction.getValue(Action.NAME) != null) {
+      final JButton draftModeButton = new JButton(
+          new ResourceAction.ToolBarAction(home.isDraftMode()
+              ? disableDraftModeAction
+              : enableDraftModeAction));
+      draftModeButton.setBorderPainted(false);
+      draftModeButton.setContentAreaFilled(false);
+      draftModeButton.setFocusable(false);
+      home.addPropertyChangeListener(Home.Property.DRAFT_MODE,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              draftModeButton.setAction(
+                  new ResourceAction.ToolBarAction(home.isDraftMode()
+                      ? disableDraftModeAction
+                      : enableDraftModeAction));
+            }
+          });
+      return draftModeButton;
     } else {
       return null;
     }
@@ -2611,6 +2687,12 @@ public class HomePane extends JRootPane implements HomeView {
 
     addActionToToolBar(ActionType.ZOOM_IN, toolBar);
     addActionToToolBar(ActionType.ZOOM_OUT, toolBar);
+
+    JComponent draftModeButton = createDraftModeButton(home);
+    if (draftModeButton != null) {
+      toolBar.add(Box.createRigidArea(new Dimension(2, 2)));
+      toolBar.add(draftModeButton);
+    }
 
     if (!OperatingSystem.isMacOSX() || getToolkit().getScreenSize().width >= 1024) {
       JComponent enableDisableMagnetismButton = createEnableDisableMagnetismButton(preferences);
@@ -3390,6 +3472,10 @@ public class HomePane extends JRootPane implements HomeView {
       JMenuItem lockUnlockBasePlanMenuItem = createLockUnlockBasePlanMenuItem(home, true);
       if (lockUnlockBasePlanMenuItem != null) {
         planViewPopup.add(lockUnlockBasePlanMenuItem);
+      }
+      JMenuItem draftModeMenuItem = createDraftModeMenuItem(home, true);
+      if (draftModeMenuItem != null) {
+        planViewPopup.add(draftModeMenuItem);
       }
       addActionToPopupMenu(ActionType.FLIP_HORIZONTALLY, planViewPopup);
       addActionToPopupMenu(ActionType.FLIP_VERTICALLY, planViewPopup);

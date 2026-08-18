@@ -72,7 +72,7 @@ public class Home implements Serializable, Cloneable {
    */
   public enum Property {NAME, MODIFIED,
     FURNITURE_SORTED_PROPERTY, FURNITURE_DESCENDING_SORTED, FURNITURE_VISIBLE_PROPERTIES,
-    BACKGROUND_IMAGE, CAMERA, PRINT, BASE_PLAN_LOCKED, STORED_CAMERAS, RECOVERED, REPAIRED,
+    BACKGROUND_IMAGE, CAMERA, PRINT, BASE_PLAN_LOCKED, DRAFT_MODE, STORED_CAMERAS, RECOVERED, REPAIRED,
     SELECTED_LEVEL, ALL_LEVELS_SELECTION, FURNITURE_ADDITIONAL_PROPERTIES};
 
   private List<HomePieceOfFurniture>                  furniture;
@@ -113,6 +113,7 @@ public class Home implements Serializable, Cloneable {
   private transient PropertyChangeSupport             propertyChangeSupport;
   private long                                        version;
   private boolean                                     basePlanLocked;
+  private boolean                                     draftMode;
   private Compass                                     compass;
   private transient ArrayList<ObjectProperty>         furnitureAdditionalProperties;
   // The 5 following environment fields are still declared for compatibility reasons
@@ -1942,6 +1943,25 @@ public class Home implements Serializable, Cloneable {
   }
 
   /**
+   * Returns <code>true</code> if plan view is displayed in draft (monochrome) mode.
+   */
+  public boolean isDraftMode() {
+    return this.draftMode;
+  }
+
+  /**
+   * Sets whether plan view is displayed in draft (monochrome) mode.
+   * Once this home is updated, listeners added to this home will receive a change notification.
+   */
+  public void setDraftMode(boolean draftMode) {
+    if (draftMode != this.draftMode) {
+      this.draftMode = draftMode;
+      this.propertyChangeSupport.firePropertyChange(
+          Property.DRAFT_MODE.name(), !draftMode, draftMode);
+    }
+  }
+
+  /**
    * Returns the version of this home, the last time it was serialized or
    * or {@link #CURRENT_VERSION} if it is not serialized yet or
    * was serialized with Sweet Home 3D 0.x.
@@ -1994,6 +2014,7 @@ public class Home implements Serializable, Cloneable {
     destination.furnitureDescendingSorted = source.furnitureDescendingSorted;
     destination.version = source.version;
     destination.basePlanLocked = source.basePlanLocked;
+    destination.draftMode = source.draftMode;
     destination.skyColor = source.skyColor;
     destination.groundColor = source.groundColor;
     destination.lightColor = source.lightColor;

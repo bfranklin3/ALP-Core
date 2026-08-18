@@ -70,6 +70,8 @@ public class LabelPanel extends JPanel implements DialogView {
   private FontNameComboBox      fontNameComboBox;
   private JLabel                fontSizeLabel;
   private JSpinner              fontSizeSpinner;
+  private JLabel                widthLabel;
+  private JSpinner              widthSpinner;
   private JLabel                colorLabel;
   private ColorButton           colorButton;
   private NullableCheckBox      visibleIn3DViewCheckBox;
@@ -239,6 +241,29 @@ public class LabelPanel extends JPanel implements DialogView {
         }
       });
 
+    // Create width label and its spinner bound to WIDTH controller property
+    this.widthLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences, LabelPanel.class,
+        "widthLabel.text", unitName));
+    final NullableSpinner.NullableSpinnerLengthModel widthSpinnerModel = new NullableSpinner.NullableSpinnerLengthModel(
+        preferences, 1, 9999);
+    this.widthSpinner = new NullableSpinner(widthSpinnerModel);
+    final PropertyChangeListener widthChangeListener = new PropertyChangeListener() {
+        public void propertyChange(PropertyChangeEvent ev) {
+          Float width = controller.getWidth();
+          widthSpinnerModel.setNullable(!controller.isWidthSet() || width == null);
+          widthSpinnerModel.setLength(width);
+        }
+      };
+    widthChangeListener.propertyChange(null);
+    controller.addPropertyChangeListener(LabelController.Property.WIDTH, widthChangeListener);
+    widthSpinnerModel.addChangeListener(new ChangeListener() {
+        public void stateChanged(ChangeEvent ev) {
+          controller.removePropertyChangeListener(LabelController.Property.WIDTH, widthChangeListener);
+          controller.setWidth(widthSpinnerModel.getLength());
+          controller.addPropertyChangeListener(LabelController.Property.WIDTH, widthChangeListener);
+        }
+      });
+
     // Create color label and button bound to controller COLOR property
     this.colorLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
         LabelPanel.class, "colorLabel.text"));
@@ -381,6 +406,9 @@ public class LabelPanel extends JPanel implements DialogView {
       this.fontSizeLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(
           preferences.getLocalizedString(LabelPanel.class, "fontSizeLabel.mnemonic")).getKeyCode());
       this.fontSizeLabel.setLabelFor(this.fontSizeSpinner);
+      this.widthLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(
+          preferences.getLocalizedString(LabelPanel.class, "widthLabel.mnemonic")).getKeyCode());
+      this.widthLabel.setLabelFor(this.widthSpinner);
       this.visibleIn3DViewCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
           LabelPanel.class, "visibleIn3DViewCheckBox.mnemonic")).getKeyCode());
       this.pitch0DegreeRadioButton.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
@@ -426,26 +454,32 @@ public class LabelPanel extends JPanel implements DialogView {
     nameAndStylePanel.add(alignmentPanel, new GridBagConstraints(
         1, 1, 3, 1, 0, 0, GridBagConstraints.LINE_START,
         GridBagConstraints.NONE, new Insets(0, 0, standardGap, 0), 0, 0));
-    nameAndStylePanel.add(this.fontNameLabel, new GridBagConstraints(
+    nameAndStylePanel.add(this.widthLabel, new GridBagConstraints(
         0, 2, 1, 1, 0, 0, labelAlignment,
+        GridBagConstraints.NONE, new Insets(0, 0, standardGap, standardGap), 0, 0));
+    nameAndStylePanel.add(this.widthSpinner, new GridBagConstraints(
+        1, 2, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+        GridBagConstraints.NONE, new Insets(0, 0, standardGap, 0), 5, 0));
+    nameAndStylePanel.add(this.fontNameLabel, new GridBagConstraints(
+        0, 3, 1, 1, 0, 0, labelAlignment,
         GridBagConstraints.NONE, new Insets(0, 0, standardGap, standardGap), 0, 0));
     Dimension preferredSize = this.fontNameComboBox.getPreferredSize();
     preferredSize.width = Math.min(preferredSize.width, this.textTextArea.getPreferredSize().width);
     this.fontNameComboBox.setPreferredSize(preferredSize);
     nameAndStylePanel.add(this.fontNameComboBox, new GridBagConstraints(
-        1, 2, 3, 1, 0, 0, GridBagConstraints.LINE_START,
+        1, 3, 3, 1, 0, 0, GridBagConstraints.LINE_START,
         GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 0), 0, 0));
     nameAndStylePanel.add(this.fontSizeLabel, new GridBagConstraints(
-        0, 3, 1, 1, 0, 0, labelAlignment,
+        0, 4, 1, 1, 0, 0, labelAlignment,
         GridBagConstraints.NONE, new Insets(0, 0, 0, standardGap), 0, 0));
     nameAndStylePanel.add(this.fontSizeSpinner, new GridBagConstraints(
-        1, 3, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+        1, 4, 1, 1, 1, 0, GridBagConstraints.LINE_START,
         GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 5, 0));
     nameAndStylePanel.add(this.colorLabel, new GridBagConstraints(
-        2, 3, 1, 1, 0, 0, labelAlignment,
+        2, 4, 1, 1, 0, 0, labelAlignment,
         GridBagConstraints.NONE, new Insets(0, 10, 0, standardGap), 0, 0));
     nameAndStylePanel.add(this.colorButton, new GridBagConstraints(
-        3, 3, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+        3, 4, 1, 1, 0, 0, GridBagConstraints.LINE_START,
         GridBagConstraints.NONE, new Insets(0, 0, 0, OperatingSystem.isMacOSX()  ? 6  : 0), 0, 0));
     int rowGap = OperatingSystem.isMacOSXLeopardOrSuperior() ? 0 : standardGap;
     add(nameAndStylePanel, new GridBagConstraints(

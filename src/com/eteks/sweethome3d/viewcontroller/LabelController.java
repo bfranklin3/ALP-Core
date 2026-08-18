@@ -43,7 +43,7 @@ public class LabelController implements Controller {
   /**
    * The property that may be edited by the view associated to this controller.
    */
-  public enum Property {TEXT, ALIGNMENT, FONT_NAME, FONT_SIZE, COLOR, PITCH, ELEVATION}
+  public enum Property {TEXT, ALIGNMENT, FONT_NAME, FONT_SIZE, COLOR, PITCH, ELEVATION, WIDTH}
 
   private final Home                  home;
   private final Float                 x;
@@ -63,6 +63,8 @@ public class LabelController implements Controller {
   private Float   pitch;
   private Boolean pitchEnabled;
   private Float   elevation;
+  private Float   width;
+  private boolean widthSet;
 
   /**
    * Creates the controller of label modifications with undo support.
@@ -102,6 +104,7 @@ public class LabelController implements Controller {
     this.fontSize = preferences.getDefaultTextStyle(Label.class).getFontSize();
     this.pitchEnabled = Boolean.FALSE;
     this.elevation = 0f;
+    this.width = null;
   }
 
   /**
@@ -119,6 +122,8 @@ public class LabelController implements Controller {
       setPitch(null);
       this.pitchEnabled = Boolean.FALSE;
       setElevation(null);
+      setWidth(null);
+      this.widthSet = false;
     } else {
       // Search the common properties among selected labels
       Label firstLabel = selectedLabels.get(0);
@@ -216,6 +221,20 @@ public class LabelController implements Controller {
         }
       }
       setElevation(elevation);
+
+      Float width = firstLabel.getWidth();
+      boolean widthSet = true;
+      for (int i = 1; i < selectedLabels.size(); i++) {
+        Label label = selectedLabels.get(i);
+        if (!(width == null && label.getWidth() == null
+              || width != null && width.equals(label.getWidth()))) {
+          width = null;
+          widthSet = false;
+          break;
+        }
+      }
+      setWidth(width);
+      this.widthSet = widthSet;
     }
   }
 
@@ -395,6 +414,36 @@ public class LabelController implements Controller {
   }
 
   /**
+   * Sets the edited wrap width.
+   */
+  public void setWidth(Float width) {
+    if (width != null && width <= 0) {
+      width = null;
+    }
+    if (width != this.width
+        && (width == null || !width.equals(this.width))) {
+      Float oldWidth = this.width;
+      this.width = width;
+      this.propertyChangeSupport.firePropertyChange(Property.WIDTH.name(), oldWidth, width);
+    }
+    this.widthSet = true;
+  }
+
+  /**
+   * Returns <code>true</code> if all edited labels use the same wrap width.
+   */
+  public boolean isWidthSet() {
+    return this.widthSet;
+  }
+
+  /**
+   * Returns the edited wrap width, or <code>null</code> for no wrapping.
+   */
+  public Float getWidth() {
+    return this.width;
+  }
+
+  /**
    * Returns a new label instance placed at the given coordinates and added to home.
    * @since 7.2
    */
@@ -441,6 +490,7 @@ public class LabelController implements Controller {
       label.setColor(getColor());
       label.setPitch(getPitch());
       label.setElevation(getElevation());
+      label.setWidth(getWidth());
       // Unlock base plan if label is a part of it
       boolean newBasePlanLocked = basePlanLocked && !isLabelPartOfBasePlan(label);
       doAddAndSelectLabel(this.home, label, false, newBasePlanLocked);
@@ -548,6 +598,8 @@ public class LabelController implements Controller {
       Float pitch = getPitch();
       Boolean pitchEnabled = isPitchEnabled();
       Float elevation = getElevation();
+      Float width = getWidth();
+      boolean widthSet = isWidthSet();
 
       // Create an array of modified labels with their current properties values
       ModifiedLabel [] modifiedLabels = new ModifiedLabel [selectedLabels.size()];
@@ -556,11 +608,11 @@ public class LabelController implements Controller {
       }
       // Apply modification
       TextStyle defaultStyle = this.preferences.getDefaultTextStyle(Label.class);
-      doModifyLabels(modifiedLabels, text, alignment, fontName, fontNameSet, fontSize, defaultStyle, color, pitch, pitchEnabled, elevation);
+      doModifyLabels(modifiedLabels, text, alignment, fontName, fontNameSet, fontSize, defaultStyle, color, pitch, pitchEnabled, elevation, width, widthSet);
       if (this.undoSupport != null) {
         UndoableEdit undoableEdit = new LabelModificationUndoableEdit(this.home,
             this.preferences, oldSelection.toArray(new Selectable [oldSelection.size()]),
-            modifiedLabels, text, alignment, fontName, fontNameSet, fontSize, defaultStyle, color, pitch, pitchEnabled, elevation);
+            modifiedLabels, text, alignment, fontName, fontNameSet, fontSize, defaultStyle, color, pitch, pitchEnabled, elevation, width, widthSet);
         this.undoSupport.postEdit(undoableEdit);
       }
       if (text != null && text.indexOf('\n') < 0) {
@@ -587,6 +639,8 @@ public class LabelController implements Controller {
     private final Float               pitch;
     private final Boolean             pitchEnabled;
     private final Float               elevation;
+    private final Float               width;
+    private final boolean             widthSet;
 
     private LabelModificationUndoableEdit(Home home,
                                           UserPreferences preferences,
@@ -596,7 +650,7 @@ public class LabelController implements Controller {
                                           String fontName, boolean fontNameSet,
                                           Float fontSize, TextStyle defaultStyle,
                                           Integer color, Float pitch, Boolean pitchEnabled,
-                                          Float elevation) {
+                                          Float elevation, Float width, boolean widthSet) {
       super(preferences, LabelController.class, "undoModifyLabelsName");
       this.home = home;
       this.oldSelection = oldSelection;
@@ -611,6 +665,8 @@ public class LabelController implements Controller {
       this.pitch = pitch;
       this.pitchEnabled = pitchEnabled;
       this.elevation = elevation;
+      this.width = width;
+      this.widthSet = widthSet;
     }
 
     @Override
@@ -624,7 +680,7 @@ public class LabelController implements Controller {
     public void redo() throws CannotRedoException {
       super.redo();
       doModifyLabels(this.modifiedLabels, this.text, this.alignment, this.fontName, this.fontNameSet, this.fontSize, this.defaultStyle,
-          this.color, this.pitch, this.pitchEnabled, this.elevation);
+          this.color, this.pitch, this.pitchEnabled, this.elevation, this.width, this.widthSet);
       this.home.setSelectedItems(Arrays.asList(this.oldSelection));
     }
   }
@@ -636,7 +692,7 @@ public class LabelController implements Controller {
                                      String text, TextStyle.Alignment alignment, String fontName,
                                      boolean fontNameSet, Float fontSize, TextStyle defaultStyle,
                                      Integer color, Float pitch, Boolean pitchEnabled,
-                                     Float elevation) {
+                                     Float elevation, Float width, boolean widthSet) {
     for (ModifiedLabel modifiedLabel : modifiedLabels) {
       Label label = modifiedLabel.getLabel();
       if (text != null) {
@@ -673,6 +729,9 @@ public class LabelController implements Controller {
       if (elevation != null) {
         label.setElevation(elevation);
       }
+      if (widthSet) {
+        label.setWidth(width);
+      }
     }
   }
 
@@ -695,6 +754,7 @@ public class LabelController implements Controller {
     private final Integer   color;
     private final Float     pitch;
     private final float     elevation;
+    private final Float     width;
 
     public ModifiedLabel(Label label) {
       this.label = label;
@@ -703,6 +763,7 @@ public class LabelController implements Controller {
       this.color = label.getColor();
       this.pitch = label.getPitch();
       this.elevation = label.getElevation();
+      this.width = label.getWidth();
     }
 
     public Label getLabel() {
@@ -715,6 +776,7 @@ public class LabelController implements Controller {
       this.label.setColor(this.color);
       this.label.setPitch(this.pitch);
       this.label.setElevation(this.elevation);
+      this.label.setWidth(this.width);
     }
   }
 }

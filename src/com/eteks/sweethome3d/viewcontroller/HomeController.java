@@ -302,6 +302,8 @@ public class HomeController implements Controller {
     homeView.setEnabled(HomeView.ActionType.PAN, true);
     homeView.setEnabled(HomeView.ActionType.LOCK_BASE_PLAN, true);
     homeView.setEnabled(HomeView.ActionType.UNLOCK_BASE_PLAN, true);
+    homeView.setEnabled(HomeView.ActionType.ENABLE_DRAFT_MODE, true);
+    homeView.setEnabled(HomeView.ActionType.DISABLE_DRAFT_MODE, true);
     homeView.setEnabled(HomeView.ActionType.ENABLE_MAGNETISM, true);
     homeView.setEnabled(HomeView.ActionType.DISABLE_MAGNETISM, true);
     homeView.setEnabled(HomeView.ActionType.MODIFY_COMPASS, true);

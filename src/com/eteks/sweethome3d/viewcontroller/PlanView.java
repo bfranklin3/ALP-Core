@@ -110,6 +110,16 @@ public interface PlanView extends TransferableView, ExportableView {
                                            float x, float y, float angle);
 
   /**
+   * Returns the coordinates of the bounding rectangle of the <code>text</code> displayed at
+   * the point (<code>x</code>,<code>y</code>), wrapping lines at the given <code>maxWidth</code>
+   * when it's not <code>null</code>.
+   */
+  default float [][] getTextBounds(String text, TextStyle style,
+                                   float x, float y, float angle, Float maxWidth) {
+    return getTextBounds(text, style, x, y, angle);
+  }
+
+  /**
    * Sets the cursor of this component as rotation cursor.
    */
   public abstract void setCursor(CursorType cursorType);

@@ -1049,6 +1049,24 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Displays plan view in draft (monochrome) mode.
+   */
+  public void enableDraftMode() {
+    if (!this.home.isDraftMode()) {
+      this.home.setDraftMode(true);
+    }
+  }
+
+  /**
+   * Displays plan view in presentation color mode.
+   */
+  public void disableDraftMode() {
+    if (this.home.isDraftMode()) {
+      this.home.setDraftMode(false);
+    }
+  }
+
+  /**
    * Undoable edit for plan unlocking.
    */
   private static class UnlockingUndoableEdit extends LocalizedUndoableEdit {
@@ -5347,7 +5365,8 @@ public class PlanController extends FurnitureController implements Controller {
     if (textStyle == null) {
       textStyle = this.preferences.getDefaultTextStyle(item.getClass());
     }
-    float [][] textBounds = getView().getTextBounds(text, textStyle, xText, yText, textAngle);
+    Float maxWidth = item instanceof Label ? ((Label)item).getWidth() : null;
+    float [][] textBounds = getView().getTextBounds(text, textStyle, xText, yText, textAngle, maxWidth);
     return getPath(textBounds).intersects(x - textMargin, y - textMargin, 2 * textMargin, 2 * textMargin);
   }
 
@@ -5585,7 +5604,8 @@ public class PlanController extends FurnitureController implements Controller {
     if (textStyle == null) {
       textStyle = this.preferences.getDefaultTextStyle(item.getClass());
     }
-    float [][] textBounds = getView().getTextBounds(text, textStyle, xText, yText, textAngle);
+    Float maxWidth = item instanceof Label ? ((Label)item).getWidth() : null;
+    float [][] textBounds = getView().getTextBounds(text, textStyle, xText, yText, textAngle, maxWidth);
     float anglePointX;
     float anglePointY;
     if (textStyle.getAlignment() == TextStyle.Alignment.LEFT) {
@@ -5638,7 +5658,7 @@ public class PlanController extends FurnitureController implements Controller {
             style = this.preferences.getDefaultTextStyle(label.getClass());
           }
           float [][] textBounds = getView().getTextBounds(label.getText(), getItemTextStyle(label, label.getStyle()),
-              label.getX(), label.getY(), label.getAngle());
+              label.getX(), label.getY(), label.getAngle(), label.getWidth());
           float pointX;
           float pointY;
           if (style.getAlignment() == TextStyle.Alignment.LEFT) {
@@ -15849,7 +15869,8 @@ public class PlanController extends FurnitureController implements Controller {
       this.selectedLabel = (Label)home.getSelectedItems().get(0);
       TextStyle textStyle = getItemTextStyle(this.selectedLabel, this.selectedLabel.getStyle());
       float [][] textBounds = getView().getTextBounds(this.selectedLabel.getText(), textStyle,
-          this.selectedLabel.getX(), this.selectedLabel.getY(), this.selectedLabel.getAngle());
+          this.selectedLabel.getX(), this.selectedLabel.getY(), this.selectedLabel.getAngle(),
+          this.selectedLabel.getWidth());
       this.deltaYToElevationPoint = getYLastMousePress() - (textBounds [2][1] + textBounds [3][1]) / 2;
       this.oldElevation = this.selectedLabel.getElevation();
       this.magnetismEnabled = preferences.isMagnetismEnabled()
@@ -15868,7 +15889,8 @@ public class PlanController extends FurnitureController implements Controller {
       PlanView planView = getView();
       TextStyle textStyle = getItemTextStyle(this.selectedLabel, this.selectedLabel.getStyle());
       float [][] textBounds = getView().getTextBounds(this.selectedLabel.getText(), textStyle,
-          this.selectedLabel.getX(), this.selectedLabel.getY(), this.selectedLabel.getAngle());
+          this.selectedLabel.getX(), this.selectedLabel.getY(), this.selectedLabel.getAngle(),
+          this.selectedLabel.getWidth());
       float deltaY = y - this.deltaYToElevationPoint - (textBounds [2][1] + textBounds [3][1]) / 2;
       float newElevation = this.oldElevation - deltaY;
       newElevation = Math.min(Math.max(newElevation, 0f), preferences.getLengthUnit().getMaximumElevation());

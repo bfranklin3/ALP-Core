@@ -118,6 +118,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
     writer.writeAttribute("selectedLevel", getId(home.getSelectedLevel()), null);
     writer.writeFloatAttribute("wallHeight", home.getWallHeight());
     writer.writeBooleanAttribute("basePlanLocked", home.isBasePlanLocked(), false);
+    writer.writeBooleanAttribute("draftMode", home.isDraftMode(), false);
     if (home.getFurnitureSortedPropertyName() != null) {
       writer.writeAttribute("furnitureSortedProperty", home.getFurnitureSortedPropertyName());
     }
@@ -771,6 +772,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           writer.writeFloatAttribute("angle", label.getAngle(), 0);
           writer.writeFloatAttribute("elevation", label.getElevation(), 0);
           writer.writeFloatAttribute("pitch", label.getPitch());
+          writer.writeFloatAttribute("width", label.getWidth());
           writer.writeColorAttribute("color", label.getColor());
           writer.writeColorAttribute("outlineColor", label.getOutlineColor());
         }

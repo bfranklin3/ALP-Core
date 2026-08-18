@@ -35,7 +35,13 @@ public class Label extends HomeObject implements Selectable, Elevatable {
    * The properties of a label that may change. <code>PropertyChangeListener</code>s added
    * to a label will be notified under a property name equal to the string value of one these properties.
    */
-  public enum Property {TEXT, X, Y, ELEVATION, STYLE, COLOR, OUTLINE_COLOR, ANGLE, PITCH, LEVEL};
+  public enum Property {TEXT, X, Y, ELEVATION, STYLE, COLOR, OUTLINE_COLOR, ANGLE, PITCH, LEVEL, WIDTH};
+
+  /**
+   * Default width for wrapped text labels, in centimeters in plan coordinates.
+   * A {@code null} width keeps legacy single-line / manual line-break behavior.
+   */
+  public static final float DEFAULT_TEXT_WIDTH = 100f;
 
   private String              text;
   private float               x;
@@ -47,6 +53,7 @@ public class Label extends HomeObject implements Selectable, Elevatable {
   private Float               pitch;
   private float               elevation;
   private Level               level;
+  private Float               width;
 
   /**
    * Creates a label with the given <code>text</code>.
@@ -269,6 +276,30 @@ public class Label extends HomeObject implements Selectable, Elevatable {
       Float oldPitch = this.pitch;
       this.pitch = pitch;
       firePropertyChange(Property.PITCH.name(), oldPitch, pitch);
+    }
+  }
+
+  /**
+   * Returns the width in centimeters used to wrap the text of this label in plan view,
+   * or <code>null</code> if text shouldn't be wrapped automatically.
+   */
+  public Float getWidth() {
+    return this.width;
+  }
+
+  /**
+   * Sets the width in centimeters used to wrap the text of this label in plan view.
+   * Once this label is updated, listeners added to this label will receive a change notification.
+   */
+  public void setWidth(Float width) {
+    if (width != null && width <= 0) {
+      width = null;
+    }
+    if (width != this.width
+        && (width == null || !width.equals(this.width))) {
+      Float oldWidth = this.width;
+      this.width = width;
+      firePropertyChange(Property.WIDTH.name(), oldWidth, width);
     }
   }
 

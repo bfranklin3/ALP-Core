@@ -59,6 +59,8 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.awt.font.FontRenderContext;
+import java.awt.font.LineBreakMeasurer;
+import java.awt.font.TextAttribute;
 import java.awt.font.TextLayout;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Arc2D;
@@ -85,6 +87,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.security.AccessControlException;
+import java.text.AttributedString;
 import java.text.DecimalFormat;
 import java.text.Format;
 import java.text.NumberFormat;
@@ -1112,6 +1115,11 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           repaint();
         }
       });
+    home.addPropertyChangeListener(Home.Property.DRAFT_MODE, new PropertyChangeListener() {
+        public void propertyChange(PropertyChangeEvent ev) {
+          repaint();
+        }
+      });
     UserPreferencesChangeListener preferencesListener = new UserPreferencesChangeListener(this);
     preferences.addPropertyChangeListener(UserPreferences.Property.UNIT, preferencesListener);
     preferences.addPropertyChangeListener(UserPreferences.Property.LANGUAGE, preferencesListener);
@@ -2021,7 +2029,8 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       // Add to bounds the displayed text of a label
       Label label = (Label)item;
       addTextBounds(label.getClass(),
-          label.getText(), label.getStyle(), label.getX(), label.getY(), label.getAngle(), itemBounds);
+          label.getText(), label.getStyle(), label.getX(), label.getY(), label.getAngle(),
+          label.getWidth(), itemBounds);
     } else if (item instanceof Compass) {
       Compass compass = (Compass)item;
       AffineTransform transform = AffineTransform.getTranslateInstance(compass.getX(), compass.getY());
@@ -2039,10 +2048,20 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
                              String text, TextStyle style,
                              float x, float y, float angle,
                              Rectangle2D bounds) {
+    addTextBounds(selectableClass, text, style, x, y, angle, null, bounds);
+  }
+
+  /**
+   * Add <code>text</code> bounds to the given rectangle <code>bounds</code>.
+   */
+  private void addTextBounds(Class<? extends Selectable> selectableClass,
+                             String text, TextStyle style,
+                             float x, float y, float angle, Float maxWidth,
+                             Rectangle2D bounds) {
     if (style == null) {
       style = this.preferences.getDefaultTextStyle(selectableClass);
     }
-    for (float [] points : getTextBounds(text, style, x, y, angle)) {
+    for (float [] points : getTextBounds(text, style, x, y, angle, maxWidth)) {
       bounds.add(points [0], points [1]);
     }
   }
@@ -2053,13 +2072,25 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
    */
   public float [][] getTextBounds(String text, TextStyle style,
                                   float x, float y, float angle) {
+    return getTextBounds(text, style, x, y, angle, null);
+  }
+
+  /**
+   * Returns the coordinates of the bounding rectangle of the <code>text</code> centered at
+   * the point (<code>x</code>,<code>y</code>).
+   */
+  public float [][] getTextBounds(String text, TextStyle style,
+                                  float x, float y, float angle, Float maxWidth) {
+    if (style == null) {
+      style = this.preferences.getDefaultTextStyle(Label.class);
+    }
     FontMetrics fontMetrics = getFontMetrics(getFont(), style);
-    Rectangle2D textBounds = null;
-    String [] lines = text.split("\n");
     Graphics2D g = (Graphics2D)getGraphics();
     if (g != null) {
       setRenderingHints(g);
     }
+    String [] lines = getTextLines(Label.class, text, style, getFont(), g, maxWidth);
+    Rectangle2D textBounds = null;
     for (int i = 0; i < lines.length; i++) {
       Rectangle2D lineBounds = fontMetrics.getStringBounds(lines [i], g);
       if (textBounds == null
@@ -2067,7 +2098,9 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         textBounds = lineBounds;
       }
     }
-    float textWidth = (float)textBounds.getWidth();
+    float textWidth = maxWidth != null && maxWidth > 0
+        ? maxWidth
+        : (float)textBounds.getWidth();
     float shiftX;
     if (style.getAlignment() == TextStyle.Alignment.LEFT) {
       shiftX = 0;
@@ -2536,6 +2569,9 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
    * Paints background image and returns <code>true</code> if an image is painted.
    */
   private boolean paintBackgroundImage(Graphics2D g2D, Level level, PaintMode paintMode) {
+    if (isDraftMode(paintMode)) {
+      return false;
+    }
     Level backgroundImageLevel = null;
     if (level != null) {
       // Search the first level at same elevation with a background image
@@ -2596,10 +2632,17 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
   }
 
   /**
+   * Returns <code>true</code> if plan items should be rendered in draft (monochrome) mode.
+   */
+  private boolean isDraftMode(PaintMode paintMode) {
+    return paintMode == PaintMode.PAINT && this.home.isDraftMode();
+  }
+
+  /**
    * Returns the foreground color used to draw content.
    */
   protected Color getForegroundColor(PaintMode mode) {
-    if (mode == PaintMode.PAINT) {
+    if (mode == PaintMode.PAINT && !isDraftMode(mode)) {
       return getForeground();
     } else {
       return Color.BLACK;
@@ -2610,7 +2653,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
    * Returns the background color used to draw content.
    */
   protected Color getBackgroundColor(PaintMode mode) {
-    if (mode == PaintMode.PAINT) {
+    if (mode == PaintMode.PAINT && !isDraftMode(mode)) {
       return getBackground();
     } else {
       return Color.WHITE;
@@ -3161,7 +3204,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           });
     }
 
-    Color defaultFillPaint = paintMode == PaintMode.PRINT
+    Color defaultFillPaint = isDraftMode(paintMode) || paintMode == PaintMode.PRINT
         ? Color.WHITE
         : Color.GRAY;
     // Draw rooms area
@@ -3173,7 +3216,8 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           || selectedRoom) {
         g2D.setPaint(defaultFillPaint);
         float textureAngle = 0;
-        if (this.preferences.isRoomFloorColoredOrTextured()
+        if (!isDraftMode(paintMode)
+            && this.preferences.isRoomFloorColoredOrTextured()
             && room.isFloorVisible()) {
           // Use room floor color or texture image
           if (room.getFloorColor() != null) {
@@ -3379,6 +3423,17 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
                          String text, TextStyle style, Integer outlineColor,
                          float x, float y, float angle,
                          Font defaultFont) {
+    paintText(g2D, selectableClass, text, style, outlineColor, x, y, angle, defaultFont, null);
+  }
+
+  /**
+   * Paints the given <code>text</code> centered at the point (<code>x</code>,<code>y</code>).
+   */
+  private void paintText(Graphics2D g2D,
+                         Class<? extends Selectable> selectableClass,
+                         String text, TextStyle style, Integer outlineColor,
+                         float x, float y, float angle,
+                         Font defaultFont, Float maxWidth) {
     AffineTransform previousTransform = g2D.getTransform();
     g2D.translate(x, y);
     g2D.rotate(angle);
@@ -3386,12 +3441,15 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       style = this.preferences.getDefaultTextStyle(selectableClass);
     }
     FontMetrics fontMetrics = getFontMetrics(defaultFont, style);
-    String [] lines = text.split("\n");
+    String [] lines = getTextLines(selectableClass, text, style, defaultFont, g2D, maxWidth);
     float [] lineWidths = new float [lines.length];
     float textWidth = -Float.MAX_VALUE;
     for (int i = 0; i < lines.length; i++) {
       lineWidths [i] = (float)fontMetrics.getStringBounds(lines [i], g2D).getWidth();
       textWidth = Math.max(lineWidths [i], textWidth);
+    }
+    if (maxWidth != null && maxWidth > 0) {
+      textWidth = maxWidth;
     }
     BasicStroke stroke = null;
     Font font;
@@ -3685,6 +3743,21 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
    * Returns the number of lines in the given <code>text</code> ignoring trailing line returns.
    */
   private int getLineCount(String text) {
+    return getLineCount(Label.class, text, null, null, null, null);
+  }
+
+  /**
+   * Returns the number of lines used to display the given <code>text</code>.
+   */
+  private int getLineCount(Class<? extends Selectable> selectableClass,
+                           String text, TextStyle style, Font defaultFont,
+                           Graphics2D g2D, Float maxWidth) {
+    if (maxWidth != null && maxWidth > 0) {
+      return getTextLines(selectableClass, text, style, defaultFont, g2D, maxWidth).length;
+    }
+    if (text == null || text.length() == 0) {
+      return 1;
+    }
     int lineCount = 1;
     int i = text.length() - 1;
     while (i >= 0 && text.charAt(i) == '\n') {
@@ -3696,6 +3769,45 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       }
     }
     return lineCount;
+  }
+
+  /**
+   * Returns the lines used to display the given <code>text</code>.
+   */
+  private String [] getTextLines(Class<? extends Selectable> selectableClass,
+                                 String text, TextStyle style, Font defaultFont,
+                                 Graphics2D g2D, Float maxWidth) {
+    if (text == null || text.length() == 0) {
+      return new String [] {""};
+    }
+    if (maxWidth == null || maxWidth <= 0) {
+      return text.split("\n");
+    }
+    if (style == null) {
+      style = this.preferences.getDefaultTextStyle(selectableClass);
+    }
+    Font font = getFont(defaultFont, style);
+    FontRenderContext fontRenderContext = g2D != null
+        ? g2D.getFontRenderContext()
+        : new FontRenderContext(null, true, true);
+    String [] paragraphs = text.split("\n", -1);
+    List<String> lines = new ArrayList<String>();
+    for (String paragraph : paragraphs) {
+      if (paragraph.length() == 0) {
+        lines.add("");
+      } else {
+        AttributedString attributedString = new AttributedString(paragraph);
+        attributedString.addAttribute(TextAttribute.FONT, font);
+        LineBreakMeasurer lineBreakMeasurer = new LineBreakMeasurer(
+            attributedString.getIterator(), fontRenderContext);
+        while (lineBreakMeasurer.getPosition() < paragraph.length()) {
+          int start = lineBreakMeasurer.getPosition();
+          lineBreakMeasurer.nextLayout(maxWidth);
+          lines.add(paragraph.substring(start, lineBreakMeasurer.getPosition()));
+        }
+      }
+    }
+    return lines.toArray(new String [lines.size()]);
   }
 
   /**
@@ -4068,7 +4180,9 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
             }
 
             boolean viewedFromTop;
-            if (this.preferences.isFurnitureViewedFromTop()) {
+            if (isDraftMode(paintMode)) {
+              viewedFromTop = false;
+            } else if (this.preferences.isFurnitureViewedFromTop()) {
               if (piece.getPlanIcon() != null
                   || piece instanceof HomeDoorOrWindow) {
                 viewedFromTop = true;
@@ -4646,7 +4760,9 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         boolean selected = selectedItems.contains(polyline);
         if (paintMode != PaintMode.CLIPBOARD
             || selected) {
-          g2D.setPaint(new Color(polyline.getColor()));
+          g2D.setPaint(isDraftMode(paintMode)
+              ? foregroundColor
+              : new Color(polyline.getColor()));
           float thickness = polyline.getThickness();
           g2D.setStroke(ShapeTools.getStroke(thickness, polyline.getCapStyle(), polyline.getJoinStyle(),
               polyline.getDashStyle() != Polyline.DashStyle.SOLID ? polyline.getDashPattern() : null, // null renders better closed shapes with a solid style
@@ -4767,7 +4883,9 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         Integer dimensionLineColor = dimensionLine.getColor();
         float markEndScale = dimensionLine.getEndMarkSize() / markEndWidth;
         BasicStroke dimensionLineStroke = new BasicStroke(getStrokeWidth(DimensionLine.class, paintMode) / markEndScale / planScale);
-        g2D.setPaint(dimensionLineColor != null ? new Color(dimensionLineColor) : foregroundColor);
+        g2D.setPaint(!isDraftMode(paintMode) && dimensionLineColor != null
+            ? new Color(dimensionLineColor)
+            : foregroundColor);
         AffineTransform previousTransform = g2D.getTransform();
         boolean elevationDimensionLine = dimensionLine.isElevationDimensionLine();
         double angle = elevationDimensionLine
@@ -5018,21 +5136,23 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
             labelStyle = labelStyle.deriveStyle(getFont().getFontName());
           }
           Integer color = label.getColor();
-          g2D.setPaint(color != null ?  new Color(color) : foregroundColor);
-          paintText(g2D, label.getClass(), labelText, labelStyle, label.getOutlineColor(),
-              xLabel, yLabel, labelAngle, previousFont);
+          g2D.setPaint(!isDraftMode(paintMode) && color != null ? new Color(color) : foregroundColor);
+          paintText(g2D, label.getClass(), labelText, labelStyle,
+              isDraftMode(paintMode) ? null : label.getOutlineColor(),
+              xLabel, yLabel, labelAngle, previousFont, label.getWidth());
 
           if (paintMode == PaintMode.PAINT && this.selectedItemsOutlinePainted && selectedLabel) {
             // Draw selection border
             g2D.setPaint(selectionOutlinePaint);
             g2D.setStroke(selectionOutlineStroke);
-            float [][] textBounds = getTextBounds(labelText, labelStyle, xLabel, yLabel, labelAngle);
+            float [][] textBounds = getTextBounds(labelText, labelStyle, xLabel, yLabel, labelAngle, label.getWidth());
             g2D.draw(ShapeTools.getShape(textBounds, true, null));
             g2D.setPaint(foregroundColor);
             if (indicatorPaint != null
                 && selectedItems.size() == 1
                 && selectedItems.get(0) == label) {
-              paintTextIndicators(g2D, label.getClass(), getLineCount(labelText),
+              paintTextIndicators(g2D, label.getClass(),
+                  getLineCount(label.getClass(), labelText, labelStyle, previousFont, g2D, label.getWidth()),
                   labelStyle, xLabel, yLabel, labelAngle, indicatorPaint, planScale);
 
               if (this.resizeIndicatorVisible
