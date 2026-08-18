@@ -52,7 +52,9 @@ public abstract class HomeApplication {
    * @since 2.2
    */
   public Home createHome() {
-    return new Home(getUserPreferences().getNewWallHeight());
+    Home home = new Home(getUserPreferences().getNewWallHeight());
+    AlpLevelDefaults.addDefaultPlanLevel(home, getUserPreferences());
+    return home;
   }
 
   /**

@@ -112,6 +112,7 @@ public class FileUserPreferences extends UserPreferences {
   private static final String NEW_WALL_BASEBOARD_HEIGHT                 = "newWallBaseboardHeight";
   private static final String NEW_ROOM_FLOOR_COLOR                      = "newRoomFloorColor";
   private static final String NEW_FLOOR_THICKNESS                       = "newFloorThickness";
+  private static final String NEW_LEVEL_HEIGHT                          = "newLevelHeight";
   private static final String CHECK_UPDATES_ENABLED                     = "checkUpdatesEnabled";
   private static final String UPDATES_MINIMUM_DATE                      = "updatesMinimumDate";
   private static final String AUTO_SAVE_DELAY_FOR_RECOVERY              = "autoSaveDelayForRecovery";
@@ -354,6 +355,8 @@ public class FileUserPreferences extends UserPreferences {
     }
     setNewFloorThickness(preferences.getFloat(NEW_FLOOR_THICKNESS,
         defaultPreferences.getNewFloorThickness()));
+    setNewLevelHeight(preferences.getFloat(NEW_LEVEL_HEIGHT,
+        defaultPreferences.getNewLevelHeight()));
     setCheckUpdatesEnabled(preferences.getBoolean(CHECK_UPDATES_ENABLED,
         defaultPreferences.isCheckUpdatesEnabled()));
     if (preferences.get(UPDATES_MINIMUM_DATE, null) != null) {
@@ -999,6 +1002,7 @@ public class FileUserPreferences extends UserPreferences {
       preferences.remove(NEW_ROOM_FLOOR_COLOR);
     }
     preferences.putFloat(NEW_FLOOR_THICKNESS, getNewFloorThickness());
+    preferences.putFloat(NEW_LEVEL_HEIGHT, getNewLevelHeight());
     preferences.putBoolean(CHECK_UPDATES_ENABLED, isCheckUpdatesEnabled());
     Long updatesMinimumDate = getUpdatesMinimumDate();
     if (updatesMinimumDate != null) {

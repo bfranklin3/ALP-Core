@@ -114,7 +114,8 @@ public class DefaultUserPreferences extends UserPreferences {
     if (newRoomFloorColor != null) {
       setNewRoomFloorColor(Integer.decode(newRoomFloorColor) | 0xFF000000);
     }
-    setNewFloorThickness(Float.parseFloat(getOptionalLocalizedString(localizedPreferences, "newFloorThickness", "12")));
+    setNewFloorThickness(Float.parseFloat(getOptionalLocalizedString(localizedPreferences, "newFloorThickness", "0")));
+    setNewLevelHeight(Float.parseFloat(getOptionalLocalizedString(localizedPreferences, "newLevelHeight", "30")));
     setCheckUpdatesEnabled(Boolean.parseBoolean(getOptionalLocalizedString(localizedPreferences, "checkUpdatesEnabled", "false")));
     setAutoSaveDelayForRecovery(Integer.parseInt(getOptionalLocalizedString(localizedPreferences, "autoSaveDelayForRecovery", "0")));
     setCurrency(getOptionalLocalizedString(localizedPreferences, "currency", null));

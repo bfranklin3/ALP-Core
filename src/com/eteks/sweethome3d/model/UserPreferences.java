@@ -53,7 +53,7 @@ public abstract class UserPreferences {
   public enum Property {LANGUAGE, SUPPORTED_LANGUAGES, UNIT, CURRENCY, VALUE_ADDED_TAX_ENABLED, DEFAULT_VALUE_ADDED_TAX_PERCENTAGE,
                         MAGNETISM_ENABLED, RULERS_VISIBLE, GRID_VISIBLE, DEFAULT_FONT_NAME,
                         FURNITURE_VIEWED_FROM_TOP, FURNITURE_MODEL_ICON_SIZE, ROOM_FLOOR_COLORED_OR_TEXTURED, WALL_PATTERN, NEW_WALL_PATTERN,
-                        NEW_WALL_THICKNESS, NEW_WALL_HEIGHT, NEW_WALL_SIDEBOARD_THICKNESS, NEW_WALL_SIDEBOARD_HEIGHT, NEW_ROOM_FLOOR_COLOR, NEW_FLOOR_THICKNESS,
+                        NEW_WALL_THICKNESS, NEW_WALL_HEIGHT, NEW_WALL_SIDEBOARD_THICKNESS, NEW_WALL_SIDEBOARD_HEIGHT, NEW_ROOM_FLOOR_COLOR, NEW_FLOOR_THICKNESS, NEW_LEVEL_HEIGHT,
                         RECENT_HOMES, IGNORED_ACTION_TIP, FURNITURE_CATALOG_VIEWED_IN_TREE, NAVIGATION_PANEL_VISIBLE,
                         AERIAL_VIEW_CENTERED_ON_SELECTION_ENABLED, OBSERVER_CAMERA_SELECTED_AT_CHANGE, EDITING_IN_3D_VIEW_ENABLED, CHECK_UPDATES_ENABLED,
                         UPDATES_MINIMUM_DATE, AUTO_SAVE_DELAY_FOR_RECOVERY, AUTO_COMPLETION_STRINGS, RECENT_COLORS, RECENT_TEXTURES, HOME_EXAMPLES, PHOTO_RENDERER}
@@ -122,6 +122,7 @@ public abstract class UserPreferences {
   private float            newWallBaseboardHeight;
   private Integer          newRoomFloorColor;
   private float            newFloorThickness;
+  private float            newLevelHeight;
   private List<String>     recentHomes;
   private boolean          checkUpdatesEnabled;
   private Long             updatesMinimumDate;
@@ -1036,6 +1037,27 @@ public abstract class UserPreferences {
       this.newFloorThickness = newFloorThickness;
       this.propertyChangeSupport.firePropertyChange(Property.NEW_FLOOR_THICKNESS.name(),
           oldFloorThickness, newFloorThickness);
+    }
+  }
+
+  /**
+   * Returns default height of new levels in home (ALP site-plan layers; separate from wall height).
+   * @since ALP SPIKE-14
+   */
+  public float getNewLevelHeight() {
+    return this.newLevelHeight;
+  }
+
+  /**
+   * Sets default height of new levels in home, and notifies listeners of this change.
+   * @since ALP SPIKE-14
+   */
+  public void setNewLevelHeight(float newLevelHeight) {
+    if (this.newLevelHeight != newLevelHeight) {
+      float oldLevelHeight = this.newLevelHeight;
+      this.newLevelHeight = newLevelHeight;
+      this.propertyChangeSupport.firePropertyChange(Property.NEW_LEVEL_HEIGHT.name(),
+          oldLevelHeight, newLevelHeight);
     }
   }
 

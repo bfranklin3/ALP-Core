@@ -62,6 +62,7 @@ import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
+import com.eteks.sweethome3d.model.AlpLevelDefaults;
 import com.eteks.sweethome3d.model.AspectRatio;
 import com.eteks.sweethome3d.model.BackgroundImage;
 import com.eteks.sweethome3d.model.Camera;
@@ -2002,6 +2003,7 @@ public class HomeController implements Controller {
       home = this.application.createHome();
     } else {
       home = new Home(this.preferences.getNewWallHeight());
+      AlpLevelDefaults.addDefaultPlanLevel(home, this.preferences);
     }
     this.application.addHome(home);
   }

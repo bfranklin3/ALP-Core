@@ -46,6 +46,7 @@ import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoableEdit;
 import javax.swing.undo.UndoableEditSupport;
 
+import com.eteks.sweethome3d.model.AlpLevelDefaults;
 import com.eteks.sweethome3d.model.BackgroundImage;
 import com.eteks.sweethome3d.model.Baseboard;
 import com.eteks.sweethome3d.model.BoxBounds;
@@ -3837,7 +3838,7 @@ public class PlanController extends FurnitureController implements Controller {
    * Controls the creation of a new level.
    */
   public void addLevel() {
-    addLevel(false);
+    addLevel(true);
   }
 
   /**
@@ -3859,12 +3860,13 @@ public class PlanController extends FurnitureController implements Controller {
     final BackgroundImage homeBackgroundImage = this.home.getBackgroundImage();
     List<Level> levels = this.home.getLevels();
     float newWallHeight = this.preferences.getNewWallHeight();
+    float newLevelHeight = this.preferences.getNewLevelHeight();
     float newFloorThickness = this.preferences.getNewFloorThickness();
     final Level level0;
     if (levels.isEmpty()) {
       // Create level 0
-      String level0Name = this.preferences.getLocalizedString(PlanController.class, "levelName", 0);
-      level0 = createLevel(level0Name, 0, newFloorThickness, newWallHeight);
+      String level0Name = AlpLevelDefaults.getDefaultLevelName(this.preferences);
+      level0 = createLevel(level0Name, 0, newFloorThickness, newLevelHeight);
       moveHomeItemsToLevel(level0);
       level0.setBackgroundImage(homeBackgroundImage);
       this.home.setBackgroundImage(null);
@@ -3872,7 +3874,7 @@ public class PlanController extends FurnitureController implements Controller {
     } else {
       level0 = null;
     }
-    String newLevelName = this.preferences.getLocalizedString(PlanController.class, "levelName", levels.size());
+    String newLevelName = AlpLevelDefaults.getLayerName(this.preferences, levels.size() + 1);
     final Level newLevel;
     if (sameElevation) {
       Level referencedLevel = level0 != null
@@ -3883,7 +3885,7 @@ public class PlanController extends FurnitureController implements Controller {
     } else {
       float newLevelElevation = levels.get(levels.size() - 1).getElevation()
           + newWallHeight + newFloorThickness;
-      newLevel = createLevel(newLevelName, newLevelElevation, newFloorThickness, newWallHeight);
+      newLevel = createLevel(newLevelName, newLevelElevation, newFloorThickness, newLevelHeight);
     }
     setSelectedLevel(newLevel);
     this.undoSupport.postEdit(new LevelAdditionUndoableEdit(this, this.home, this.preferences,
