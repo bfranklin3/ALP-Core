@@ -3183,16 +3183,11 @@ public class HomePane extends JRootPane implements HomeView {
   }
 
   /**
-   * Returns a placeholder inspector pane for SPIKE-19 layout validation.
+   * Returns the selection-mode inspector pane for SPIKE-19.
    */
-  private JComponent createInspectorPane(UserPreferences preferences) {
-    JPanel inspectorPane = new JPanel(new BorderLayout());
-    inspectorPane.setMinimumSize(new Dimension((int)(200 * SwingTools.getResolutionScale()), 0));
-    JLabel placeholderLabel = new JLabel(
-        preferences.getLocalizedString(HomePane.class, "inspectorPane.placeholder"), JLabel.CENTER);
-    placeholderLabel.setBorder(BorderFactory.createEmptyBorder(16, 12, 16, 12));
-    inspectorPane.add(placeholderLabel, BorderLayout.NORTH);
-    return inspectorPane;
+  private JComponent createInspectorPane(Home home, UserPreferences preferences,
+                                         HomeController controller) {
+    return new SelectionInspectorPane(home, preferences, controller);
   }
 
   /**
@@ -3202,7 +3197,7 @@ public class HomePane extends JRootPane implements HomeView {
                                              Home home,
                                              UserPreferences preferences,
                                              final HomeController controller) {
-    final JComponent inspectorPane = createInspectorPane(preferences);
+    final JComponent inspectorPane = createInspectorPane(home, preferences, controller);
     planView3DPane.setMinimumSize(new Dimension(MIN_PLAN_INSPECTOR_PLAN_WIDTH, 0));
     boolean leftToRightOrientation = ComponentOrientation.getOrientation(Locale.getDefault()).isLeftToRight();
     final JSplitPane planInspectorPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,

@@ -235,6 +235,13 @@ public class RoomController implements Controller {
   }
 
   /**
+   * Updates edited properties from the current room selection.
+   */
+  public void refreshProperties() {
+    updateProperties();
+  }
+
+  /**
    * Updates edited properties from selected rooms in the home edited by this controller.
    */
   protected void updateProperties() {

@@ -438,6 +438,14 @@ public class HomeController implements Controller {
   }
 
   /**
+   * Creates a room controller for docked inspector editing.
+   */
+  public RoomController createRoomController() {
+    return new RoomController(this.home, this.preferences, this.viewFactory,
+        this.contentManager, getUndoableEditSupport());
+  }
+
+  /**
    * Returns the controller of home plan.
    */
   public PlanController getPlanController() {
