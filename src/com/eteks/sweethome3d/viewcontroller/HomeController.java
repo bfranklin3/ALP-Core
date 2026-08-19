@@ -462,6 +462,14 @@ public class HomeController implements Controller {
   }
 
   /**
+   * Creates a dimension line controller for docked inspector editing.
+   */
+  public DimensionLineController createDimensionLineController() {
+    return new DimensionLineController(this.home, this.preferences, this.viewFactory,
+        getUndoableEditSupport());
+  }
+
+  /**
    * Returns the controller of home plan.
    */
   public PlanController getPlanController() {

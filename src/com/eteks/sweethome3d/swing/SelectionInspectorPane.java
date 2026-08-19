@@ -49,6 +49,7 @@ import javax.swing.event.ChangeListener;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import com.eteks.sweethome3d.model.DimensionLine;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
@@ -59,6 +60,7 @@ import com.eteks.sweethome3d.model.SelectionEvent;
 import com.eteks.sweethome3d.model.SelectionListener;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.tools.OperatingSystem;
+import com.eteks.sweethome3d.viewcontroller.DimensionLineController;
 import com.eteks.sweethome3d.viewcontroller.HomeController;
 import com.eteks.sweethome3d.viewcontroller.LabelController;
 import com.eteks.sweethome3d.viewcontroller.PolylineController;
@@ -72,6 +74,7 @@ public class SelectionInspectorPane extends JPanel {
   private static final String ROOM_CARD = "room";
   private static final String POLYLINE_CARD = "polyline";
   private static final String LABEL_CARD = "label";
+  private static final String DIMENSION_CARD = "dimension";
 
   private final Home              home;
   private final UserPreferences   preferences;
@@ -81,16 +84,20 @@ public class SelectionInspectorPane extends JPanel {
   private final RoomInspectorPanel roomInspectorPanel;
   private final PolylineInspectorPanel polylineInspectorPanel;
   private final LabelInspectorPanel labelInspectorPanel;
+  private final DimensionLineInspectorPanel dimensionLineInspectorPanel;
   private final List<Room>        monitoredRooms;
   private final List<Polyline>    monitoredPolylines;
   private final List<Label>       monitoredLabels;
+  private final List<DimensionLine> monitoredDimensionLines;
   private boolean                 showingRoomInspector;
   private boolean                 showingPolylineInspector;
   private boolean                 showingLabelInspector;
+  private boolean                 showingDimensionLineInspector;
   private boolean                 suppressSelectionListener;
   private final PropertyChangeListener roomPropertyListener;
   private final PropertyChangeListener polylinePropertyListener;
   private final PropertyChangeListener labelPropertyListener;
+  private final PropertyChangeListener dimensionLinePropertyListener;
 
   public SelectionInspectorPane(Home home,
                                 UserPreferences preferences,
@@ -105,9 +112,11 @@ public class SelectionInspectorPane extends JPanel {
     this.roomInspectorPanel = new RoomInspectorPanel(home, preferences, controller);
     this.polylineInspectorPanel = new PolylineInspectorPanel(home, preferences, controller);
     this.labelInspectorPanel = new LabelInspectorPanel(home, preferences, controller);
+    this.dimensionLineInspectorPanel = new DimensionLineInspectorPanel(home, preferences, controller);
     this.monitoredRooms = new ArrayList<Room>();
     this.monitoredPolylines = new ArrayList<Polyline>();
     this.monitoredLabels = new ArrayList<Label>();
+    this.monitoredDimensionLines = new ArrayList<DimensionLine>();
     this.roomPropertyListener = new PropertyChangeListener() {
         public void propertyChange(PropertyChangeEvent ev) {
           if (!showingRoomInspector) {
@@ -152,11 +161,24 @@ public class SelectionInspectorPane extends JPanel {
           }
         }
       };
+    this.dimensionLinePropertyListener = new PropertyChangeListener() {
+        public void propertyChange(PropertyChangeEvent ev) {
+          if (!showingDimensionLineInspector) {
+            return;
+          }
+          EventQueue.invokeLater(new Runnable() {
+              public void run() {
+                dimensionLineInspectorPanel.refresh();
+              }
+            });
+        }
+      };
 
     this.cardPanel.add(this.emptyLabel, EMPTY_CARD);
     this.cardPanel.add(this.roomInspectorPanel, ROOM_CARD);
     this.cardPanel.add(this.polylineInspectorPanel, POLYLINE_CARD);
     this.cardPanel.add(this.labelInspectorPanel, LABEL_CARD);
+    this.cardPanel.add(this.dimensionLineInspectorPanel, DIMENSION_CARD);
     add(this.cardPanel, BorderLayout.NORTH);
     setMinimumSize(new Dimension((int)(200 * SwingTools.getResolutionScale()), 0));
 
@@ -193,10 +215,12 @@ public class SelectionInspectorPane extends JPanel {
       }
       updateMonitoredPolylines(null);
       updateMonitoredLabels(null);
+      updateMonitoredDimensionLines(null);
       updateMonitoredRooms(selectedRooms);
       this.showingRoomInspector = true;
       this.showingPolylineInspector = false;
       this.showingLabelInspector = false;
+      this.showingDimensionLineInspector = false;
       this.roomInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, ROOM_CARD);
       return;
@@ -212,10 +236,12 @@ public class SelectionInspectorPane extends JPanel {
       }
       updateMonitoredRooms(null);
       updateMonitoredLabels(null);
+      updateMonitoredDimensionLines(null);
       updateMonitoredPolylines(selectedPolylines);
       this.showingRoomInspector = false;
       this.showingPolylineInspector = true;
       this.showingLabelInspector = false;
+      this.showingDimensionLineInspector = false;
       this.polylineInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, POLYLINE_CARD);
       return;
@@ -231,12 +257,35 @@ public class SelectionInspectorPane extends JPanel {
       }
       updateMonitoredRooms(null);
       updateMonitoredPolylines(null);
+      updateMonitoredDimensionLines(null);
       updateMonitoredLabels(selectedLabels);
       this.showingRoomInspector = false;
       this.showingPolylineInspector = false;
       this.showingLabelInspector = true;
+      this.showingDimensionLineInspector = false;
       this.labelInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, LABEL_CARD);
+      return;
+    }
+
+    List<DimensionLine> selectedDimensionLines = Home.getDimensionLinesSubList(selectedItems);
+    if (!selectedDimensionLines.isEmpty() && selectedItems.size() == selectedDimensionLines.size()) {
+      for (DimensionLine dimensionLine : selectedDimensionLines) {
+        if (isDimensionLineLocked(dimensionLine)) {
+          showEmpty("lockedDimensionLine.message");
+          return;
+        }
+      }
+      updateMonitoredRooms(null);
+      updateMonitoredPolylines(null);
+      updateMonitoredLabels(null);
+      updateMonitoredDimensionLines(selectedDimensionLines);
+      this.showingRoomInspector = false;
+      this.showingPolylineInspector = false;
+      this.showingLabelInspector = false;
+      this.showingDimensionLineInspector = true;
+      this.dimensionLineInspectorPanel.refresh();
+      this.cardLayout.show(this.cardPanel, DIMENSION_CARD);
       return;
     }
 
@@ -247,9 +296,11 @@ public class SelectionInspectorPane extends JPanel {
     this.showingRoomInspector = false;
     this.showingPolylineInspector = false;
     this.showingLabelInspector = false;
+    this.showingDimensionLineInspector = false;
     updateMonitoredRooms(null);
     updateMonitoredPolylines(null);
     updateMonitoredLabels(null);
+    updateMonitoredDimensionLines(null);
     this.emptyLabel.setText(this.preferences.getLocalizedString(
         SelectionInspectorPane.class, messageKey));
     this.cardLayout.show(this.cardPanel, EMPTY_CARD);
@@ -306,6 +357,24 @@ public class SelectionInspectorPane extends JPanel {
 
   private static boolean isLabelLocked(Label label) {
     Level level = label.getLevel();
+    return level != null && level.isLocked();
+  }
+
+  private void updateMonitoredDimensionLines(List<DimensionLine> dimensionLines) {
+    for (DimensionLine dimensionLine : this.monitoredDimensionLines) {
+      dimensionLine.removePropertyChangeListener(this.dimensionLinePropertyListener);
+    }
+    this.monitoredDimensionLines.clear();
+    if (dimensionLines != null) {
+      for (DimensionLine dimensionLine : dimensionLines) {
+        dimensionLine.addPropertyChangeListener(this.dimensionLinePropertyListener);
+        this.monitoredDimensionLines.add(dimensionLine);
+      }
+    }
+  }
+
+  private static boolean isDimensionLineLocked(DimensionLine dimensionLine) {
+    Level level = dimensionLine.getLevel();
     return level != null && level.isLocked();
   }
 
@@ -1542,6 +1611,240 @@ public class SelectionInspectorPane extends JPanel {
 
     private void markTextFieldSynced() {
       this.textFieldUserEdited = false;
+    }
+  }
+
+  /**
+   * Dimension line inspector with live edit fields (SPIKE-21 P2b).
+   */
+  private class DimensionLineInspectorPanel extends JPanel {
+    private final Home                      home;
+    private final HomeController            homeController;
+    private final DimensionLineController   dimensionLineController;
+    private final UserPreferences           preferences;
+    private JLabel                          summaryLabel;
+    private JButton                         openFullEditorButton;
+    private JLabel                          offsetLabel;
+    private NullableSpinner                 offsetSpinner;
+    private NullableSpinner.NullableSpinnerLengthModel offsetSpinnerModel;
+    private JLabel                          lengthFontSizeLabel;
+    private NullableSpinner                 lengthFontSizeSpinner;
+    private NullableSpinner.NullableSpinnerLengthModel lengthFontSizeSpinnerModel;
+    private JLabel                          colorLabel;
+    private ColorButton                     colorButton;
+    private boolean                         updatingFromController;
+
+    DimensionLineInspectorPanel(Home home,
+                                UserPreferences preferences,
+                                HomeController controller) {
+      super(new BorderLayout());
+      this.home = home;
+      this.homeController = controller;
+      this.preferences = preferences;
+      this.dimensionLineController = controller.createDimensionLineController();
+      createHeader();
+      createFields();
+      layoutFields();
+    }
+
+    private void createHeader() {
+      this.summaryLabel = new JLabel();
+      this.openFullEditorButton = new JButton(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "openFullEditorButton.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.openFullEditorButton.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "openFullEditorButton.mnemonic")).getKeyCode());
+      }
+      this.openFullEditorButton.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            homeController.getPlanController().modifySelectedDimensionLines();
+          }
+        });
+    }
+
+    private void createFields() {
+      String unitName = this.preferences.getLengthUnit().getName();
+      this.offsetLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, DimensionLinePanel.class, "offsetLabel.text", unitName));
+      this.offsetSpinnerModel = new NullableSpinner.NullableSpinnerLengthModel(
+          this.preferences, -10000, 10000);
+      this.offsetSpinner = new NullableSpinner(this.offsetSpinnerModel);
+      this.offsetSpinnerModel.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            dimensionLineController.setOffset(offsetSpinnerModel.getLength());
+            applyDimensionLineChanges();
+          }
+        });
+
+      this.lengthFontSizeLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, DimensionLinePanel.class, "lengthFontSizeLabel.text", unitName));
+      this.lengthFontSizeSpinnerModel = new NullableSpinner.NullableSpinnerLengthModel(
+          this.preferences, 5, 999);
+      this.lengthFontSizeSpinner = new NullableSpinner(this.lengthFontSizeSpinnerModel);
+      this.lengthFontSizeSpinnerModel.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            dimensionLineController.setLengthFontSize(lengthFontSizeSpinnerModel.getLength());
+            applyDimensionLineChanges();
+          }
+        });
+
+      this.colorLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, DimensionLinePanel.class, "colorLabel.text"));
+      this.colorButton = new ColorButton(this.preferences);
+      this.colorButton.setColorDialogTitle(this.preferences.getLocalizedString(
+          DimensionLinePanel.class, "colorDialog.title"));
+      this.colorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              if (updatingFromController) {
+                return;
+              }
+              dimensionLineController.setColor(colorButton.getColor());
+              applyDimensionLineChanges();
+            }
+          });
+    }
+
+    private void layoutFields() {
+      int labelAlignment = OperatingSystem.isMacOSX()
+          ? GridBagConstraints.LINE_END
+          : GridBagConstraints.LINE_START;
+      int standardGap = Math.round(5 * SwingTools.getResolutionScale());
+      Insets fieldInsets = new Insets(0, 0, standardGap, 0);
+
+      JPanel fieldsPanel = new JPanel(new GridBagLayout());
+      JPanel stylePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "dimensionStylePanel.title"));
+      stylePanel.add(this.offsetLabel, new GridBagConstraints(
+          0, 0, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      stylePanel.add(this.offsetSpinner, new GridBagConstraints(
+          1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      stylePanel.add(this.lengthFontSizeLabel, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      stylePanel.add(this.lengthFontSizeSpinner, new GridBagConstraints(
+          1, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      stylePanel.add(this.colorLabel, new GridBagConstraints(
+          0, 2, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      stylePanel.add(this.colorButton, new GridBagConstraints(
+          1, 2, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
+
+      fieldsPanel.add(stylePanel, new GridBagConstraints(
+          0, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, fieldInsets, 0, 0));
+
+      JPanel headerPanel = new JPanel(new GridBagLayout());
+      headerPanel.setBorder(AlpInspectorStyles.sectionGapBorder());
+      headerPanel.add(this.summaryLabel, new GridBagConstraints(
+          0, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, AlpInspectorStyles.scale(6), 0), 0, 0));
+      headerPanel.add(this.openFullEditorButton, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
+
+      JPanel contentPanel = new JPanel(new BorderLayout());
+      contentPanel.setBorder(BorderFactory.createEmptyBorder(
+          AlpInspectorStyles.panelInsets().top,
+          AlpInspectorStyles.panelInsets().left,
+          AlpInspectorStyles.panelInsets().bottom,
+          AlpInspectorStyles.panelInsets().right));
+      contentPanel.add(headerPanel, BorderLayout.NORTH);
+      contentPanel.add(fieldsPanel, BorderLayout.CENTER);
+      add(contentPanel, BorderLayout.NORTH);
+    }
+
+    void refresh() {
+      updateSelectionSummary();
+      this.updatingFromController = true;
+      try {
+        this.dimensionLineController.refreshProperties();
+
+        Float offset = this.dimensionLineController.getOffset();
+        this.offsetSpinnerModel.setNullable(offset == null);
+        this.offsetSpinnerModel.setLength(offset);
+
+        Float lengthFontSize = this.dimensionLineController.getLengthFontSize();
+        this.lengthFontSizeSpinnerModel.setNullable(lengthFontSize == null);
+        this.lengthFontSizeSpinnerModel.setLength(lengthFontSize);
+
+        this.colorButton.setColor(this.dimensionLineController.getColor());
+      } finally {
+        this.updatingFromController = false;
+      }
+    }
+
+    private void updateSelectionSummary() {
+      List<DimensionLine> dimensionLines = Home.getDimensionLinesSubList(this.home.getSelectedItems());
+      String title;
+      if (dimensionLines.size() == 1) {
+        title = this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "summarySingleDimension.title");
+      } else {
+        title = MessageFormat.format(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "summaryMultipleDimensions.title"), dimensionLines.size());
+      }
+
+      String levelName = getCommonLevelName(dimensionLines);
+      String subtitle = levelName != null
+          ? MessageFormat.format(this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summaryLayer.text"), levelName)
+          : this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summaryMixedLevels.text");
+      AlpInspectorStyles.applySummaryText(this.summaryLabel, title, subtitle);
+    }
+
+    private String getCommonLevelName(List<DimensionLine> dimensionLines) {
+      if (dimensionLines.isEmpty()) {
+        return null;
+      }
+      Level level = dimensionLines.get(0).getLevel();
+      String levelName = level != null ? level.getName() : null;
+      for (int i = 1; i < dimensionLines.size(); i++) {
+        Level otherLevel = dimensionLines.get(i).getLevel();
+        String otherLevelName = otherLevel != null ? otherLevel.getName() : null;
+        if (levelName == null) {
+          if (otherLevelName != null) {
+            return null;
+          }
+        } else if (!levelName.equals(otherLevelName)) {
+          return null;
+        }
+      }
+      return levelName;
+    }
+
+    private void syncControllerGeometryForModify() {
+      this.dimensionLineController.setXStart(null);
+      this.dimensionLineController.setYStart(null);
+      this.dimensionLineController.setElevationStart(null);
+      this.dimensionLineController.setXEnd(null);
+      this.dimensionLineController.setYEnd(null);
+      this.dimensionLineController.setElevationEnd(null);
+      this.dimensionLineController.setVisibleIn3D(null);
+      this.dimensionLineController.setPitch(null);
+    }
+
+    private void applyDimensionLineChanges() {
+      if (this.updatingFromController) {
+        return;
+      }
+      if (Home.getDimensionLinesSubList(this.home.getSelectedItems()).isEmpty()) {
+        return;
+      }
+      syncControllerGeometryForModify();
+      this.dimensionLineController.modifyDimensionLines();
     }
   }
 }

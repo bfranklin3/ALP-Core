@@ -153,6 +153,13 @@ public class DimensionLineController implements Controller {
   }
 
   /**
+   * Updates edited properties from the current dimension line selection.
+   */
+  public void refreshProperties() {
+    updateProperties();
+  }
+
+  /**
    * Updates edited properties from selected dimension lines in the home edited by this controller.
    */
   protected void updateProperties() {
