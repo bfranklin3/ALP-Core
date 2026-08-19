@@ -9712,6 +9712,14 @@ public class PlanController extends FurnitureController implements Controller {
     public void zoom(float factor) {
       setScale(getScale() * factor);
     }
+
+    @Override
+    public void escape() {
+      Mode mode = getMode();
+      if (mode != Mode.SELECTION && mode != Mode.PANNING) {
+        setState(getSelectionState());
+      }
+    }
   }
 
   /**
