@@ -42,6 +42,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
   public enum Property {NAME, NAME_X_OFFSET, NAME_Y_OFFSET, NAME_STYLE, NAME_ANGLE,
       POINTS, AREA_VISIBLE, AREA_X_OFFSET, AREA_Y_OFFSET, AREA_STYLE, AREA_ANGLE,
       FLOOR_COLOR, FLOOR_TEXTURE, FLOOR_VISIBLE, FLOOR_SHININESS, FLOOR_OPACITY, SMOOTHED, SHARP_CORNERS,
+      OUTLINE_THICKNESS, OUTLINE_DASH_STYLE, OUTLINE_COLOR,
       CEILING_COLOR, CEILING_TEXTURE, CEILING_VISIBLE, CEILING_SHININESS, CEILING_FLAT, LEVEL}
 
   private static final long serialVersionUID = 1L;
@@ -73,6 +74,10 @@ public class Room extends HomeObject implements Selectable, Elevatable {
   private float               ceilingShininess;
   private boolean             ceilingFlat;
   private Level               level;
+  private float               outlineThickness = 1.5f;
+  private transient Polyline.DashStyle outlineDashStyle = Polyline.DashStyle.SOLID;
+  private String              outlineDashStyleName = Polyline.DashStyle.SOLID.name();
+  private Integer             outlineColor;
 
   private transient Shape       shapeCache;
   private transient Rectangle2D boundsCache;
@@ -109,7 +114,22 @@ public class Room extends HomeObject implements Selectable, Elevatable {
   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
     this.ceilingFlat = false;
     this.floorOpacity = 0.75f;
+    this.outlineDashStyle = Polyline.DashStyle.SOLID;
     in.defaultReadObject();
+    restoreOutlineDashStyle();
+  }
+
+  private void restoreOutlineDashStyle() {
+    if (this.outlineDashStyleName != null) {
+      try {
+        this.outlineDashStyle = Polyline.DashStyle.valueOf(this.outlineDashStyleName);
+      } catch (IllegalArgumentException ex) {
+        this.outlineDashStyle = Polyline.DashStyle.SOLID;
+      }
+    } else if (this.outlineDashStyle == null) {
+      this.outlineDashStyle = Polyline.DashStyle.SOLID;
+      this.outlineDashStyleName = this.outlineDashStyle.name();
+    }
   }
 
   /**
@@ -585,6 +605,74 @@ public class Room extends HomeObject implements Selectable, Elevatable {
       float oldFloorOpacity = this.floorOpacity;
       this.floorOpacity = floorOpacity;
       firePropertyChange(Property.FLOOR_OPACITY.name(), oldFloorOpacity, floorOpacity);
+    }
+  }
+
+  /**
+   * Returns the outline thickness of this room in plan view, in centimeters.
+   */
+  public float getOutlineThickness() {
+    return this.outlineThickness;
+  }
+
+  /**
+   * Sets the outline thickness of this room in plan view, in centimeters.
+   */
+  public void setOutlineThickness(float outlineThickness) {
+    if (outlineThickness != this.outlineThickness) {
+      float oldOutlineThickness = this.outlineThickness;
+      this.outlineThickness = outlineThickness;
+      firePropertyChange(Property.OUTLINE_THICKNESS.name(), oldOutlineThickness, outlineThickness);
+    }
+  }
+
+  /**
+   * Returns the outline dash style of this room in plan view.
+   */
+  public Polyline.DashStyle getOutlineDashStyle() {
+    if (this.outlineDashStyle == null) {
+      restoreOutlineDashStyle();
+    }
+    return this.outlineDashStyle;
+  }
+
+  /**
+   * Sets the outline dash style of this room in plan view.
+   */
+  public void setOutlineDashStyle(Polyline.DashStyle outlineDashStyle) {
+    if (outlineDashStyle == null) {
+      outlineDashStyle = Polyline.DashStyle.SOLID;
+    }
+    if (outlineDashStyle != this.outlineDashStyle) {
+      Polyline.DashStyle oldOutlineDashStyle = this.outlineDashStyle;
+      this.outlineDashStyle = outlineDashStyle;
+      this.outlineDashStyleName = this.outlineDashStyle.name();
+      firePropertyChange(Property.OUTLINE_DASH_STYLE.name(), oldOutlineDashStyle, outlineDashStyle);
+    }
+  }
+
+  /**
+   * Returns the dash pattern of this room outline in percentage of its thickness.
+   */
+  public float [] getOutlineDashPattern() {
+    return getOutlineDashStyle().getDashPattern();
+  }
+
+  /**
+   * Returns the outline color of this room in plan view, or <code>null</code> for the default plan color.
+   */
+  public Integer getOutlineColor() {
+    return this.outlineColor;
+  }
+
+  /**
+   * Sets the outline color of this room in plan view. Use <code>null</code> for the default plan color.
+   */
+  public void setOutlineColor(Integer outlineColor) {
+    if (outlineColor != this.outlineColor) {
+      Integer oldOutlineColor = this.outlineColor;
+      this.outlineColor = outlineColor;
+      firePropertyChange(Property.OUTLINE_COLOR.name(), oldOutlineColor, outlineColor);
     }
   }
 

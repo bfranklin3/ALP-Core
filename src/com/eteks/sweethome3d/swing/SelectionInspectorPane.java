@@ -23,17 +23,22 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.text.DecimalFormat;
 import java.text.Format;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import java.text.MessageFormat;
 
 import javax.swing.BorderFactory;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
@@ -45,6 +50,7 @@ import javax.swing.event.DocumentListener;
 
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Selectable;
 import com.eteks.sweethome3d.model.SelectionEvent;
@@ -187,6 +193,13 @@ public class SelectionInspectorPane extends JPanel {
     private NullableSpinner          floorOpacitySpinner;
     private NullableSpinner.NullableSpinnerNumberModel floorOpacitySpinnerModel;
     private NullableCheckBox       smoothedCheckBox;
+    private JLabel                 outlineThicknessLabel;
+    private NullableSpinner        outlineThicknessSpinner;
+    private NullableSpinner.NullableSpinnerLengthModel outlineThicknessSpinnerModel;
+    private JLabel                 outlineDashStyleLabel;
+    private JComboBox              outlineDashStyleComboBox;
+    private JLabel                 outlineColorLabel;
+    private ColorButton            outlineColorButton;
     private String                 nameFieldSyncedValue;
     private boolean                nameFieldUserEdited;
     private boolean                updatingFromController;
@@ -335,6 +348,57 @@ public class SelectionInspectorPane extends JPanel {
             }
           });
       }
+
+      this.outlineThicknessLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, PolylinePanel.class, "thicknessLabel.text",
+          this.preferences.getLengthUnit().getName()));
+      this.outlineThicknessSpinnerModel = new NullableSpinner.NullableSpinnerLengthModel(
+          this.preferences, this.preferences.getLengthUnit().getMinimumLength(), 50f);
+      this.outlineThicknessSpinner = new NullableSpinner(this.outlineThicknessSpinnerModel);
+      this.outlineThicknessSpinnerModel.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            roomController.setOutlineThickness(outlineThicknessSpinnerModel.getLength());
+            applyRoomChanges();
+          }
+        });
+
+      this.outlineDashStyleLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, PolylinePanel.class, "dashStyleLabel.text"));
+      List<Polyline.DashStyle> dashStyles = new ArrayList<Polyline.DashStyle>(
+          Arrays.asList(Polyline.DashStyle.values()));
+      dashStyles.remove(Polyline.DashStyle.CUSTOMIZED);
+      dashStyles.add(0, null);
+      this.outlineDashStyleComboBox = new JComboBox(
+          new DefaultComboBoxModel(dashStyles.toArray(new Polyline.DashStyle [dashStyles.size()])));
+      this.outlineDashStyleComboBox.addItemListener(new ItemListener() {
+          public void itemStateChanged(ItemEvent ev) {
+            if (updatingFromController || ev.getStateChange() != ItemEvent.SELECTED) {
+              return;
+            }
+            roomController.setOutlineDashStyle(
+                (Polyline.DashStyle)outlineDashStyleComboBox.getSelectedItem());
+            applyRoomChanges();
+          }
+        });
+
+      this.outlineColorLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, PolylinePanel.class, "colorLabel.text"));
+      this.outlineColorButton = new ColorButton(this.preferences);
+      this.outlineColorButton.setColorDialogTitle(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "outlineColorDialog.title"));
+      this.outlineColorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              if (updatingFromController) {
+                return;
+              }
+              roomController.setOutlineColor(outlineColorButton.getColor());
+              applyRoomChanges();
+            }
+          });
     }
 
     private void layoutFields() {
@@ -393,6 +457,31 @@ public class SelectionInspectorPane extends JPanel {
       }
 
       fieldsPanel.add(floorPanel, new GridBagConstraints(
+          0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, fieldInsets, 0, 0));
+
+      JPanel outlinePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "outlinePanel.title"));
+      outlinePanel.add(this.outlineThicknessLabel, new GridBagConstraints(
+          0, 0, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      outlinePanel.add(this.outlineThicknessSpinner, new GridBagConstraints(
+          1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      outlinePanel.add(this.outlineDashStyleLabel, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      outlinePanel.add(this.outlineDashStyleComboBox, new GridBagConstraints(
+          1, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      outlinePanel.add(this.outlineColorLabel, new GridBagConstraints(
+          0, 2, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      outlinePanel.add(this.outlineColorButton, new GridBagConstraints(
+          1, 2, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
+
+      fieldsPanel.add(outlinePanel, new GridBagConstraints(
           0, row, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
@@ -488,6 +577,14 @@ public class SelectionInspectorPane extends JPanel {
           this.smoothedCheckBox.setNullable(this.roomController.getSmoothed() == null);
           this.smoothedCheckBox.setValue(this.roomController.getSmoothed());
         }
+
+        Float outlineThickness = this.roomController.getOutlineThickness();
+        this.outlineThicknessSpinnerModel.setNullable(outlineThickness == null);
+        this.outlineThicknessSpinnerModel.setLength(outlineThickness);
+
+        this.outlineDashStyleComboBox.setSelectedItem(this.roomController.getOutlineDashStyle());
+
+        this.outlineColorButton.setColor(this.roomController.getOutlineColor());
       } finally {
         this.updatingFromController = false;
       }

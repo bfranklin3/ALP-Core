@@ -651,6 +651,9 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           writer.writeColorAttribute("floorColor", room.getFloorColor());
           writer.writeFloatAttribute("floorShininess", room.getFloorShininess(), 0);
           writer.writeFloatAttribute("floorOpacity", room.getFloorOpacity(), 0.75f);
+          writer.writeFloatAttribute("outlineThickness", room.getOutlineThickness(), 1.5f);
+          writer.writeAttribute("outlineDashStyle", room.getOutlineDashStyle().name(), Polyline.DashStyle.SOLID.name());
+          writer.writeColorAttribute("outlineColor", room.getOutlineColor());
           writer.writeBooleanAttribute("smoothed", room.isSmoothed(), false);
           writer.writeBooleanAttribute("ceilingVisible", room.isCeilingVisible(), true);
           writer.writeColorAttribute("ceilingColor", room.getCeilingColor());

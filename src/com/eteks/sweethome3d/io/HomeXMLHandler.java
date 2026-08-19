@@ -408,6 +408,9 @@ import com.eteks.sweethome3d.tools.URLContent;
  *       floorColor CDATA #IMPLIED
  *       floorShininess CDATA "0"
  *       floorOpacity CDATA "0.75"
+ *       outlineThickness CDATA "1.5"
+ *       outlineDashStyle (SOLID | DOT | DASH | DASH_DOT | DASH_DOT_DOT) "SOLID"
+ *       outlineColor CDATA #IMPLIED
  *       smoothed (false | true) "false"
  *       ceilingVisible (false | true) "true"
  *       ceilingColor CDATA #IMPLIED
@@ -1587,6 +1590,19 @@ public class HomeXMLHandler extends DefaultHandler {
     if (floorOpacity != null) {
       room.setFloorOpacity(floorOpacity);
     }
+    Float outlineThickness = parseOptionalFloat(attributes, "outlineThickness");
+    if (outlineThickness != null) {
+      room.setOutlineThickness(outlineThickness);
+    }
+    String outlineDashStyle = attributes.get("outlineDashStyle");
+    if (outlineDashStyle != null) {
+      try {
+        room.setOutlineDashStyle(Polyline.DashStyle.valueOf(outlineDashStyle));
+      } catch (IllegalArgumentException ex) {
+        // Ignore malformed enum constant
+      }
+    }
+    room.setOutlineColor(parseOptionalColor(attributes, "outlineColor"));
     if ("true".equals(attributes.get("smoothed"))) {
       room.setSmoothed(true);
     }

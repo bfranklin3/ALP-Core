@@ -41,6 +41,7 @@ import com.eteks.sweethome3d.model.Baseboard;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Selectable;
 import com.eteks.sweethome3d.model.UserPreferences;
@@ -55,6 +56,7 @@ public class RoomController implements Controller {
    * The properties that may be edited by the view associated to this controller.
    */
   public enum Property {NAME, AREA_VISIBLE, FLOOR_VISIBLE, FLOOR_COLOR, FLOOR_PAINT, FLOOR_SHININESS, FLOOR_OPACITY, SMOOTHED,
+      OUTLINE_THICKNESS, OUTLINE_DASH_STYLE, OUTLINE_COLOR,
       CEILING_VISIBLE, CEILING_COLOR, CEILING_PAINT, CEILING_SHININESS, CEILING_FLAT,
       SPLIT_SURROUNDING_WALLS, WALL_SIDES_COLOR, WALL_SIDES_PAINT, WALL_SIDES_SHININESS, WALL_SIDES_BASEBOARD}
 
@@ -83,6 +85,9 @@ public class RoomController implements Controller {
   private Float     floorShininess;
   private Float     floorOpacity;
   private Boolean   smoothed;
+  private Float     outlineThickness;
+  private Polyline.DashStyle outlineDashStyle;
+  private Integer   outlineColor;
   private Boolean   ceilingVisible;
   private Integer   ceilingColor;
   private RoomPaint ceilingPaint;
@@ -254,6 +259,9 @@ public class RoomController implements Controller {
       setFloorShininess(null);
       setFloorOpacity(null);
       setSmoothed(null);
+      setOutlineThickness(null);
+      setOutlineDashStyle(null);
+      setOutlineColor(null);
       setCeilingColor(null);
       getCeilingTextureController().setTexture(null);
       setCeilingPaint(null);
@@ -367,6 +375,42 @@ public class RoomController implements Controller {
         }
       }
       setSmoothed(smoothed);
+
+      Float outlineThickness = firstRoom.getOutlineThickness();
+      for (int i = 1; i < selectedRooms.size(); i++) {
+        if (outlineThickness != selectedRooms.get(i).getOutlineThickness()) {
+          outlineThickness = null;
+          break;
+        }
+      }
+      setOutlineThickness(outlineThickness);
+
+      Polyline.DashStyle outlineDashStyle = firstRoom.getOutlineDashStyle();
+      for (int i = 1; i < selectedRooms.size(); i++) {
+        if (outlineDashStyle != selectedRooms.get(i).getOutlineDashStyle()) {
+          outlineDashStyle = null;
+          break;
+        }
+      }
+      setOutlineDashStyle(outlineDashStyle);
+
+      Integer outlineColor = firstRoom.getOutlineColor();
+      if (outlineColor != null) {
+        for (int i = 1; i < selectedRooms.size(); i++) {
+          if (!outlineColor.equals(selectedRooms.get(i).getOutlineColor())) {
+            outlineColor = null;
+            break;
+          }
+        }
+      } else {
+        for (int i = 1; i < selectedRooms.size(); i++) {
+          if (selectedRooms.get(i).getOutlineColor() != null) {
+            outlineColor = null;
+            break;
+          }
+        }
+      }
+      setOutlineColor(outlineColor);
 
       // Search the common ceilingVisible value among rooms
       Boolean ceilingVisible = firstRoom.isCeilingVisible();
@@ -958,6 +1002,63 @@ public class RoomController implements Controller {
   }
 
   /**
+   * Sets the edited outline thickness.
+   */
+  public void setOutlineThickness(Float outlineThickness) {
+    if (outlineThickness != this.outlineThickness) {
+      Float oldOutlineThickness = this.outlineThickness;
+      this.outlineThickness = outlineThickness;
+      this.propertyChangeSupport.firePropertyChange(Property.OUTLINE_THICKNESS.name(),
+          oldOutlineThickness, outlineThickness);
+    }
+  }
+
+  /**
+   * Returns the edited outline thickness.
+   */
+  public Float getOutlineThickness() {
+    return this.outlineThickness;
+  }
+
+  /**
+   * Sets the edited outline dash style.
+   */
+  public void setOutlineDashStyle(Polyline.DashStyle outlineDashStyle) {
+    if (outlineDashStyle != this.outlineDashStyle) {
+      Polyline.DashStyle oldOutlineDashStyle = this.outlineDashStyle;
+      this.outlineDashStyle = outlineDashStyle;
+      this.propertyChangeSupport.firePropertyChange(Property.OUTLINE_DASH_STYLE.name(),
+          oldOutlineDashStyle, outlineDashStyle);
+    }
+  }
+
+  /**
+   * Returns the edited outline dash style.
+   */
+  public Polyline.DashStyle getOutlineDashStyle() {
+    return this.outlineDashStyle;
+  }
+
+  /**
+   * Sets the edited outline color.
+   */
+  public void setOutlineColor(Integer outlineColor) {
+    if (outlineColor != this.outlineColor) {
+      Integer oldOutlineColor = this.outlineColor;
+      this.outlineColor = outlineColor;
+      this.propertyChangeSupport.firePropertyChange(Property.OUTLINE_COLOR.name(),
+          oldOutlineColor, outlineColor);
+    }
+  }
+
+  /**
+   * Returns the edited outline color.
+   */
+  public Integer getOutlineColor() {
+    return this.outlineColor;
+  }
+
+  /**
    * Sets whether room ceiling is visible or not.
    */
   public void setCeilingVisible(Boolean ceilingCeilingVisible) {
@@ -1160,6 +1261,9 @@ public class RoomController implements Controller {
       Float floorShininess = getFloorShininess();
       Float floorOpacity = getFloorOpacity();
       Boolean smoothed = getSmoothed();
+      Float outlineThickness = getOutlineThickness();
+      Polyline.DashStyle outlineDashStyle = getOutlineDashStyle();
+      Integer outlineColor = getOutlineColor();
       Boolean ceilingVisible = getCeilingVisible();
       RoomPaint ceilingPaint = getCeilingPaint();
       Integer ceilingColor = ceilingPaint == RoomPaint.COLORED
@@ -1209,7 +1313,8 @@ public class RoomController implements Controller {
         modifiedWallSides [i] = new ModifiedWallSide(selectedRoomsWallSides.get(i));
       }
       doModifyRoomsAndWallSides(home, modifiedRooms, name, areaVisible,
-          floorVisible, floorPaint, floorColor, floorTexture, floorShininess, floorOpacity, smoothed, ceilingVisible,
+          floorVisible, floorPaint, floorColor, floorTexture, floorShininess, floorOpacity, smoothed,
+          outlineThickness, outlineDashStyle, outlineColor, ceilingVisible,
           ceilingPaint, ceilingColor, ceilingTexture, ceilingShininess, ceilingFlat, modifiedWallSides,
           this.preferences.getNewWallBaseboardThickness(), this.preferences.getNewWallBaseboardHeight(), wallSidesPaint,
           wallSidesColor, wallSidesTexture, wallSidesShininess, wallSidesBaseboardVisible,
@@ -1219,7 +1324,8 @@ public class RoomController implements Controller {
         this.undoSupport.postEdit(new RoomsAndWallSidesModificationUndoableEdit(this.home, this.preferences,
             oldSelection.toArray(new Selectable [oldSelection.size()]), newSelection.toArray(new Selectable [newSelection.size()]),
             modifiedRooms, name, areaVisible,
-            floorVisible, floorPaint, floorColor, floorTexture, floorShininess, floorOpacity, smoothed, ceilingVisible,
+            floorVisible, floorPaint, floorColor, floorTexture, floorShininess, floorOpacity, smoothed,
+            outlineThickness, outlineDashStyle, outlineColor, ceilingVisible,
             ceilingPaint, ceilingColor, ceilingTexture, ceilingShininess, ceilingFlat, modifiedWallSides,
             this.preferences.getNewWallBaseboardThickness(), this.preferences.getNewWallBaseboardHeight(), wallSidesPaint,
             wallSidesColor, wallSidesTexture, wallSidesShininess, wallSidesBaseboardVisible,
@@ -1429,6 +1535,9 @@ public class RoomController implements Controller {
     private final Float               floorShininess;
     private final Float               floorOpacity;
     private final Boolean             smoothed;
+    private final Float               outlineThickness;
+    private final Polyline.DashStyle  outlineDashStyle;
+    private final Integer             outlineColor;
     private final Boolean             ceilingVisible;
     private final RoomPaint           ceilingPaint;
     private final Integer             ceilingColor;
@@ -1465,6 +1574,9 @@ public class RoomController implements Controller {
                                           Float floorShininess,
                                           Float floorOpacity,
                                           Boolean smoothed,
+                                          Float outlineThickness,
+                                          Polyline.DashStyle outlineDashStyle,
+                                          Integer outlineColor,
                                           Boolean ceilingVisible,
                                           RoomPaint ceilingPaint,
                                           Integer ceilingColor,
@@ -1500,6 +1612,9 @@ public class RoomController implements Controller {
       this.floorShininess = floorShininess;
       this.floorOpacity = floorOpacity;
       this.smoothed = smoothed;
+      this.outlineThickness = outlineThickness;
+      this.outlineDashStyle = outlineDashStyle;
+      this.outlineColor = outlineColor;
       this.ceilingVisible = ceilingVisible;
       this.ceilingPaint = ceilingPaint;
       this.ceilingColor = ceilingColor;
@@ -1535,7 +1650,8 @@ public class RoomController implements Controller {
       super.redo();
       doModifyRoomsAndWallSides(this.home,
           this.modifiedRooms, this.name, this.areaVisible,
-          this.floorVisible, this.floorPaint, this.floorColor, this.floorTexture, this.floorShininess, this.floorOpacity, this.smoothed, this.ceilingVisible,
+          this.floorVisible, this.floorPaint, this.floorColor, this.floorTexture, this.floorShininess, this.floorOpacity, this.smoothed,
+          this.outlineThickness, this.outlineDashStyle, this.outlineColor, this.ceilingVisible,
           this.ceilingPaint, this.ceilingColor, this.ceilingTexture, this.ceilingShininess, this.ceilingFlat, this.modifiedWallSides,
           this.newWallBaseboardThickness, this.newWallBaseboardHeight, this.wallSidesPaint,
           this.wallSidesColor, this.wallSidesTexture, this.wallSidesShininess, this.wallSidesBaseboardVisible,
@@ -1551,7 +1667,9 @@ public class RoomController implements Controller {
    */
   private static void doModifyRoomsAndWallSides(Home home, ModifiedRoom [] modifiedRooms,
                                                 String name, Boolean areaVisible,
-                                                Boolean floorVisible, RoomPaint floorPaint, Integer floorColor, HomeTexture floorTexture, Float floorShininess, Float floorOpacity, Boolean smoothed, Boolean ceilingVisible,
+                                                Boolean floorVisible, RoomPaint floorPaint, Integer floorColor, HomeTexture floorTexture, Float floorShininess, Float floorOpacity, Boolean smoothed,
+                                                Float outlineThickness, Polyline.DashStyle outlineDashStyle, Integer outlineColor,
+                                                Boolean ceilingVisible,
                                                 RoomPaint ceilingPaint, Integer ceilingColor, HomeTexture ceilingTexture, Float ceilingShininess, Boolean ceilingFlat, ModifiedWallSide [] modifiedWallSides,
                                                 float newWallBaseboardThickness,
                                                 float newWallBaseboardHeight, RoomPaint wallSidesPaint,
@@ -1604,6 +1722,17 @@ public class RoomController implements Controller {
       }
       if (smoothed != null) {
         room.setSmoothed(smoothed);
+      }
+      if (outlineThickness != null) {
+        room.setOutlineThickness(outlineThickness);
+      }
+      if (outlineDashStyle != null) {
+        room.setOutlineDashStyle(outlineDashStyle);
+      }
+      if (outlineColor != null) {
+        room.setOutlineColor(outlineColor);
+      } else if (modifiedRooms.length == 1) {
+        room.setOutlineColor(null);
       }
       if (ceilingVisible != null) {
         room.setCeilingVisible(ceilingVisible);
@@ -1775,6 +1904,9 @@ public class RoomController implements Controller {
     private final float       floorShininess;
     private final float       floorOpacity;
     private final boolean     smoothed;
+    private final float       outlineThickness;
+    private final Polyline.DashStyle outlineDashStyle;
+    private final Integer     outlineColor;
     private final boolean     ceilingVisible;
     private final Integer     ceilingColor;
     private final HomeTexture ceilingTexture;
@@ -1791,6 +1923,9 @@ public class RoomController implements Controller {
       this.floorShininess = room.getFloorShininess();
       this.floorOpacity = room.getFloorOpacity();
       this.smoothed = room.isSmoothed();
+      this.outlineThickness = room.getOutlineThickness();
+      this.outlineDashStyle = room.getOutlineDashStyle();
+      this.outlineColor = room.getOutlineColor();
       this.ceilingVisible = room.isCeilingVisible();
       this.ceilingColor = room.getCeilingColor();
       this.ceilingTexture = room.getCeilingTexture();
@@ -1811,6 +1946,9 @@ public class RoomController implements Controller {
       this.room.setFloorShininess(this.floorShininess);
       this.room.setFloorOpacity(this.floorOpacity);
       this.room.setSmoothed(this.smoothed);
+      this.room.setOutlineThickness(this.outlineThickness);
+      this.room.setOutlineDashStyle(this.outlineDashStyle);
+      this.room.setOutlineColor(this.outlineColor);
       this.room.setCeilingVisible(this.ceilingVisible);
       this.room.setCeilingColor(this.ceilingColor);
       this.room.setCeilingTexture(this.ceilingTexture);

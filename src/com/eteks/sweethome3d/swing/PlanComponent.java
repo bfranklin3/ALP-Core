@@ -930,7 +930,10 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
             revalidate();
           } else if (Room.Property.FLOOR_OPACITY.name().equals(propertyName)
               || Room.Property.SMOOTHED.name().equals(propertyName)
-              || Room.Property.SHARP_CORNERS.name().equals(propertyName)) {
+              || Room.Property.SHARP_CORNERS.name().equals(propertyName)
+              || Room.Property.OUTLINE_THICKNESS.name().equals(propertyName)
+              || Room.Property.OUTLINE_DASH_STYLE.name().equals(propertyName)
+              || Room.Property.OUTLINE_COLOR.name().equals(propertyName)) {
             repaint();
           } else if (preferences.isRoomFloorColoredOrTextured()
                      && (Room.Property.FLOOR_COLOR.name().equals(propertyName)
@@ -3223,7 +3226,6 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         ? Color.WHITE
         : Color.GRAY;
     // Draw rooms area
-    g2D.setStroke(new BasicStroke(getStrokeWidth(Room.class, paintMode) / planScale));
     for (Room room : this.sortedLevelRooms) {
       boolean selectedRoom = selectedItems.contains(room);
       // In clipboard paint mode, paint room only if it is selected
@@ -3323,7 +3325,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         fillShape(g2D, roomShape, paintMode);
         g2D.setComposite(oldComposite);
 
-        g2D.setPaint(foregroundColor);
+        setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
         g2D.draw(roomShape);
         g2D.rotate(-textureAngle, 0, 0);
       }
@@ -3335,6 +3337,22 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
    */
   private Shape getRoomShape(Room room, AffineTransform rotation) {
     return ShapeTools.getRoomShape(room.getPoints(), room.isSmoothed(), room.getSharpCorners(), rotation);
+  }
+
+  private void setRoomOutlinePaintAndStroke(Graphics2D g2D, Room room, PaintMode paintMode,
+                                            float planScale, Color foregroundColor) {
+    Integer outlineColor = room.getOutlineColor();
+    g2D.setPaint(outlineColor != null ? new Color(outlineColor) : foregroundColor);
+    float thickness = room.getOutlineThickness();
+    if (paintMode == PaintMode.PRINT) {
+      thickness *= 0.5f;
+    }
+    thickness /= planScale;
+    Polyline.DashStyle dashStyle = room.getOutlineDashStyle();
+    float [] dashPattern = dashStyle != Polyline.DashStyle.SOLID ? room.getOutlineDashPattern() : null;
+    g2D.setStroke(ShapeTools.getStroke(thickness, Polyline.CapStyle.BUTT,
+        room.isSmoothed() ? Polyline.JoinStyle.ROUND : Polyline.JoinStyle.MITER,
+        dashPattern, 0));
   }
 
   /**
@@ -3543,10 +3561,9 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     }
 
     // Draw rooms area
-    g2D.setPaint(foregroundColor);
-    g2D.setStroke(new BasicStroke(getStrokeWidth(Room.class, PaintMode.PAINT) / planScale));
     for (Room room : rooms) {
       if (isViewableAtLevel(room, level)) {
+        setRoomOutlinePaintAndStroke(g2D, room, PaintMode.PAINT, planScale, foregroundColor);
         g2D.draw(getRoomShape(room, null));
       }
     }
