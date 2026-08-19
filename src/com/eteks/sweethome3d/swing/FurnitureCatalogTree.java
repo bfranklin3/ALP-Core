@@ -19,6 +19,7 @@
  */
 package com.eteks.sweethome3d.swing;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Cursor;
@@ -27,6 +28,7 @@ import java.awt.EventQueue;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -48,6 +50,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JToolTip;
 import javax.swing.JTree;
 import javax.swing.JViewport;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.ToolTipManager;
@@ -375,31 +378,41 @@ public class FurnitureCatalogTree extends JTree implements View {
     private Font                    defaultFont;
     private Font                    modifiablePieceFont;
     private DefaultTreeCellRenderer nameLabel;
+    private JLabel                  categoryNameLabel;
+    private JLabel                  categoryCountLabel;
     private JEditorPane             informationPane;
+    private JTree                   catalogTree;
+    private boolean                 categoryRow;
+    private boolean                 categorySelected;
 
     public CatalogCellRenderer() {
       setLayout(null);
       setOpaque(false);
       this.nameLabel = new DefaultTreeCellRenderer();
+      this.categoryNameLabel = new JLabel();
+      this.categoryNameLabel.setOpaque(false);
+      this.categoryCountLabel = new JLabel();
+      this.categoryCountLabel.setOpaque(false);
+      this.categoryCountLabel.setHorizontalAlignment(SwingConstants.RIGHT);
       this.informationPane = new JEditorPane("text/html", null);
       this.informationPane.setOpaque(false);
       this.informationPane.setEditable(false);
       this.informationPane.setBorder(null);
       add(this.nameLabel);
+      add(this.categoryNameLabel);
+      add(this.categoryCountLabel);
       add(this.informationPane);
+      this.categoryNameLabel.setVisible(false);
+      this.categoryCountLabel.setVisible(false);
     }
 
     public Component getTreeCellRendererComponent(JTree tree,
         Object value, boolean selected, boolean expanded,
         boolean leaf, int row, boolean hasFocus) {
-      this.nameLabel.getTreeCellRendererComponent(
-          tree, value, selected, expanded, leaf, row, hasFocus);
+      this.catalogTree = tree;
       // Initialize fonts if not done
       if (this.defaultFont == null) {
-        Font font = this.nameLabel.getFont();
-        if (font == null) {
-          font = UIManager.getFont("Tree.font");
-        }
+        Font font = UIManager.getFont("Tree.font");
         if (font == null) {
           font = new JLabel().getFont();
         }
@@ -410,18 +423,32 @@ public class FurnitureCatalogTree extends JTree implements View {
         ((HTMLDocument)this.informationPane.getDocument()).getStyleSheet().addRule(bodyRule);
         this.modifiablePieceFont =
             new Font(this.defaultFont.getFontName(), Font.ITALIC, this.defaultFont.getSize());
+        this.categoryNameLabel.setFont(this.defaultFont.deriveFont(Font.BOLD));
+        this.categoryCountLabel.setFont(this.defaultFont);
       }
       // If node is a category, change label text
       if (value instanceof FurnitureCategory) {
         FurnitureCategory category = (FurnitureCategory)value;
-        this.nameLabel.setText(AlpCatalogStyles.formatCategoryLabel(
-            category.getName(), category.getFurnitureCount()));
-        this.nameLabel.setFont(this.defaultFont.deriveFont(Font.BOLD));
-        this.nameLabel.setIcon(null);
+        this.categoryRow = true;
+        this.categorySelected = selected;
+        this.nameLabel.setVisible(false);
+        this.categoryNameLabel.setVisible(true);
+        this.categoryCountLabel.setVisible(true);
+        this.categoryNameLabel.setText(category.getName());
+        this.categoryCountLabel.setText(String.valueOf(category.getFurnitureCount()));
+        this.categoryNameLabel.setForeground(new Color(0x2A2A2A));
+        this.categoryCountLabel.setForeground(new Color(0x666666));
         this.informationPane.setVisible(false);
       }
       // Else if node is a piece of furniture, change label text and icon
       else if (value instanceof CatalogPieceOfFurniture) {
+        this.categoryRow = false;
+        this.categoryNameLabel.setVisible(false);
+        this.categoryCountLabel.setVisible(false);
+        this.nameLabel.setVisible(true);
+        this.nameLabel.getTreeCellRendererComponent(
+            tree, value, selected, expanded, leaf, row, hasFocus);
+        configureTreeLabel();
         CatalogPieceOfFurniture piece = (CatalogPieceOfFurniture)value;
         this.nameLabel.setText(piece.getName());
         this.nameLabel.setIcon(getLabelIcon(tree, piece.getIcon()));
@@ -433,12 +460,51 @@ public class FurnitureCatalogTree extends JTree implements View {
         // Force width required to further get the correct preferred height
         Dimension informationPreferredSize = this.informationPane.getPreferredSize();
         this.informationPane.setSize(informationPreferredSize.width, 1000);
+      } else {
+        this.categoryRow = false;
+        this.categoryNameLabel.setVisible(false);
+        this.categoryCountLabel.setVisible(false);
+        this.nameLabel.setVisible(true);
+        this.informationPane.setVisible(false);
+        this.nameLabel.getTreeCellRendererComponent(
+            tree, value, selected, expanded, leaf, row, hasFocus);
+        configureTreeLabel();
       }
       return this;
     }
 
+    private void configureTreeLabel() {
+      this.nameLabel.setOpaque(false);
+      this.nameLabel.setBackgroundNonSelectionColor(AlpCatalogStyles.panelBackground());
+      this.nameLabel.setBackgroundSelectionColor(AlpCatalogStyles.categoryBackground(true));
+      this.nameLabel.setTextNonSelectionColor(new Color(0x2A2A2A));
+      this.nameLabel.setTextSelectionColor(new Color(0x2A2A2A));
+    }
+
+    private void layoutCategoryRow() {
+      if (!this.categoryRow || getWidth() <= 0 || getHeight() <= 0) {
+        return;
+      }
+      int sideInset = AlpCatalogStyles.categoryRowSideInset();
+      int rowGap = AlpCatalogStyles.categoryRowGap();
+      int horizontalPadding = AlpCatalogStyles.scale(10);
+      int chipWidth = Math.max(0, getWidth() - sideInset * 2);
+      int chipHeight = Math.max(0, getHeight() - rowGap * 2);
+      int countWidth = this.categoryCountLabel.getPreferredSize().width;
+      this.categoryCountLabel.setBounds(
+          sideInset + chipWidth - horizontalPadding - countWidth, rowGap,
+          countWidth, chipHeight);
+      this.categoryNameLabel.setBounds(
+          sideInset + horizontalPadding, rowGap,
+          Math.max(0, chipWidth - horizontalPadding * 2 - countWidth), chipHeight);
+    }
+
     @Override
     public void doLayout() {
+      if (this.categoryRow) {
+        layoutCategoryRow();
+        return;
+      }
       Dimension namePreferredSize = this.nameLabel.getPreferredSize();
       this.nameLabel.setSize(namePreferredSize);
       if (this.informationPane.isVisible()) {
@@ -457,8 +523,26 @@ public class FurnitureCatalogTree extends JTree implements View {
       }
     }
 
+    private int getCategoryRowWidth() {
+      if (this.catalogTree != null && this.catalogTree.getWidth() > 0) {
+        Insets insets = this.catalogTree.getInsets();
+        return Math.max(0, this.catalogTree.getWidth() - insets.left - insets.right);
+      }
+      int sideInset = AlpCatalogStyles.categoryRowSideInset();
+      int horizontalPadding = AlpCatalogStyles.scale(10);
+      return sideInset * 2 + horizontalPadding * 2
+          + this.categoryNameLabel.getPreferredSize().width
+          + this.categoryCountLabel.getPreferredSize().width;
+    }
+
     @Override
     public Dimension getPreferredSize() {
+      if (this.categoryRow) {
+        int rowGap = AlpCatalogStyles.categoryRowGap();
+        int labelHeight = Math.max(this.categoryNameLabel.getPreferredSize().height,
+            this.categoryCountLabel.getPreferredSize().height);
+        return new Dimension(getCategoryRowWidth(), labelHeight + rowGap * 2);
+      }
       Dimension preferredSize = this.nameLabel.getPreferredSize();
       if (this.informationPane.isVisible()) {
         preferredSize.width += 2 + this.informationPane.getPreferredSize().width;
@@ -509,6 +593,20 @@ public class FurnitureCatalogTree extends JTree implements View {
       ((Graphics2D)g).setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
           RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
       super.paintChildren(g);
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+      if (this.categoryRow) {
+        layoutCategoryRow();
+        int sideInset = AlpCatalogStyles.categoryRowSideInset();
+        int rowGap = AlpCatalogStyles.categoryRowGap();
+        AlpCatalogStyles.paintCategoryRowBackground(g, sideInset, rowGap,
+            Math.max(0, getWidth() - sideInset * 2),
+            Math.max(0, getHeight() - rowGap * 2),
+            this.categorySelected);
+      }
+      super.paintComponent(g);
     }
   }
 
