@@ -13,6 +13,7 @@ package com.eteks.sweethome3d.swing;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.Graphics;
@@ -301,9 +302,9 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = false;
+      updateInspectorPanelsEnabled();
       this.roomInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, ROOM_CARD);
-      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -327,9 +328,9 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = false;
+      updateInspectorPanelsEnabled();
       this.polylineInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, POLYLINE_CARD);
-      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -353,9 +354,9 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = false;
+      updateInspectorPanelsEnabled();
       this.labelInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, LABEL_CARD);
-      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -379,9 +380,9 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = true;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = false;
+      updateInspectorPanelsEnabled();
       this.dimensionLineInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, DIMENSION_CARD);
-      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -405,9 +406,9 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = true;
       this.showingFurnitureInspector = false;
+      updateInspectorPanelsEnabled();
       this.wallInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, WALL_CARD);
-      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -431,9 +432,9 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = true;
+      updateInspectorPanelsEnabled();
       this.furnitureInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, FURNITURE_CARD);
-      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -463,12 +464,30 @@ public class SelectionInspectorPane extends JPanel {
    * Enables only the active inspector card so tab order skips hidden panels.
    */
   private void updateInspectorPanelsEnabled() {
-    this.roomInspectorPanel.setEnabled(this.showingRoomInspector);
-    this.polylineInspectorPanel.setEnabled(this.showingPolylineInspector);
-    this.labelInspectorPanel.setEnabled(this.showingLabelInspector);
-    this.dimensionLineInspectorPanel.setEnabled(this.showingDimensionLineInspector);
-    this.wallInspectorPanel.setEnabled(this.showingWallInspector);
-    this.furnitureInspectorPanel.setEnabled(this.showingFurnitureInspector);
+    setInspectorCardEnabled(this.roomInspectorPanel, this.showingRoomInspector);
+    setInspectorCardEnabled(this.polylineInspectorPanel, this.showingPolylineInspector);
+    setInspectorCardEnabled(this.labelInspectorPanel, this.showingLabelInspector);
+    setInspectorCardEnabled(this.dimensionLineInspectorPanel, this.showingDimensionLineInspector);
+    setInspectorCardEnabled(this.wallInspectorPanel, this.showingWallInspector);
+    setInspectorCardEnabled(this.furnitureInspectorPanel, this.showingFurnitureInspector);
+  }
+
+  /**
+   * Toggles an inspector card and its descendants so hidden CardLayout panels
+   * are removed from keyboard focus traversal.
+   */
+  private static void setInspectorCardEnabled(JPanel panel, boolean enabled) {
+    panel.setEnabled(enabled);
+    setDescendantsEnabled(panel, enabled);
+  }
+
+  private static void setDescendantsEnabled(Container container, boolean enabled) {
+    for (Component child : container.getComponents()) {
+      child.setEnabled(enabled);
+      if (child instanceof Container) {
+        setDescendantsEnabled((Container) child, enabled);
+      }
+    }
   }
 
   /**
@@ -702,6 +721,11 @@ public class SelectionInspectorPane extends JPanel {
 
       this.areaVisibleCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(
           this.preferences, RoomPanel.class, "areaVisibleCheckBox.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.areaVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                RoomPanel.class, "areaVisibleCheckBox.mnemonic")).getKeyCode());
+      }
       this.areaVisibleCheckBox.addChangeListener(new ChangeListener() {
           public void stateChanged(ChangeEvent ev) {
             if (updatingFromController) {
@@ -867,6 +891,8 @@ public class SelectionInspectorPane extends JPanel {
           RoomPanel.class, "floorPanel.title"));
       JLabel floorColorLabel = new JLabel(SwingTools.getLocalizedLabelText(
           this.preferences, RoomPanel.class, "floorColorRadioButton.text"));
+      configureInspectorFieldLabel(this.preferences, RoomPanel.class,
+          "floorColorRadioButton.mnemonic", floorColorLabel, this.floorColorButton);
       configureInspectorFieldLabel(this.preferences, RoomPanel.class,
           "floorOpacityLabel.mnemonic", this.floorOpacityLabel, this.floorOpacitySpinner);
       floorPanel.add(floorColorLabel, new GridBagConstraints(
