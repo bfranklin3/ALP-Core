@@ -213,6 +213,7 @@ public class FurnitureTable extends JTable implements FurnitureView, Printable {
         ex.printStackTrace();
       }
     }
+    AlpCatalogStyles.applyInventoryTable(this);
   }
 
   /**

@@ -126,6 +126,7 @@ public class FurnitureCatalogListPanel extends JPanel implements View {
                                    UserPreferences preferences,
                                    FurnitureCatalogController controller) {
     super(new GridBagLayout());
+    AlpCatalogStyles.applyCatalogPanel(this);
     createComponents(catalog, preferences, controller);
     setMnemonics(preferences);
     layoutComponents();
@@ -265,7 +266,9 @@ public class FurnitureCatalogListPanel extends JPanel implements View {
                 index, isSelected, cellHasFocus);
           } else {
             return super.getListCellRendererComponent(list,
-                ((FurnitureCategory)value).getName(), index, isSelected, cellHasFocus);
+                AlpCatalogStyles.formatCategoryLabel(((FurnitureCategory)value).getName(),
+                    ((FurnitureCategory)value).getFurnitureCount()),
+                index, isSelected, cellHasFocus);
           }
         }
       });
@@ -542,6 +545,8 @@ public class FurnitureCatalogListPanel extends JPanel implements View {
     }
     // Last row
     final JScrollPane listScrollPane = SwingTools.createScrollPane(this.catalogFurnitureList);
+    AlpCatalogStyles.applyCatalogScrollPane(listScrollPane);
+    this.catalogFurnitureList.setBackground(AlpCatalogStyles.panelBackground());
     listScrollPane.getVerticalScrollBar().addAdjustmentListener(
         SwingTools.createAdjustmentListenerUpdatingScrollPaneViewToolTip(listScrollPane));
     if (OperatingSystem.isMacOSXHighSierraOrSuperior()
@@ -715,6 +720,7 @@ public class FurnitureCatalogListPanel extends JPanel implements View {
     private Font                    modifiablePieceFont;
     private DefaultListCellRenderer nameLabel;
     private JEditorPane             informationPane;
+    private boolean                 chipSelected;
 
     public CatalogCellRenderer(final int iconHeight) {
       setLayout(null);
@@ -759,9 +765,16 @@ public class FurnitureCatalogListPanel extends JPanel implements View {
       this.nameLabel.setIcon(getLabelIcon(list, piece.getIcon()));
       this.nameLabel.setFont(piece.isModifiable()
           ? this.modifiablePieceFont : this.defaultFont);
+      this.chipSelected = isSelected;
 
       this.informationPane.setText(piece.getInformation());
       return this;
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+      AlpCatalogStyles.paintListChipBackground(this, g, this.chipSelected);
+      super.paintComponent(g);
     }
 
     @Override

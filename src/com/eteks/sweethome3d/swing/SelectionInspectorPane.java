@@ -239,6 +239,7 @@ public class SelectionInspectorPane extends JPanel {
     this.cardPanel.add(this.wallInspectorPanel, WALL_CARD);
     this.cardPanel.add(this.furnitureInspectorPanel, FURNITURE_CARD);
     add(this.cardPanel, BorderLayout.NORTH);
+    applyInspectorWorkspaceStyle();
     setMinimumSize(new Dimension(Math.max(1, (int)(200 * SwingTools.getResolutionScale())), 0));
     setPreferredSize(new Dimension(Math.max(1, (int)(300 * SwingTools.getResolutionScale())), 0));
     updateInspectorPanelsEnabled();
@@ -259,6 +260,18 @@ public class SelectionInspectorPane extends JPanel {
         }
       });
     updateForSelection();
+  }
+
+  private void applyInspectorWorkspaceStyle() {
+    AlpCatalogStyles.applyWorkspacePanel(this);
+    AlpCatalogStyles.applyWorkspacePanel(this.cardPanel);
+    AlpCatalogStyles.applyWorkspacePanel(this.emptyLabel);
+    AlpCatalogStyles.applyWorkspacePanel(this.roomInspectorPanel);
+    AlpCatalogStyles.applyWorkspacePanel(this.polylineInspectorPanel);
+    AlpCatalogStyles.applyWorkspacePanel(this.labelInspectorPanel);
+    AlpCatalogStyles.applyWorkspacePanel(this.dimensionLineInspectorPanel);
+    AlpCatalogStyles.applyWorkspacePanel(this.wallInspectorPanel);
+    AlpCatalogStyles.applyWorkspacePanel(this.furnitureInspectorPanel);
   }
 
   private void updateForSelection() {

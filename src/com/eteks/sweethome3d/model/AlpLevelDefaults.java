@@ -20,6 +20,15 @@ public final class AlpLevelDefaults {
   /** Index of the level selected after creating the starter site plan. */
   private static final int STARTER_SELECTED_LEVEL_INDEX = 2;
 
+  /**
+   * Sentinel stored in {@code PlanPaneDividerLocation} until the plan/3D split pane is laid out;
+   * then {@code HomePane} expands the plan to full height (3D collapsed).
+   */
+  public static final int SITE_PLAN_3D_COLLAPSED_DIVIDER_SENTINEL = -2;
+
+  public static final String PLAN_PANE_DIVIDER_LOCATION_PROPERTY =
+      "com.eteks.sweethome3d.SweetHome3D.PlanPaneDividerLocation";
+
   private AlpLevelDefaults() {
   }
 
@@ -60,6 +69,15 @@ public final class AlpLevelDefaults {
       }
     }
     home.setSelectedLevel(selectedLevel);
+    applySitePlanUiDefaults(home);
+  }
+
+  /**
+   * Applies ALP UI defaults for a new site plan (SPIKE-22: plan-first layout).
+   */
+  public static void applySitePlanUiDefaults(Home home) {
+    home.setProperty(PLAN_PANE_DIVIDER_LOCATION_PROPERTY,
+        String.valueOf(SITE_PLAN_3D_COLLAPSED_DIVIDER_SENTINEL));
   }
 
   /**

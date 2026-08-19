@@ -65,6 +65,7 @@ public class RoomTable extends JTable {
     addSelectionListeners(home, controller);
     addHomeListener(home);
     addMouseListener(controller);
+    AlpCatalogStyles.applyInventoryTable(this);
   }
 
   private void addSelectionListeners(final Home home, final HomeController controller) {

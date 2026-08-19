@@ -178,6 +178,7 @@ import javax.swing.text.JTextComponent;
 import com.eteks.sweethome3d.j3d.Ground3D;
 import com.eteks.sweethome3d.j3d.OBJWriter;
 import com.eteks.sweethome3d.j3d.Object3DBranchFactory;
+import com.eteks.sweethome3d.model.AlpLevelDefaults;
 import com.eteks.sweethome3d.model.BackgroundImage;
 import com.eteks.sweethome3d.model.Camera;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
@@ -3345,20 +3346,38 @@ public class HomePane extends JRootPane implements HomeView {
     // Restore divider location previously set
     Number dividerLocation = home.getNumericProperty(dividerLocationProperty);
     if (dividerLocation != null) {
-      splitPane.setDividerLocation(dividerLocation.intValue());
-      // Update resize weight once split pane location is set
-      splitPane.addAncestorListener(new AncestorListener() {
-          public void ancestorAdded(AncestorEvent ev) {
-            resizeWeightUpdater.propertyChange(null);
-            splitPane.removeAncestorListener(this);
-          }
+      if (dividerLocation.intValue() == AlpLevelDefaults.SITE_PLAN_3D_COLLAPSED_DIVIDER_SENTINEL) {
+        splitPane.addAncestorListener(new AncestorListener() {
+            public void ancestorAdded(AncestorEvent ev) {
+              splitPane.removeAncestorListener(this);
+              splitPane.setDividerLocation(1.0);
+              controller.setHomeProperty(dividerLocationProperty,
+                  String.valueOf(splitPane.getDividerLocation()));
+              resizeWeightUpdater.propertyChange(null);
+            }
 
-          public void ancestorRemoved(AncestorEvent ev) {
-          }
+            public void ancestorRemoved(AncestorEvent ev) {
+            }
 
-          public void ancestorMoved(AncestorEvent ev) {
-          }
-        });
+            public void ancestorMoved(AncestorEvent ev) {
+            }
+          });
+      } else {
+        splitPane.setDividerLocation(dividerLocation.intValue());
+        // Update resize weight once split pane location is set
+        splitPane.addAncestorListener(new AncestorListener() {
+            public void ancestorAdded(AncestorEvent ev) {
+              resizeWeightUpdater.propertyChange(null);
+              splitPane.removeAncestorListener(this);
+            }
+
+            public void ancestorRemoved(AncestorEvent ev) {
+            }
+
+            public void ancestorMoved(AncestorEvent ev) {
+            }
+          });
+      }
     }
     splitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY,
         new PropertyChangeListener() {
@@ -3408,7 +3427,9 @@ public class HomePane extends JRootPane implements HomeView {
       preferences.addPropertyChangeListener(UserPreferences.Property.FURNITURE_CATALOG_VIEWED_IN_TREE,
           new FurnitureCatalogViewChangeListener(this, catalogView));
       if (catalogView instanceof Scrollable) {
-        catalogView = SwingTools.createScrollPane(catalogView);
+        JScrollPane catalogScrollPane = SwingTools.createScrollPane(catalogView);
+        AlpCatalogStyles.applyCatalogScrollPane(catalogScrollPane);
+        catalogView = catalogScrollPane;
       }
     }
 
@@ -3487,6 +3508,7 @@ public class HomePane extends JRootPane implements HomeView {
 
     // Create a tabbed pane to host furniture and room tables
     JTabbedPane inventoryTabbedPane = new JTabbedPane();
+    AlpCatalogStyles.applyInventoryTabbedPane(inventoryTabbedPane);
     if (furnitureView != null) {
       inventoryTabbedPane.addTab(preferences.getLocalizedString(HomePane.class, "furnitureTab.title"), furnitureView);
     }
@@ -3494,6 +3516,7 @@ public class HomePane extends JRootPane implements HomeView {
     // Add Room Table Panel
     RoomTablePanel roomTablePanel = new RoomTablePanel(home, preferences, controller);
     inventoryTabbedPane.addTab(preferences.getLocalizedString(HomePane.class, "areasTab.title"), roomTablePanel);
+    AlpCatalogStyles.updateInventoryTabColors(inventoryTabbedPane);
     
     furnitureView = inventoryTabbedPane;
 
