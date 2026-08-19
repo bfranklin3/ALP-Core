@@ -389,6 +389,8 @@ public class SelectionInspectorPane extends JPanel {
     private JLabel                 summaryLabel;
     private JButton                openFullEditorButton;
     private JTextField             nameTextField;
+    private JLabel                 levelFieldLabel;
+    private JLabel                 levelValueLabel;
     private NullableCheckBox       areaVisibleCheckBox;
     private ColorButton            floorColorButton;
     private JLabel                 floorOpacityLabel;
@@ -628,8 +630,17 @@ public class SelectionInspectorPane extends JPanel {
       namePanel.add(this.nameTextField, new GridBagConstraints(
           1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      this.levelFieldLabel = new JLabel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "areaLevelLabel.text"));
+      this.levelValueLabel = new JLabel();
+      namePanel.add(this.levelFieldLabel, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      namePanel.add(this.levelValueLabel, new GridBagConstraints(
+          1, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
       namePanel.add(this.areaVisibleCheckBox, new GridBagConstraints(
-          0, 1, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          0, 2, 2, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
 
       fieldsPanel.add(namePanel, new GridBagConstraints(
@@ -756,8 +767,38 @@ public class SelectionInspectorPane extends JPanel {
       return levelName;
     }
 
+    private void updateLevelDisplay() {
+      this.levelValueLabel.setText(getLevelDisplayText(Home.getRoomsSubList(this.home.getSelectedItems())));
+    }
+
+    private String getLevelDisplayText(List<Room> rooms) {
+      if (rooms.isEmpty()) {
+        return "";
+      }
+      Level level = rooms.get(0).getLevel();
+      for (int i = 1; i < rooms.size(); i++) {
+        Level otherLevel = rooms.get(i).getLevel();
+        if (level == null && otherLevel != null
+            || level != null && !level.equals(otherLevel)) {
+          return this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summaryMixedLevels.text");
+        }
+      }
+      if (level == null) {
+        return this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "areaLevelNone.text");
+      }
+      String levelName = level.getName();
+      if (levelName == null || levelName.trim().length() == 0) {
+        return this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "areaLevelNone.text");
+      }
+      return levelName.trim();
+    }
+
     void refresh() {
       updateSelectionSummary();
+      updateLevelDisplay();
       this.updatingFromController = true;
       try {
         this.roomController.refreshProperties();
