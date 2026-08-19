@@ -235,6 +235,7 @@ public class HomePane extends JRootPane implements HomeView {
       MODIFY_TEXT_STYLE, LEVELS_MENU, GO_TO_POINT_OF_VIEW, SELECT_OBJECT_MENU, TOGGLE_SELECTION_MENU}
 
   private static final String MAIN_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY     = "com.eteks.sweethome3d.SweetHome3D.MainPaneDividerLocation";
+  private static final String INSPECTOR_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY = "com.eteks.sweethome3d.SweetHome3D.InspectorPaneDividerLocation";
   private static final String CATALOG_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY  = "com.eteks.sweethome3d.SweetHome3D.CatalogPaneDividerLocation";
   private static final String PLAN_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY     = "com.eteks.sweethome3d.SweetHome3D.PlanPaneDividerLocation";
   private static final String PLAN_VIEWPORT_X_VISUAL_PROPERTY                = "com.eteks.sweethome3d.SweetHome3D.PlanViewportX";
@@ -246,6 +247,10 @@ public class HomePane extends JRootPane implements HomeView {
   private static final String DETACHED_VIEW_Y_VISUAL_PROPERTY                = ".detachedViewY";
   private static final String DETACHED_VIEW_WIDTH_VISUAL_PROPERTY            = ".detachedViewWidth";
   private static final String DETACHED_VIEW_HEIGHT_VISUAL_PROPERTY           = ".detachedViewHeight";
+
+  private static final double   DEFAULT_PLAN_INSPECTOR_PLAN_PROPORTION           = 0.78;
+  private static final int      MIN_PLAN_INSPECTOR_PLAN_WIDTH                    = Math.max(1, (int)(320 * SwingTools.getResolutionScale()));
+  private static final int      MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH               = Math.max(1, (int)(200 * SwingTools.getResolutionScale()));
 
   private static final int    DEFAULT_SMALL_ICON_HEIGHT = Math.round(16 * SwingTools.getResolutionScale());
 
@@ -3133,22 +3138,25 @@ public class HomePane extends JRootPane implements HomeView {
   }
 
   /**
-   * Returns the main pane with catalog tree, furniture table and plan pane.
+   * Returns the main pane with catalog tree, furniture table, plan pane and inspector.
    */
   private JComponent createMainPane(Home home, UserPreferences preferences,
                                     HomeController controller) {
     final JComponent catalogFurniturePane = createCatalogFurniturePane(home, preferences, controller);
     final JComponent planView3DPane = createPlanView3DPane(home, preferences, controller);
+    final JComponent planInspectorPane = planView3DPane != null
+        ? createPlanInspectorPane(planView3DPane, home, preferences, controller)
+        : null;
 
     if (catalogFurniturePane == null) {
-      return planView3DPane;
-    } else if (planView3DPane == null) {
+      return planInspectorPane != null ? planInspectorPane : planView3DPane;
+    } else if (planInspectorPane == null) {
       return catalogFurniturePane;
     } else {
       boolean leftToRightOrientation = ComponentOrientation.getOrientation(Locale.getDefault()).isLeftToRight();
       final JSplitPane mainPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-          leftToRightOrientation ? catalogFurniturePane  : planView3DPane,
-          leftToRightOrientation ? planView3DPane  : catalogFurniturePane);
+          leftToRightOrientation ? catalogFurniturePane  : planInspectorPane,
+          leftToRightOrientation ? planInspectorPane  : catalogFurniturePane);
       // Set default divider location
       mainPane.setDividerLocation((int)((leftToRightOrientation ? 360 : 670) * SwingTools.getResolutionScale()));
       configureSplitPane(mainPane, home, MAIN_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY,
@@ -3159,10 +3167,10 @@ public class HomePane extends JRootPane implements HomeView {
             if (mainPane.getComponentOrientation().isLeftToRight()) {
               mainPane.setRightComponent(null); // Needed to avoid twice the same child component
               mainPane.setLeftComponent(catalogFurniturePane);
-              mainPane.setRightComponent(planView3DPane);
+              mainPane.setRightComponent(planInspectorPane);
             } else {
               mainPane.setRightComponent(null);
-              mainPane.setLeftComponent(planView3DPane);
+              mainPane.setLeftComponent(planInspectorPane);
               mainPane.setRightComponent(catalogFurniturePane);
             }
             if (mainPane.isShowing()) {
@@ -3172,6 +3180,111 @@ public class HomePane extends JRootPane implements HomeView {
         });
       return mainPane;
     }
+  }
+
+  /**
+   * Returns a placeholder inspector pane for SPIKE-19 layout validation.
+   */
+  private JComponent createInspectorPane(UserPreferences preferences) {
+    JPanel inspectorPane = new JPanel(new BorderLayout());
+    inspectorPane.setMinimumSize(new Dimension((int)(200 * SwingTools.getResolutionScale()), 0));
+    JLabel placeholderLabel = new JLabel(
+        preferences.getLocalizedString(HomePane.class, "inspectorPane.placeholder"), JLabel.CENTER);
+    placeholderLabel.setBorder(BorderFactory.createEmptyBorder(16, 12, 16, 12));
+    inspectorPane.add(placeholderLabel, BorderLayout.NORTH);
+    return inspectorPane;
+  }
+
+  /**
+   * Returns plan and 3D view with a docked inspector column on the side.
+   */
+  private JComponent createPlanInspectorPane(final JComponent planView3DPane,
+                                             Home home,
+                                             UserPreferences preferences,
+                                             final HomeController controller) {
+    final JComponent inspectorPane = createInspectorPane(preferences);
+    planView3DPane.setMinimumSize(new Dimension(MIN_PLAN_INSPECTOR_PLAN_WIDTH, 0));
+    boolean leftToRightOrientation = ComponentOrientation.getOrientation(Locale.getDefault()).isLeftToRight();
+    final JSplitPane planInspectorPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+        leftToRightOrientation ? planView3DPane : inspectorPane,
+        leftToRightOrientation ? inspectorPane : planView3DPane);
+    planInspectorPane.setMinimumSize(new Dimension());
+    planInspectorPane.setBorder(null);
+    configureSplitPane(planInspectorPane, home, INSPECTOR_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY,
+        leftToRightOrientation ? 0.85 : 0.15,
+        false, controller);
+    restorePlanInspectorDividerLocation(planInspectorPane, home, controller, leftToRightOrientation);
+    planInspectorPane.addPropertyChangeListener("componentOrientation", new PropertyChangeListener () {
+        public void propertyChange(PropertyChangeEvent ev) {
+          if (planInspectorPane.getComponentOrientation().isLeftToRight()) {
+            planInspectorPane.setRightComponent(null);
+            planInspectorPane.setLeftComponent(planView3DPane);
+            planInspectorPane.setRightComponent(inspectorPane);
+          } else {
+            planInspectorPane.setRightComponent(null);
+            planInspectorPane.setLeftComponent(inspectorPane);
+            planInspectorPane.setRightComponent(planView3DPane);
+          }
+          if (planInspectorPane.isShowing()) {
+            planInspectorPane.setDividerLocation(
+                planInspectorPane.getWidth() - planInspectorPane.getDividerLocation());
+          }
+        }
+      });
+    return planInspectorPane;
+  }
+
+  /**
+   * Ensures the plan view keeps a usable width when opening homes saved before the inspector
+   * column existed or with a divider location that collapsed the plan pane.
+   */
+  private void restorePlanInspectorDividerLocation(final JSplitPane planInspectorPane,
+                                                   final Home home,
+                                                   final HomeController controller,
+                                                   final boolean planOnLeft) {
+    planInspectorPane.addAncestorListener(new AncestorListener() {
+        public void ancestorAdded(AncestorEvent ev) {
+          planInspectorPane.removeAncestorListener(this);
+          EventQueue.invokeLater(new Runnable() {
+              public void run() {
+                if (planInspectorPane.getWidth() <= 0) {
+                  return;
+                }
+                Number savedDividerLocation = home.getNumericProperty(
+                    INSPECTOR_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY);
+                Component planComponent = planOnLeft
+                    ? planInspectorPane.getLeftComponent()
+                    : planInspectorPane.getRightComponent();
+                int planWidth = planComponent != null ? planComponent.getWidth() : 0;
+                boolean invalidSavedLocation = savedDividerLocation != null
+                    && planWidth < MIN_PLAN_INSPECTOR_PLAN_WIDTH;
+                if (savedDividerLocation == null || invalidSavedLocation) {
+                  planInspectorPane.setDividerLocation(DEFAULT_PLAN_INSPECTOR_PLAN_PROPORTION);
+                }
+                // Re-check after applying default proportion
+                planWidth = planComponent != null ? planComponent.getWidth() : 0;
+                if (planWidth < MIN_PLAN_INSPECTOR_PLAN_WIDTH) {
+                  int maxDividerLocation = planInspectorPane.getWidth()
+                      - planInspectorPane.getDividerSize()
+                      - MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH;
+                  if (maxDividerLocation > MIN_PLAN_INSPECTOR_PLAN_WIDTH) {
+                    planInspectorPane.setDividerLocation(maxDividerLocation);
+                  }
+                }
+                if (invalidSavedLocation) {
+                  controller.setHomeProperty(INSPECTOR_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY,
+                      String.valueOf(planInspectorPane.getDividerLocation()));
+                }
+              }
+            });
+        }
+
+        public void ancestorRemoved(AncestorEvent ev) {
+        }
+
+        public void ancestorMoved(AncestorEvent ev) {
+        }
+      });
   }
 
   /**
