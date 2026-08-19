@@ -41,6 +41,7 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.event.ChangeEvent;
@@ -49,6 +50,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
@@ -58,6 +60,7 @@ import com.eteks.sweethome3d.model.SelectionListener;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.HomeController;
+import com.eteks.sweethome3d.viewcontroller.LabelController;
 import com.eteks.sweethome3d.viewcontroller.PolylineController;
 import com.eteks.sweethome3d.viewcontroller.RoomController;
 
@@ -68,6 +71,7 @@ public class SelectionInspectorPane extends JPanel {
   private static final String EMPTY_CARD = "empty";
   private static final String ROOM_CARD = "room";
   private static final String POLYLINE_CARD = "polyline";
+  private static final String LABEL_CARD = "label";
 
   private final Home              home;
   private final UserPreferences   preferences;
@@ -76,13 +80,17 @@ public class SelectionInspectorPane extends JPanel {
   private final JLabel            emptyLabel;
   private final RoomInspectorPanel roomInspectorPanel;
   private final PolylineInspectorPanel polylineInspectorPanel;
+  private final LabelInspectorPanel labelInspectorPanel;
   private final List<Room>        monitoredRooms;
   private final List<Polyline>    monitoredPolylines;
+  private final List<Label>       monitoredLabels;
   private boolean                 showingRoomInspector;
   private boolean                 showingPolylineInspector;
+  private boolean                 showingLabelInspector;
   private boolean                 suppressSelectionListener;
   private final PropertyChangeListener roomPropertyListener;
   private final PropertyChangeListener polylinePropertyListener;
+  private final PropertyChangeListener labelPropertyListener;
 
   public SelectionInspectorPane(Home home,
                                 UserPreferences preferences,
@@ -96,8 +104,10 @@ public class SelectionInspectorPane extends JPanel {
     this.emptyLabel.setBorder(AlpInspectorStyles.emptyStateBorder());
     this.roomInspectorPanel = new RoomInspectorPanel(home, preferences, controller);
     this.polylineInspectorPanel = new PolylineInspectorPanel(home, preferences, controller);
+    this.labelInspectorPanel = new LabelInspectorPanel(home, preferences, controller);
     this.monitoredRooms = new ArrayList<Room>();
     this.monitoredPolylines = new ArrayList<Polyline>();
+    this.monitoredLabels = new ArrayList<Label>();
     this.roomPropertyListener = new PropertyChangeListener() {
         public void propertyChange(PropertyChangeEvent ev) {
           if (!showingRoomInspector) {
@@ -126,10 +136,27 @@ public class SelectionInspectorPane extends JPanel {
             });
         }
       };
+    this.labelPropertyListener = new PropertyChangeListener() {
+        public void propertyChange(PropertyChangeEvent ev) {
+          if (!showingLabelInspector) {
+            return;
+          }
+          if (Label.Property.TEXT.name().equals(ev.getPropertyName())) {
+            labelInspectorPanel.syncTextFieldFromModel();
+          } else {
+            EventQueue.invokeLater(new Runnable() {
+                public void run() {
+                  labelInspectorPanel.refresh();
+                }
+              });
+          }
+        }
+      };
 
     this.cardPanel.add(this.emptyLabel, EMPTY_CARD);
     this.cardPanel.add(this.roomInspectorPanel, ROOM_CARD);
     this.cardPanel.add(this.polylineInspectorPanel, POLYLINE_CARD);
+    this.cardPanel.add(this.labelInspectorPanel, LABEL_CARD);
     add(this.cardPanel, BorderLayout.NORTH);
     setMinimumSize(new Dimension((int)(200 * SwingTools.getResolutionScale()), 0));
 
@@ -141,6 +168,8 @@ public class SelectionInspectorPane extends JPanel {
           // monitoredRooms still refers to the previous selection here.
           roomInspectorPanel.commitPendingEditsForRooms(
               new ArrayList<Room>(monitoredRooms));
+          labelInspectorPanel.commitPendingEditsForLabels(
+              new ArrayList<Label>(monitoredLabels));
           updateForSelection();
         }
       });
@@ -163,9 +192,11 @@ public class SelectionInspectorPane extends JPanel {
         }
       }
       updateMonitoredPolylines(null);
+      updateMonitoredLabels(null);
       updateMonitoredRooms(selectedRooms);
       this.showingRoomInspector = true;
       this.showingPolylineInspector = false;
+      this.showingLabelInspector = false;
       this.roomInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, ROOM_CARD);
       return;
@@ -180,11 +211,32 @@ public class SelectionInspectorPane extends JPanel {
         }
       }
       updateMonitoredRooms(null);
+      updateMonitoredLabels(null);
       updateMonitoredPolylines(selectedPolylines);
       this.showingRoomInspector = false;
       this.showingPolylineInspector = true;
+      this.showingLabelInspector = false;
       this.polylineInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, POLYLINE_CARD);
+      return;
+    }
+
+    List<Label> selectedLabels = Home.getLabelsSubList(selectedItems);
+    if (!selectedLabels.isEmpty() && selectedItems.size() == selectedLabels.size()) {
+      for (Label label : selectedLabels) {
+        if (isLabelLocked(label)) {
+          showEmpty("lockedLabel.message");
+          return;
+        }
+      }
+      updateMonitoredRooms(null);
+      updateMonitoredPolylines(null);
+      updateMonitoredLabels(selectedLabels);
+      this.showingRoomInspector = false;
+      this.showingPolylineInspector = false;
+      this.showingLabelInspector = true;
+      this.labelInspectorPanel.refresh();
+      this.cardLayout.show(this.cardPanel, LABEL_CARD);
       return;
     }
 
@@ -194,8 +246,10 @@ public class SelectionInspectorPane extends JPanel {
   private void showEmpty(String messageKey) {
     this.showingRoomInspector = false;
     this.showingPolylineInspector = false;
+    this.showingLabelInspector = false;
     updateMonitoredRooms(null);
     updateMonitoredPolylines(null);
+    updateMonitoredLabels(null);
     this.emptyLabel.setText(this.preferences.getLocalizedString(
         SelectionInspectorPane.class, messageKey));
     this.cardLayout.show(this.cardPanel, EMPTY_CARD);
@@ -234,6 +288,24 @@ public class SelectionInspectorPane extends JPanel {
 
   private static boolean isPolylineLocked(Polyline polyline) {
     Level level = polyline.getLevel();
+    return level != null && level.isLocked();
+  }
+
+  private void updateMonitoredLabels(List<Label> labels) {
+    for (Label label : this.monitoredLabels) {
+      label.removePropertyChangeListener(this.labelPropertyListener);
+    }
+    this.monitoredLabels.clear();
+    if (labels != null) {
+      for (Label label : labels) {
+        label.addPropertyChangeListener(this.labelPropertyListener);
+        this.monitoredLabels.add(label);
+      }
+    }
+  }
+
+  private static boolean isLabelLocked(Label label) {
+    Level level = label.getLevel();
     return level != null && level.isLocked();
   }
 
@@ -1049,6 +1121,427 @@ public class SelectionInspectorPane extends JPanel {
         return;
       }
       this.polylineController.modifyPolylines();
+    }
+  }
+
+  /**
+   * Label/Text inspector with live edit fields (SPIKE-21 P2).
+   */
+  private class LabelInspectorPanel extends JPanel {
+    private final Home               home;
+    private final HomeController     homeController;
+    private final LabelController    labelController;
+    private final UserPreferences    preferences;
+    private JLabel                   summaryLabel;
+    private JButton                  openFullEditorButton;
+    private JTextArea                textTextArea;
+    private JLabel                   fontSizeLabel;
+    private NullableSpinner          fontSizeSpinner;
+    private NullableSpinner.NullableSpinnerLengthModel fontSizeSpinnerModel;
+    private NullableCheckBox         boldCheckBox;
+    private NullableCheckBox         italicCheckBox;
+    private JLabel                   colorLabel;
+    private ColorButton              colorButton;
+    private boolean                  textFieldUserEdited;
+    private boolean                  updatingFromController;
+
+    LabelInspectorPanel(Home home,
+                        UserPreferences preferences,
+                        HomeController controller) {
+      super(new BorderLayout());
+      this.home = home;
+      this.homeController = controller;
+      this.preferences = preferences;
+      this.labelController = controller.createLabelController();
+      createHeader();
+      createFields();
+      layoutFields();
+    }
+
+    private void createHeader() {
+      this.summaryLabel = new JLabel();
+      this.openFullEditorButton = new JButton(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "openFullEditorButton.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.openFullEditorButton.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "openFullEditorButton.mnemonic")).getKeyCode());
+      }
+      this.openFullEditorButton.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            commitPendingEdits();
+            homeController.getPlanController().modifySelectedLabels();
+          }
+        });
+    }
+
+    private void createFields() {
+      this.textTextArea = new JTextArea("", 3, 20);
+      this.textTextArea.setLineWrap(true);
+      this.textTextArea.setWrapStyleWord(true);
+      this.textTextArea.setDocument(new AutoCompleteDocument(this.textTextArea,
+          this.preferences.getAutoCompletionStrings("LabelText")));
+      final PropertyChangeListener textChangeListener = new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            syncTextFieldFromModel();
+          }
+        };
+      this.labelController.addPropertyChangeListener(
+          LabelController.Property.TEXT, textChangeListener);
+      this.textTextArea.getDocument().addDocumentListener(new DocumentListener() {
+          public void changedUpdate(DocumentEvent ev) {
+            updateControllerTextFromField(textChangeListener);
+          }
+
+          public void insertUpdate(DocumentEvent ev) {
+            changedUpdate(ev);
+          }
+
+          public void removeUpdate(DocumentEvent ev) {
+            changedUpdate(ev);
+          }
+        });
+      this.textTextArea.addFocusListener(new FocusAdapter() {
+          @Override
+          public void focusLost(FocusEvent ev) {
+            commitPendingEdits();
+          }
+        });
+
+      this.fontSizeLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, LabelPanel.class, "fontSizeLabel.text",
+          this.preferences.getLengthUnit().getName()));
+      this.fontSizeSpinnerModel = new NullableSpinner.NullableSpinnerLengthModel(
+          this.preferences, 5, 999);
+      this.fontSizeSpinner = new NullableSpinner(this.fontSizeSpinnerModel);
+      this.fontSizeSpinnerModel.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            labelController.setFontSize(fontSizeSpinnerModel.getLength());
+            applyLabelChanges();
+          }
+        });
+
+      this.boldCheckBox = new NullableCheckBox(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "boldCheckBox.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.boldCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "boldCheckBox.mnemonic")).getKeyCode());
+      }
+      this.boldCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            labelController.setBold(boldCheckBox.getValue());
+            applyLabelChanges();
+          }
+        });
+
+      this.italicCheckBox = new NullableCheckBox(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "italicCheckBox.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.italicCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "italicCheckBox.mnemonic")).getKeyCode());
+      }
+      this.italicCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            labelController.setItalic(italicCheckBox.getValue());
+            applyLabelChanges();
+          }
+        });
+
+      this.colorLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, LabelPanel.class, "colorLabel.text"));
+      this.colorButton = new ColorButton(this.preferences);
+      this.colorButton.setColorDialogTitle(this.preferences.getLocalizedString(
+          LabelPanel.class, "colorDialog.title"));
+      this.colorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              if (updatingFromController) {
+                return;
+              }
+              labelController.setColor(colorButton.getColor());
+              applyLabelChanges();
+            }
+          });
+    }
+
+    private void layoutFields() {
+      int labelAlignment = OperatingSystem.isMacOSX()
+          ? GridBagConstraints.LINE_END
+          : GridBagConstraints.LINE_START;
+      int standardGap = Math.round(5 * SwingTools.getResolutionScale());
+      Insets fieldInsets = new Insets(0, 0, standardGap, 0);
+
+      JPanel fieldsPanel = new JPanel(new GridBagLayout());
+      int row = 0;
+
+      JPanel textPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "labelTextPanel.title"));
+      JLabel textLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, LabelPanel.class, "textLabel.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        textLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(LabelPanel.class, "textLabel.mnemonic")).getKeyCode());
+      }
+      textLabel.setLabelFor(this.textTextArea);
+      textPanel.add(textLabel, new GridBagConstraints(
+          0, 0, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      textPanel.add(this.textTextArea, new GridBagConstraints(
+          1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.BOTH, new Insets(0, 0, standardGap, 10), 0, 0));
+
+      fieldsPanel.add(textPanel, new GridBagConstraints(
+          0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, fieldInsets, 0, 0));
+
+      JPanel stylePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "labelStylePanel.title"));
+      stylePanel.add(this.fontSizeLabel, new GridBagConstraints(
+          0, 0, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      stylePanel.add(this.fontSizeSpinner, new GridBagConstraints(
+          1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      stylePanel.add(this.boldCheckBox, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      stylePanel.add(this.italicCheckBox, new GridBagConstraints(
+          1, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      stylePanel.add(this.colorLabel, new GridBagConstraints(
+          0, 2, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      stylePanel.add(this.colorButton, new GridBagConstraints(
+          1, 2, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
+
+      fieldsPanel.add(stylePanel, new GridBagConstraints(
+          0, row, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
+
+      JPanel headerPanel = new JPanel(new GridBagLayout());
+      headerPanel.setBorder(AlpInspectorStyles.sectionGapBorder());
+      headerPanel.add(this.summaryLabel, new GridBagConstraints(
+          0, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, AlpInspectorStyles.scale(6), 0), 0, 0));
+      headerPanel.add(this.openFullEditorButton, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
+
+      JPanel contentPanel = new JPanel(new BorderLayout());
+      contentPanel.setBorder(BorderFactory.createEmptyBorder(
+          AlpInspectorStyles.panelInsets().top,
+          AlpInspectorStyles.panelInsets().left,
+          AlpInspectorStyles.panelInsets().bottom,
+          AlpInspectorStyles.panelInsets().right));
+      contentPanel.add(headerPanel, BorderLayout.NORTH);
+      contentPanel.add(fieldsPanel, BorderLayout.CENTER);
+      add(contentPanel, BorderLayout.NORTH);
+    }
+
+    void refresh() {
+      updateSelectionSummary();
+      this.updatingFromController = true;
+      try {
+        this.labelController.refreshProperties();
+
+        Float fontSize = this.labelController.getFontSize();
+        this.fontSizeSpinnerModel.setNullable(fontSize == null);
+        this.fontSizeSpinnerModel.setLength(fontSize);
+
+        Boolean bold = this.labelController.getBold();
+        this.boldCheckBox.setNullable(bold == null);
+        this.boldCheckBox.setValue(bold);
+
+        Boolean italic = this.labelController.getItalic();
+        this.italicCheckBox.setNullable(italic == null);
+        this.italicCheckBox.setValue(italic);
+
+        this.colorButton.setColor(this.labelController.getColor());
+      } finally {
+        this.updatingFromController = false;
+      }
+      syncTextFieldFromModel();
+    }
+
+    void syncTextFieldFromModel() {
+      if (this.updatingFromController || this.textFieldUserEdited) {
+        return;
+      }
+      String displayText = getSelectedLabelsCommonText();
+      if (displayText == null) {
+        displayText = "";
+      }
+      this.updatingFromController = true;
+      try {
+        this.textTextArea.setText(displayText);
+      } finally {
+        this.updatingFromController = false;
+      }
+    }
+
+    private void updateControllerTextFromField(PropertyChangeListener textChangeListener) {
+      if (this.updatingFromController) {
+        return;
+      }
+      this.textFieldUserEdited = true;
+      this.labelController.removePropertyChangeListener(
+          LabelController.Property.TEXT, textChangeListener);
+      String text = this.textTextArea.getText();
+      if (text == null || text.trim().length() == 0) {
+        this.labelController.setText("");
+      } else {
+        this.labelController.setText(text);
+      }
+      this.labelController.addPropertyChangeListener(
+          LabelController.Property.TEXT, textChangeListener);
+    }
+
+    private void updateSelectionSummary() {
+      List<Label> labels = Home.getLabelsSubList(this.home.getSelectedItems());
+      String title;
+      if (labels.size() == 1) {
+        String text = labels.get(0).getText();
+        if (text != null && text.trim().length() > 0) {
+          String summaryText = text.trim().replaceAll("\\s+", " ");
+          if (summaryText.length() > 40) {
+            summaryText = summaryText.substring(0, 37) + "...";
+          }
+          title = MessageFormat.format(this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summarySingleLabelNamed.title"), summaryText);
+        } else {
+          title = this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summarySingleLabel.title");
+        }
+      } else {
+        title = MessageFormat.format(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "summaryMultipleLabels.title"), labels.size());
+      }
+
+      String levelName = getCommonLevelName(labels);
+      String subtitle = levelName != null
+          ? MessageFormat.format(this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summaryLayer.text"), levelName)
+          : this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summaryMixedLevels.text");
+      AlpInspectorStyles.applySummaryText(this.summaryLabel, title, subtitle);
+    }
+
+    private String getCommonLevelName(List<Label> labels) {
+      if (labels.isEmpty()) {
+        return null;
+      }
+      Level level = labels.get(0).getLevel();
+      String levelName = level != null ? level.getName() : null;
+      for (int i = 1; i < labels.size(); i++) {
+        Level otherLevel = labels.get(i).getLevel();
+        String otherLevelName = otherLevel != null ? otherLevel.getName() : null;
+        if (levelName == null) {
+          if (otherLevelName != null) {
+            return null;
+          }
+        } else if (!levelName.equals(otherLevelName)) {
+          return null;
+        }
+      }
+      return levelName;
+    }
+
+    void commitPendingEdits() {
+      commitPendingEditsForLabels(Home.getLabelsSubList(this.home.getSelectedItems()));
+    }
+
+    void commitPendingEditsForLabels(List<Label> targetLabels) {
+      if (!this.textFieldUserEdited || !isTextCommitNeededForLabels(targetLabels)) {
+        markTextFieldSynced();
+        return;
+      }
+      if (targetLabels.isEmpty()) {
+        return;
+      }
+      List<Selectable> savedSelection = new ArrayList<Selectable>(this.home.getSelectedItems());
+      SelectionInspectorPane.this.suppressSelectionListener = true;
+      try {
+        this.home.setSelectedItems(new ArrayList<Selectable>(targetLabels));
+        applyLabelChanges();
+        this.home.setSelectedItems(savedSelection);
+      } finally {
+        SelectionInspectorPane.this.suppressSelectionListener = false;
+      }
+    }
+
+    private boolean isTextCommitNeededForLabels(List<Label> labels) {
+      String textAreaText = this.textTextArea.getText();
+      if (textAreaText == null) {
+        textAreaText = "";
+      }
+      String modelText = getCommonText(labels);
+      if (modelText == null) {
+        modelText = "";
+      }
+      return !textAreaText.equals(modelText);
+    }
+
+    private String getSelectedLabelsCommonText() {
+      return getCommonText(Home.getLabelsSubList(this.home.getSelectedItems()));
+    }
+
+    private String getCommonText(List<Label> labels) {
+      if (labels.isEmpty()) {
+        return null;
+      }
+      String text = labels.get(0).getText();
+      for (int i = 1; i < labels.size(); i++) {
+        if (text == null) {
+          if (labels.get(i).getText() != null) {
+            return null;
+          }
+        } else if (!text.equals(labels.get(i).getText())) {
+          return null;
+        }
+      }
+      return text;
+    }
+
+    private void syncControllerTextForModify() {
+      if (this.textFieldUserEdited && isTextCommitNeededForLabels(
+          Home.getLabelsSubList(this.home.getSelectedItems()))) {
+        String text = this.textTextArea.getText();
+        if (text == null || text.trim().length() == 0) {
+          this.labelController.setText("");
+        } else {
+          this.labelController.setText(text);
+        }
+      } else {
+        this.labelController.setText(null);
+      }
+    }
+
+    private void applyLabelChanges() {
+      if (this.updatingFromController) {
+        return;
+      }
+      if (Home.getLabelsSubList(this.home.getSelectedItems()).isEmpty()) {
+        return;
+      }
+      syncControllerTextForModify();
+      this.labelController.modifyLabels();
+      markTextFieldSynced();
+    }
+
+    private void markTextFieldSynced() {
+      this.textFieldUserEdited = false;
     }
   }
 }

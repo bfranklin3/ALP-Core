@@ -454,6 +454,14 @@ public class HomeController implements Controller {
   }
 
   /**
+   * Creates a label controller for docked inspector editing.
+   */
+  public LabelController createLabelController() {
+    return new LabelController(this.home, this.preferences, this.viewFactory,
+        getUndoableEditSupport());
+  }
+
+  /**
    * Returns the controller of home plan.
    */
   public PlanController getPlanController() {

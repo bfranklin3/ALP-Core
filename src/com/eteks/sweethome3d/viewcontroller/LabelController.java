@@ -43,7 +43,7 @@ public class LabelController implements Controller {
   /**
    * The property that may be edited by the view associated to this controller.
    */
-  public enum Property {TEXT, ALIGNMENT, FONT_NAME, FONT_SIZE, COLOR, PITCH, ELEVATION, WIDTH}
+  public enum Property {TEXT, ALIGNMENT, FONT_NAME, FONT_SIZE, BOLD, ITALIC, COLOR, PITCH, ELEVATION, WIDTH}
 
   private final Home                  home;
   private final Float                 x;
@@ -59,6 +59,8 @@ public class LabelController implements Controller {
   private String  fontName;
   private boolean fontNameSet;
   private Float   fontSize;
+  private Boolean bold;
+  private Boolean italic;
   private Integer color;
   private Float   pitch;
   private Boolean pitchEnabled;
@@ -108,6 +110,13 @@ public class LabelController implements Controller {
   }
 
   /**
+   * Updates edited properties from the current label selection.
+   */
+  public void refreshProperties() {
+    updateProperties();
+  }
+
+  /**
    * Updates edited properties from selected labels in the home edited by this controller.
    */
   protected void updateProperties() {
@@ -117,6 +126,8 @@ public class LabelController implements Controller {
       setFontName(null);
       this.fontNameSet = false;
       setFontSize(null);
+      setBold(null);
+      setItalic(null);
       setAlignment(null);
       setColor(null);
       setPitch(null);
@@ -181,6 +192,24 @@ public class LabelController implements Controller {
         }
       }
       setFontSize(fontSize);
+
+      Boolean bold = getLabelTextStyle(firstLabel).isBold();
+      for (int i = 1; i < selectedLabels.size(); i++) {
+        if (bold != getLabelTextStyle(selectedLabels.get(i)).isBold()) {
+          bold = null;
+          break;
+        }
+      }
+      setBold(bold);
+
+      Boolean italic = getLabelTextStyle(firstLabel).isItalic();
+      for (int i = 1; i < selectedLabels.size(); i++) {
+        if (italic != getLabelTextStyle(selectedLabels.get(i)).isItalic()) {
+          italic = null;
+          break;
+        }
+      }
+      setItalic(italic);
 
       Integer color = firstLabel.getColor();
       if (color != null) {
@@ -341,6 +370,42 @@ public class LabelController implements Controller {
    */
   public Float getFontSize() {
     return this.fontSize;
+  }
+
+  /**
+   * Sets the edited bold style.
+   */
+  public void setBold(Boolean bold) {
+    if (bold != this.bold) {
+      Boolean oldBold = this.bold;
+      this.bold = bold;
+      this.propertyChangeSupport.firePropertyChange(Property.BOLD.name(), oldBold, bold);
+    }
+  }
+
+  /**
+   * Returns the edited bold style, or <code>null</code> if selection is mixed.
+   */
+  public Boolean getBold() {
+    return this.bold;
+  }
+
+  /**
+   * Sets the edited italic style.
+   */
+  public void setItalic(Boolean italic) {
+    if (italic != this.italic) {
+      Boolean oldItalic = this.italic;
+      this.italic = italic;
+      this.propertyChangeSupport.firePropertyChange(Property.ITALIC.name(), oldItalic, italic);
+    }
+  }
+
+  /**
+   * Returns the edited italic style, or <code>null</code> if selection is mixed.
+   */
+  public Boolean getItalic() {
+    return this.italic;
   }
 
   /**
@@ -594,6 +659,8 @@ public class LabelController implements Controller {
       String fontName = getFontName();
       boolean fontNameSet = isFontNameSet();
       Float fontSize = getFontSize();
+      Boolean bold = getBold();
+      Boolean italic = getItalic();
       Integer color = getColor();
       Float pitch = getPitch();
       Boolean pitchEnabled = isPitchEnabled();
@@ -608,11 +675,13 @@ public class LabelController implements Controller {
       }
       // Apply modification
       TextStyle defaultStyle = this.preferences.getDefaultTextStyle(Label.class);
-      doModifyLabels(modifiedLabels, text, alignment, fontName, fontNameSet, fontSize, defaultStyle, color, pitch, pitchEnabled, elevation, width, widthSet);
+      doModifyLabels(modifiedLabels, text, alignment, fontName, fontNameSet, fontSize, bold, italic,
+          defaultStyle, color, pitch, pitchEnabled, elevation, width, widthSet);
       if (this.undoSupport != null) {
         UndoableEdit undoableEdit = new LabelModificationUndoableEdit(this.home,
             this.preferences, oldSelection.toArray(new Selectable [oldSelection.size()]),
-            modifiedLabels, text, alignment, fontName, fontNameSet, fontSize, defaultStyle, color, pitch, pitchEnabled, elevation, width, widthSet);
+            modifiedLabels, text, alignment, fontName, fontNameSet, fontSize, bold, italic,
+            defaultStyle, color, pitch, pitchEnabled, elevation, width, widthSet);
         this.undoSupport.postEdit(undoableEdit);
       }
       if (text != null && text.indexOf('\n') < 0) {
@@ -634,6 +703,8 @@ public class LabelController implements Controller {
     private final String              fontName;
     private final boolean             fontNameSet;
     private final Float               fontSize;
+    private final Boolean             bold;
+    private final Boolean             italic;
     private final TextStyle           defaultStyle;
     private final Integer             color;
     private final Float               pitch;
@@ -648,7 +719,8 @@ public class LabelController implements Controller {
                                           ModifiedLabel [] modifiedLabels,
                                           String text, TextStyle.Alignment alignment,
                                           String fontName, boolean fontNameSet,
-                                          Float fontSize, TextStyle defaultStyle,
+                                          Float fontSize, Boolean bold, Boolean italic,
+                                          TextStyle defaultStyle,
                                           Integer color, Float pitch, Boolean pitchEnabled,
                                           Float elevation, Float width, boolean widthSet) {
       super(preferences, LabelController.class, "undoModifyLabelsName");
@@ -660,6 +732,8 @@ public class LabelController implements Controller {
       this.fontName = fontName;
       this.fontNameSet = fontNameSet;
       this.fontSize = fontSize;
+      this.bold = bold;
+      this.italic = italic;
       this.defaultStyle = defaultStyle;
       this.color = color;
       this.pitch = pitch;
@@ -679,8 +753,9 @@ public class LabelController implements Controller {
     @Override
     public void redo() throws CannotRedoException {
       super.redo();
-      doModifyLabels(this.modifiedLabels, this.text, this.alignment, this.fontName, this.fontNameSet, this.fontSize, this.defaultStyle,
-          this.color, this.pitch, this.pitchEnabled, this.elevation, this.width, this.widthSet);
+      doModifyLabels(this.modifiedLabels, this.text, this.alignment, this.fontName, this.fontNameSet,
+          this.fontSize, this.bold, this.italic, this.defaultStyle, this.color, this.pitch,
+          this.pitchEnabled, this.elevation, this.width, this.widthSet);
       this.home.setSelectedItems(Arrays.asList(this.oldSelection));
     }
   }
@@ -690,7 +765,8 @@ public class LabelController implements Controller {
    */
   private static void doModifyLabels(ModifiedLabel [] modifiedLabels,
                                      String text, TextStyle.Alignment alignment, String fontName,
-                                     boolean fontNameSet, Float fontSize, TextStyle defaultStyle,
+                                     boolean fontNameSet, Float fontSize, Boolean bold, Boolean italic,
+                                     TextStyle defaultStyle,
                                      Integer color, Float pitch, Boolean pitchEnabled,
                                      Float elevation, Float width, boolean widthSet) {
     for (ModifiedLabel modifiedLabel : modifiedLabels) {
@@ -712,6 +788,14 @@ public class LabelController implements Controller {
         label.setStyle(label.getStyle() != null
             ? label.getStyle().deriveStyle(fontSize)
             : defaultStyle.deriveStyle(fontSize));
+      }
+      if (bold != null) {
+        TextStyle style = label.getStyle() != null ? label.getStyle() : defaultStyle;
+        label.setStyle(style.deriveBoldStyle(bold));
+      }
+      if (italic != null) {
+        TextStyle style = label.getStyle() != null ? label.getStyle() : defaultStyle;
+        label.setStyle(style.deriveItalicStyle(italic));
       }
       if (color != null) {
         label.setColor(color);
@@ -778,5 +862,10 @@ public class LabelController implements Controller {
       this.label.setElevation(this.elevation);
       this.label.setWidth(this.width);
     }
+  }
+
+  private TextStyle getLabelTextStyle(Label label) {
+    TextStyle style = label.getStyle();
+    return style != null ? style : this.preferences.getDefaultTextStyle(Label.class);
   }
 }
