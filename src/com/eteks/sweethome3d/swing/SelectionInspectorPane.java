@@ -30,7 +30,10 @@ import java.text.Format;
 import java.util.ArrayList;
 import java.util.List;
 
+import java.text.MessageFormat;
+
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
@@ -78,7 +81,7 @@ public class SelectionInspectorPane extends JPanel {
     this.cardLayout = new CardLayout();
     this.cardPanel = new JPanel(this.cardLayout);
     this.emptyLabel = new JLabel("", JLabel.CENTER);
-    this.emptyLabel.setBorder(BorderFactory.createEmptyBorder(16, 12, 16, 12));
+    this.emptyLabel.setBorder(AlpInspectorStyles.emptyStateBorder());
     this.roomInspectorPanel = new RoomInspectorPanel(home, preferences, controller);
     this.monitoredRooms = new ArrayList<Room>();
     this.roomPropertyListener = new PropertyChangeListener() {
@@ -168,18 +171,22 @@ public class SelectionInspectorPane extends JPanel {
   }
 
   /**
-   * Area/Room inspector with live edit fields (SPIKE-21 P0).
+   * Area/Room inspector with live edit fields (SPIKE-21 P0/P1).
    */
   private class RoomInspectorPanel extends JPanel {
     private final Home             home;
+    private final HomeController   homeController;
     private final RoomController   roomController;
     private final UserPreferences  preferences;
+    private JLabel                 summaryLabel;
+    private JButton                openFullEditorButton;
     private JTextField             nameTextField;
     private NullableCheckBox       areaVisibleCheckBox;
     private ColorButton            floorColorButton;
     private JLabel                 floorOpacityLabel;
     private NullableSpinner          floorOpacitySpinner;
     private NullableSpinner.NullableSpinnerNumberModel floorOpacitySpinnerModel;
+    private NullableCheckBox       smoothedCheckBox;
     private String                 nameFieldSyncedValue;
     private boolean                nameFieldUserEdited;
     private boolean                updatingFromController;
@@ -189,10 +196,29 @@ public class SelectionInspectorPane extends JPanel {
                        HomeController controller) {
       super(new BorderLayout());
       this.home = home;
+      this.homeController = controller;
       this.preferences = preferences;
       this.roomController = controller.createRoomController();
+      createHeader();
       createFields();
       layoutFields();
+    }
+
+    private void createHeader() {
+      this.summaryLabel = new JLabel();
+      this.openFullEditorButton = new JButton(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "openFullEditorButton.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.openFullEditorButton.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "openFullEditorButton.mnemonic")).getKeyCode());
+      }
+      this.openFullEditorButton.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            commitPendingEdits();
+            homeController.getPlanController().modifySelectedRooms();
+          }
+        });
     }
 
     private void createFields() {
@@ -290,6 +316,25 @@ public class SelectionInspectorPane extends JPanel {
             applyRoomChanges();
           }
         });
+
+      if (this.roomController.isPropertyEditable(RoomController.Property.SMOOTHED)) {
+        this.smoothedCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(
+            this.preferences, RoomPanel.class, "smoothedCheckBox.text"));
+        if (!OperatingSystem.isMacOSX()) {
+          this.smoothedCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+              this.preferences.getLocalizedString(
+                  RoomPanel.class, "smoothedCheckBox.mnemonic")).getKeyCode());
+        }
+        this.smoothedCheckBox.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+              if (updatingFromController) {
+                return;
+              }
+              roomController.setSmoothed(smoothedCheckBox.getValue());
+              applyRoomChanges();
+            }
+          });
+      }
     }
 
     private void layoutFields() {
@@ -341,16 +386,87 @@ public class SelectionInspectorPane extends JPanel {
       floorPanel.add(this.floorOpacitySpinner, new GridBagConstraints(
           1, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
+      if (this.smoothedCheckBox != null) {
+        floorPanel.add(this.smoothedCheckBox, new GridBagConstraints(
+            0, 2, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      }
 
       fieldsPanel.add(floorPanel, new GridBagConstraints(
           0, row, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
-      fieldsPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-      add(fieldsPanel, BorderLayout.NORTH);
+      fieldsPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+
+      JPanel headerPanel = new JPanel(new GridBagLayout());
+      headerPanel.setBorder(AlpInspectorStyles.sectionGapBorder());
+      headerPanel.add(this.summaryLabel, new GridBagConstraints(
+          0, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, AlpInspectorStyles.scale(6), 0), 0, 0));
+      headerPanel.add(this.openFullEditorButton, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
+
+      JPanel contentPanel = new JPanel(new BorderLayout());
+      contentPanel.setBorder(BorderFactory.createEmptyBorder(
+          AlpInspectorStyles.panelInsets().top,
+          AlpInspectorStyles.panelInsets().left,
+          AlpInspectorStyles.panelInsets().bottom,
+          AlpInspectorStyles.panelInsets().right));
+      contentPanel.add(headerPanel, BorderLayout.NORTH);
+      contentPanel.add(fieldsPanel, BorderLayout.CENTER);
+      add(contentPanel, BorderLayout.NORTH);
+    }
+
+    private void updateSelectionSummary() {
+      List<Room> rooms = Home.getRoomsSubList(this.home.getSelectedItems());
+      String title;
+      if (rooms.size() == 1) {
+        Room room = rooms.get(0);
+        String name = room.getName();
+        if (name != null && name.trim().length() > 0) {
+          title = MessageFormat.format(this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summarySingleAreaNamed.title"), name.trim());
+        } else {
+          title = this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summarySingleArea.title");
+        }
+      } else {
+        title = MessageFormat.format(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "summaryMultipleAreas.title"), rooms.size());
+      }
+
+      String levelName = getCommonLevelName(rooms);
+      String subtitle = levelName != null
+          ? MessageFormat.format(this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summaryLayer.text"), levelName)
+          : this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summaryMixedLevels.text");
+      AlpInspectorStyles.applySummaryText(this.summaryLabel, title, subtitle);
+    }
+
+    private String getCommonLevelName(List<Room> rooms) {
+      if (rooms.isEmpty()) {
+        return null;
+      }
+      Level level = rooms.get(0).getLevel();
+      String levelName = level != null ? level.getName() : null;
+      for (int i = 1; i < rooms.size(); i++) {
+        Level otherLevel = rooms.get(i).getLevel();
+        String otherLevelName = otherLevel != null ? otherLevel.getName() : null;
+        if (levelName == null) {
+          if (otherLevelName != null) {
+            return null;
+          }
+        } else if (!levelName.equals(otherLevelName)) {
+          return null;
+        }
+      }
+      return levelName;
     }
 
     void refresh() {
+      updateSelectionSummary();
       this.updatingFromController = true;
       try {
         this.roomController.refreshProperties();
@@ -367,6 +483,11 @@ public class SelectionInspectorPane extends JPanel {
             ? floorOpacity * 100
             : null);
         updateFloorOpacityEnabled();
+
+        if (this.smoothedCheckBox != null) {
+          this.smoothedCheckBox.setNullable(this.roomController.getSmoothed() == null);
+          this.smoothedCheckBox.setValue(this.roomController.getSmoothed());
+        }
       } finally {
         this.updatingFromController = false;
       }

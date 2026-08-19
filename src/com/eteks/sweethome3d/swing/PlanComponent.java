@@ -131,6 +131,7 @@ import javax.media.j3d.Transform3D;
 import javax.media.j3d.TransformGroup;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
+import javax.swing.AbstractButton;
 import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
 import javax.swing.Icon;
@@ -1425,7 +1426,13 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     addFocusListener(new FocusAdapter() {
         @Override
         public void focusLost(FocusEvent ev) {
-          controller.escape();
+          Component opposite = ev.getOppositeComponent();
+          if (!(opposite instanceof AbstractButton
+                  && SwingUtilities.isDescendingFrom(opposite, getTopLevelAncestor()))) {
+            // Toolbar/menu activation changes mode via setMode; don't cancel first.
+            // SPIKE-22: AbstractModeChangeState.escape() on focus lost was undoing that.
+            controller.escape();
+          }
 
           // Restore Alt release event behavior
           if (windowsAltPostProcessor != null) {
