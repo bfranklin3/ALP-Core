@@ -43,7 +43,7 @@ public class PolylineController implements Controller {
   /**
    * The properties that may be edited by the view associated to this controller.
    */
-  public enum Property {THICKNESS, CAP_STYLE, JOIN_STYLE, DASH_STYLE, DASH_PATTERN, DASH_OFFSET, START_ARROW_STYLE, END_ARROW_STYLE, COLOR, ELEVATION}
+  public enum Property {THICKNESS, CAP_STYLE, JOIN_STYLE, DASH_STYLE, DASH_PATTERN, DASH_OFFSET, START_ARROW_STYLE, END_ARROW_STYLE, CLOSED_PATH, COLOR, ELEVATION}
 
   private final Home                  home;
   private final UserPreferences       preferences;
@@ -63,6 +63,7 @@ public class PolylineController implements Controller {
   private boolean             arrowsStyleEditable;
   private Polyline.ArrowStyle startArrowStyle;
   private Polyline.ArrowStyle endArrowStyle;
+  private Boolean             closedPath;
   private Integer             color;
   private Float               elevation;
   private Boolean             elevationEnabled;
@@ -117,6 +118,13 @@ public class PolylineController implements Controller {
   }
 
   /**
+   * Updates edited properties from the current polyline selection.
+   */
+  public void refreshProperties() {
+    updateProperties();
+  }
+
+  /**
    * Updates edited properties from selected polylines in the home edited by this controller.
    */
   protected void updateProperties() {
@@ -133,6 +141,7 @@ public class PolylineController implements Controller {
       this.arrowsStyleEditable = false;
       setStartArrowStyle(null);
       setEndArrowStyle(null);
+      setClosedPath(null);
       setColor(null);
       this.elevationEnabled = Boolean.FALSE;
     } else {
@@ -260,6 +269,15 @@ public class PolylineController implements Controller {
         setStartArrowStyle(null);
         setEndArrowStyle(null);
       }
+
+      Boolean closedPath = firstPolyline.isClosedPath();
+      for (int i = 1; i < selectedPolylines.size(); i++) {
+        if (closedPath != selectedPolylines.get(i).isClosedPath()) {
+          closedPath = null;
+          break;
+        }
+      }
+      setClosedPath(closedPath);
 
       // Search the common color among polylines
       Integer color = firstPolyline.getColor();
@@ -460,6 +478,24 @@ public class PolylineController implements Controller {
   }
 
   /**
+   * Sets the edited closed path flag.
+   */
+  public void setClosedPath(Boolean closedPath) {
+    if (closedPath != this.closedPath) {
+      Boolean oldClosedPath = this.closedPath;
+      this.closedPath = closedPath;
+      this.propertyChangeSupport.firePropertyChange(Property.CLOSED_PATH.name(), oldClosedPath, closedPath);
+    }
+  }
+
+  /**
+   * Returns the edited closed path flag.
+   */
+  public Boolean getClosedPath() {
+    return this.closedPath;
+  }
+
+  /**
    * Sets the edited color.
    */
   public void setColor(Integer color) {
@@ -519,6 +555,7 @@ public class PolylineController implements Controller {
       Float dashOffset = getDashOffset();
       Polyline.ArrowStyle startArrowStyle = getStartArrowStyle();
       Polyline.ArrowStyle endArrowStyle = getEndArrowStyle();
+      Boolean closedPath = getClosedPath();
       Integer color = getColor();
       Float elevation = getElevation();
       Boolean elevationEnabled = isElevationEnabled();
@@ -530,12 +567,13 @@ public class PolylineController implements Controller {
       }
       // Apply modification
       doModifyPolylines(modifiedPolylines, thickness,
-          capStyle, joinStyle, dashStyle, dashPattern, dashOffset, startArrowStyle, endArrowStyle, color, elevation, elevationEnabled);
+          capStyle, joinStyle, dashStyle, dashPattern, dashOffset, startArrowStyle, endArrowStyle,
+          closedPath, color, elevation, elevationEnabled);
       if (this.undoSupport != null) {
         UndoableEdit undoableEdit = new PolylinesModificationUndoableEdit(
             this.home, this.preferences, oldSelection.toArray(new Selectable [oldSelection.size()]),
             modifiedPolylines, thickness, capStyle, joinStyle, dashStyle, dashPattern, dashOffset,
-            startArrowStyle, endArrowStyle, color, elevation, elevationEnabled);
+            startArrowStyle, endArrowStyle, closedPath, color, elevation, elevationEnabled);
         this.undoSupport.postEdit(undoableEdit);
       }
     }
@@ -557,6 +595,7 @@ public class PolylineController implements Controller {
     private final Float               dashOffset;
     private final Polyline.ArrowStyle startArrowStyle;
     private final Polyline.ArrowStyle endArrowStyle;
+    private final Boolean             closedPath;
     private final Integer             color;
     private final Float               elevation;
     private final Boolean             elevationEnabled;
@@ -573,6 +612,7 @@ public class PolylineController implements Controller {
                                               Float dashOffset,
                                               Polyline.ArrowStyle startArrowStyle,
                                               Polyline.ArrowStyle endArrowStyle,
+                                              Boolean closedPath,
                                               Integer color,
                                               Float elevation, Boolean elevationEnabled) {
       super(preferences, PolylineController.class, "undoModifyPolylinesName");
@@ -587,6 +627,7 @@ public class PolylineController implements Controller {
       this.dashOffset = dashOffset;
       this.startArrowStyle = startArrowStyle;
       this.endArrowStyle = endArrowStyle;
+      this.closedPath = closedPath;
       this.color = color;
       this.elevation = elevation;
       this.elevationEnabled = elevationEnabled;
@@ -604,7 +645,7 @@ public class PolylineController implements Controller {
       super.redo();
       doModifyPolylines(this.modifiedPolylines, this.thickness,
           this.capStyle, this.joinStyle, this.dashStyle, this.dashPattern, this.dashOffset,
-          this.startArrowStyle, this.endArrowStyle, this.color,
+          this.startArrowStyle, this.endArrowStyle, this.closedPath, this.color,
           this.elevation, this.elevationEnabled);
       this.home.setSelectedItems(Arrays.asList(this.oldSelection));
     }
@@ -617,7 +658,7 @@ public class PolylineController implements Controller {
                                         Float thickness, Polyline.CapStyle capStyle, Polyline.JoinStyle joinStyle,
                                         Polyline.DashStyle dashStyle, float [] dashPattern, Float dashOffset,
                                         Polyline.ArrowStyle startArrowStyle, Polyline.ArrowStyle endArrowStyle,
-                                        Integer color, Float elevation, Boolean elevationEnabled) {
+                                        Boolean closedPath, Integer color, Float elevation, Boolean elevationEnabled) {
     for (ModifiedPolyline modifiedPolyline : modifiedPolylines) {
       Polyline polyline = modifiedPolyline.getPolyline();
       if (thickness != null) {
@@ -643,6 +684,9 @@ public class PolylineController implements Controller {
       }
       if (endArrowStyle != null) {
         polyline.setEndArrowStyle(endArrowStyle);
+      }
+      if (closedPath != null) {
+        polyline.setClosedPath(closedPath);
       }
       if (color != null) {
         polyline.setColor(color);
@@ -679,6 +723,7 @@ public class PolylineController implements Controller {
     private final Float               dashOffset;
     private final Polyline.ArrowStyle startArrowStyle;
     private final Polyline.ArrowStyle endArrowStyle;
+    private final boolean             closedPath;
     private final int                 color;
     private final boolean             visibleIn3D;
     private final float               elevation;
@@ -692,6 +737,7 @@ public class PolylineController implements Controller {
       this.dashOffset = polyline.getDashOffset();
       this.startArrowStyle = polyline.getStartArrowStyle();
       this.endArrowStyle = polyline.getEndArrowStyle();
+      this.closedPath = polyline.isClosedPath();
       this.color = polyline.getColor();
       this.visibleIn3D = polyline.isVisibleIn3D();
       this.elevation = polyline.getElevation();
@@ -709,6 +755,7 @@ public class PolylineController implements Controller {
       this.polyline.setDashOffset(this.dashOffset);
       this.polyline.setStartArrowStyle(this.startArrowStyle);
       this.polyline.setEndArrowStyle(this.endArrowStyle);
+      this.polyline.setClosedPath(this.closedPath);
       this.polyline.setColor(this.color);
       this.polyline.setVisibleIn3D(this.visibleIn3D);
       this.polyline.setElevation(this.elevation);

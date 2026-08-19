@@ -446,6 +446,14 @@ public class HomeController implements Controller {
   }
 
   /**
+   * Creates a polyline controller for docked inspector editing.
+   */
+  public PolylineController createPolylineController() {
+    return new PolylineController(this.home, this.preferences, this.viewFactory,
+        this.contentManager, getUndoableEditSupport());
+  }
+
+  /**
    * Returns the controller of home plan.
    */
   public PlanController getPlanController() {
