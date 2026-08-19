@@ -2642,7 +2642,8 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
    * Returns <code>true</code> if plan items should be rendered in draft (monochrome) mode.
    */
   private boolean isDraftMode(PaintMode paintMode) {
-    return paintMode == PaintMode.PAINT && this.home.isDraftMode();
+    return this.home.isDraftMode()
+        && (paintMode == PaintMode.PAINT || paintMode == PaintMode.EXPORT);
   }
 
   /**

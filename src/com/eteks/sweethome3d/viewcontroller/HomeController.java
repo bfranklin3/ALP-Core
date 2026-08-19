@@ -63,6 +63,7 @@ import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
 import com.eteks.sweethome3d.model.AlpLevelDefaults;
+import com.eteks.sweethome3d.model.AlpOutputPresets;
 import com.eteks.sweethome3d.model.AspectRatio;
 import com.eteks.sweethome3d.model.BackgroundImage;
 import com.eteks.sweethome3d.model.Camera;
@@ -84,6 +85,7 @@ import com.eteks.sweethome3d.model.HomeEnvironment;
 import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeMaterial;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.HomePrint;
 import com.eteks.sweethome3d.model.HomeRecorder;
 import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.InterruptedRecorderException;
@@ -237,6 +239,8 @@ public class HomeController implements Controller {
     homeView.setEnabled(HomeView.ActionType.SAVE_AS, applicationExists);
     homeView.setEnabled(HomeView.ActionType.SAVE_AND_COMPRESS, applicationExists);
     homeView.setEnabled(HomeView.ActionType.PAGE_SETUP, true);
+    homeView.setEnabled(HomeView.ActionType.APPLY_DRAFT_OUTPUT_PRESET, true);
+    homeView.setEnabled(HomeView.ActionType.APPLY_PRESENTATION_OUTPUT_PRESET, true);
     homeView.setEnabled(HomeView.ActionType.PRINT_PREVIEW, true);
     homeView.setEnabled(HomeView.ActionType.PRINT, true);
     homeView.setEnabled(HomeView.ActionType.PRINT_TO_PDF, true);
@@ -2822,6 +2826,31 @@ public class HomeController implements Controller {
   }
 
   /**
+   * Applies draft output preset (B&amp;W plan, no furniture/3D, minimal header/footer).
+   */
+  public void applyDraftOutputPreset() {
+    applyOutputPreset(AlpOutputPresets.Preset.DRAFT);
+  }
+
+  /**
+   * Applies presentation output preset (color plan with area fills, no furniture/3D).
+   */
+  public void applyPresentationOutputPreset() {
+    applyOutputPreset(AlpOutputPresets.Preset.PRESENTATION);
+  }
+
+  private void applyOutputPreset(AlpOutputPresets.Preset preset) {
+    HomePrint oldPrint = this.home.getPrint();
+    boolean oldDraftMode = this.home.isDraftMode();
+    HomePrint newPrint = AlpOutputPresets.createPresetPrint(oldPrint, preset);
+    boolean newDraftMode = AlpOutputPresets.isDraftMode(preset);
+    this.home.setPrint(newPrint);
+    this.home.setDraftMode(newDraftMode);
+    getUndoableEditSupport().postEdit(new OutputPresetUndoableEdit(
+        this.home, this.preferences, oldPrint, newPrint, oldDraftMode, newDraftMode, preset));
+  }
+
+  /**
    * Controls the print preview.
    */
   public void previewPrint() {
@@ -3007,6 +3036,49 @@ public class HomeController implements Controller {
     doToggleBackgroundImageVisibility(this.home);
     getUndoableEditSupport().postEdit(new BackgroundImageVisibilityTogglingUndoableEdit(
         this.home, this.preferences, presentationName, selectedLevel));
+  }
+
+  /**
+   * Undoable edit for output preset application.
+   */
+  private static class OutputPresetUndoableEdit extends LocalizedUndoableEdit {
+    private final Home      home;
+    private final HomePrint oldPrint;
+    private final HomePrint newPrint;
+    private final boolean   oldDraftMode;
+    private final boolean   newDraftMode;
+
+    private OutputPresetUndoableEdit(Home home,
+                                     UserPreferences preferences,
+                                     HomePrint oldPrint,
+                                     HomePrint newPrint,
+                                     boolean oldDraftMode,
+                                     boolean newDraftMode,
+                                     AlpOutputPresets.Preset preset) {
+      super(preferences, HomeController.class,
+          preset == AlpOutputPresets.Preset.DRAFT
+              ? "undoApplyDraftOutputPresetName"
+              : "undoApplyPresentationOutputPresetName");
+      this.home = home;
+      this.oldPrint = oldPrint;
+      this.newPrint = newPrint;
+      this.oldDraftMode = oldDraftMode;
+      this.newDraftMode = newDraftMode;
+    }
+
+    @Override
+    public void undo() throws CannotUndoException {
+      super.undo();
+      this.home.setPrint(this.oldPrint);
+      this.home.setDraftMode(this.oldDraftMode);
+    }
+
+    @Override
+    public void redo() throws CannotRedoException {
+      super.redo();
+      this.home.setPrint(this.newPrint);
+      this.home.setDraftMode(this.newDraftMode);
+    }
   }
 
   /**

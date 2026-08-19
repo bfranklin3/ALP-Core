@@ -328,6 +328,8 @@ public class HomePane extends JRootPane implements HomeView {
     createAction(ActionType.SAVE_AS, preferences, controller, "saveAs");
     createAction(ActionType.SAVE_AND_COMPRESS, preferences, controller, "saveAndCompress");
     createAction(ActionType.PAGE_SETUP, preferences, controller, "setupPage");
+    createAction(ActionType.APPLY_DRAFT_OUTPUT_PRESET, preferences, controller, "applyDraftOutputPreset");
+    createAction(ActionType.APPLY_PRESENTATION_OUTPUT_PRESET, preferences, controller, "applyPresentationOutputPreset");
     createAction(ActionType.PRINT_PREVIEW, preferences, controller, "previewPrint");
     createAction(ActionType.PRINT, preferences, controller, "print");
     createAction(ActionType.PRINT_TO_PDF, preferences, controller, "printToPDF");
@@ -1198,6 +1200,9 @@ public class HomePane extends JRootPane implements HomeView {
     addActionToMenu(ActionType.SAVE_AND_COMPRESS, fileMenu);
     fileMenu.addSeparator();
     addActionToMenu(ActionType.PAGE_SETUP, fileMenu);
+    addActionToMenu(ActionType.APPLY_DRAFT_OUTPUT_PRESET, fileMenu);
+    addActionToMenu(ActionType.APPLY_PRESENTATION_OUTPUT_PRESET, fileMenu);
+    fileMenu.addSeparator();
     addActionToMenu(ActionType.PRINT_PREVIEW, fileMenu);
     addActionToMenu(ActionType.PRINT, fileMenu);
     // Don't add PRINT_TO_PDF, PREFERENCES and EXIT menu items under Mac OS X when screen menu bar is used,
