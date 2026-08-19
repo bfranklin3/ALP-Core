@@ -470,6 +470,22 @@ public class HomeController implements Controller {
   }
 
   /**
+   * Creates a wall controller for docked inspector editing.
+   */
+  public WallController createWallController() {
+    return new WallController(this.home, this.preferences, this.viewFactory,
+        this.contentManager, getUndoableEditSupport());
+  }
+
+  /**
+   * Creates a home furniture controller for docked inspector editing.
+   */
+  public HomeFurnitureController createHomeFurnitureController() {
+    return new HomeFurnitureController(this.home, this.preferences, this.viewFactory,
+        getUndoableEditSupport());
+  }
+
+  /**
    * Returns the controller of home plan.
    */
   public PlanController getPlanController() {

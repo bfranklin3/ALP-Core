@@ -272,6 +272,13 @@ public class HomeFurnitureController implements Controller {
   }
 
   /**
+   * Updates edited properties from the current furniture selection.
+   */
+  public void refreshProperties() {
+    updateProperties();
+  }
+
+  /**
    * Updates edited properties from selected furniture in the home edited by this controller.
    */
   protected void updateProperties() {

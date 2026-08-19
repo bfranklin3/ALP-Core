@@ -212,6 +212,13 @@ public class WallController implements Controller {
   }
 
   /**
+   * Updates edited properties from the current wall selection.
+   */
+  public void refreshProperties() {
+    updateProperties();
+  }
+
+  /**
    * Updates edited properties from selected walls in the home edited by this controller.
    */
   protected void updateProperties() {
