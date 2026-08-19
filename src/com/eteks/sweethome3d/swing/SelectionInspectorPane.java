@@ -45,6 +45,7 @@ import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.Icon;
@@ -132,6 +133,7 @@ public class SelectionInspectorPane extends JPanel {
     this.cardPanel = new JPanel(this.cardLayout);
     this.emptyLabel = new JLabel("", JLabel.CENTER);
     this.emptyLabel.setBorder(AlpInspectorStyles.emptyStateBorder());
+    this.emptyLabel.setFocusable(false);
     this.roomInspectorPanel = new RoomInspectorPanel(home, preferences, controller);
     this.polylineInspectorPanel = new PolylineInspectorPanel(home, preferences, controller);
     this.labelInspectorPanel = new LabelInspectorPanel(home, preferences, controller);
@@ -237,7 +239,9 @@ public class SelectionInspectorPane extends JPanel {
     this.cardPanel.add(this.wallInspectorPanel, WALL_CARD);
     this.cardPanel.add(this.furnitureInspectorPanel, FURNITURE_CARD);
     add(this.cardPanel, BorderLayout.NORTH);
-    setMinimumSize(new Dimension((int)(200 * SwingTools.getResolutionScale()), 0));
+    setMinimumSize(new Dimension(Math.max(1, (int)(200 * SwingTools.getResolutionScale())), 0));
+    setPreferredSize(new Dimension(Math.max(1, (int)(300 * SwingTools.getResolutionScale())), 0));
+    updateInspectorPanelsEnabled();
 
     home.addSelectionListener(new SelectionListener() {
         public void selectionChanged(SelectionEvent ev) {
@@ -286,6 +290,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingFurnitureInspector = false;
       this.roomInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, ROOM_CARD);
+      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -311,6 +316,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingFurnitureInspector = false;
       this.polylineInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, POLYLINE_CARD);
+      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -336,6 +342,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingFurnitureInspector = false;
       this.labelInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, LABEL_CARD);
+      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -361,6 +368,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingFurnitureInspector = false;
       this.dimensionLineInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, DIMENSION_CARD);
+      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -386,6 +394,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingFurnitureInspector = false;
       this.wallInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, WALL_CARD);
+      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -411,6 +420,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingFurnitureInspector = true;
       this.furnitureInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, FURNITURE_CARD);
+      updateInspectorPanelsEnabled();
       return;
     }
 
@@ -433,6 +443,34 @@ public class SelectionInspectorPane extends JPanel {
     this.emptyLabel.setText(this.preferences.getLocalizedString(
         SelectionInspectorPane.class, messageKey));
     this.cardLayout.show(this.cardPanel, EMPTY_CARD);
+    updateInspectorPanelsEnabled();
+  }
+
+  /**
+   * Enables only the active inspector card so tab order skips hidden panels.
+   */
+  private void updateInspectorPanelsEnabled() {
+    this.roomInspectorPanel.setEnabled(this.showingRoomInspector);
+    this.polylineInspectorPanel.setEnabled(this.showingPolylineInspector);
+    this.labelInspectorPanel.setEnabled(this.showingLabelInspector);
+    this.dimensionLineInspectorPanel.setEnabled(this.showingDimensionLineInspector);
+    this.wallInspectorPanel.setEnabled(this.showingWallInspector);
+    this.furnitureInspectorPanel.setEnabled(this.showingFurnitureInspector);
+  }
+
+  /**
+   * Wires a field label mnemonic (non-Mac) and keyboard activation target.
+   */
+  private static void configureInspectorFieldLabel(UserPreferences preferences,
+                                                   Class<?> resourceClass,
+                                                   String mnemonicKey,
+                                                   JLabel label,
+                                                   JComponent field) {
+    if (!OperatingSystem.isMacOSX()) {
+      label.setDisplayedMnemonic(KeyStroke.getKeyStroke(
+          preferences.getLocalizedString(resourceClass, mnemonicKey)).getKeyCode());
+    }
+    label.setLabelFor(field);
   }
 
   private void updateMonitoredRooms(List<Room> rooms) {
@@ -816,6 +854,8 @@ public class SelectionInspectorPane extends JPanel {
           RoomPanel.class, "floorPanel.title"));
       JLabel floorColorLabel = new JLabel(SwingTools.getLocalizedLabelText(
           this.preferences, RoomPanel.class, "floorColorRadioButton.text"));
+      configureInspectorFieldLabel(this.preferences, RoomPanel.class,
+          "floorOpacityLabel.mnemonic", this.floorOpacityLabel, this.floorOpacitySpinner);
       floorPanel.add(floorColorLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
@@ -840,6 +880,12 @@ public class SelectionInspectorPane extends JPanel {
 
       JPanel outlinePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           SelectionInspectorPane.class, "outlinePanel.title"));
+      configureInspectorFieldLabel(this.preferences, PolylinePanel.class,
+          "thicknessLabel.mnemonic", this.outlineThicknessLabel, this.outlineThicknessSpinner);
+      configureInspectorFieldLabel(this.preferences, PolylinePanel.class,
+          "dashStyleLabel.mnemonic", this.outlineDashStyleLabel, this.outlineDashStyleComboBox);
+      configureInspectorFieldLabel(this.preferences, PolylinePanel.class,
+          "colorLabel.mnemonic", this.outlineColorLabel, this.outlineColorButton);
       outlinePanel.add(this.outlineThicknessLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
@@ -1267,6 +1313,12 @@ public class SelectionInspectorPane extends JPanel {
       JPanel fieldsPanel = new JPanel(new GridBagLayout());
       JPanel strokePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           SelectionInspectorPane.class, "polylineStrokePanel.title"));
+      configureInspectorFieldLabel(this.preferences, PolylinePanel.class,
+          "thicknessLabel.mnemonic", this.thicknessLabel, this.thicknessSpinner);
+      configureInspectorFieldLabel(this.preferences, PolylinePanel.class,
+          "dashStyleLabel.mnemonic", this.dashStyleLabel, this.dashStyleComboBox);
+      configureInspectorFieldLabel(this.preferences, PolylinePanel.class,
+          "colorLabel.mnemonic", this.colorLabel, this.colorButton);
       strokePanel.add(this.thicknessLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
@@ -1582,6 +1634,8 @@ public class SelectionInspectorPane extends JPanel {
 
       JPanel stylePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           SelectionInspectorPane.class, "labelStylePanel.title"));
+      configureInspectorFieldLabel(this.preferences, LabelPanel.class,
+          "fontSizeLabel.mnemonic", this.fontSizeLabel, this.fontSizeSpinner);
       stylePanel.add(this.fontSizeLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
@@ -1928,6 +1982,10 @@ public class SelectionInspectorPane extends JPanel {
       JPanel fieldsPanel = new JPanel(new GridBagLayout());
       JPanel stylePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           SelectionInspectorPane.class, "dimensionStylePanel.title"));
+      configureInspectorFieldLabel(this.preferences, DimensionLinePanel.class,
+          "offsetLabel.mnemonic", this.offsetLabel, this.offsetSpinner);
+      configureInspectorFieldLabel(this.preferences, DimensionLinePanel.class,
+          "lengthFontSizeLabel.mnemonic", this.lengthFontSizeLabel, this.lengthFontSizeSpinner);
       stylePanel.add(this.offsetLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
@@ -2211,6 +2269,12 @@ public class SelectionInspectorPane extends JPanel {
       JPanel fieldsPanel = new JPanel(new GridBagLayout());
       JPanel stylePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           SelectionInspectorPane.class, "wallStylePanel.title"));
+      configureInspectorFieldLabel(this.preferences, WallPanel.class,
+          "thicknessLabel.mnemonic", this.thicknessLabel, this.thicknessSpinner);
+      configureInspectorFieldLabel(this.preferences, WallPanel.class,
+          "rectangularWallHeightLabel.mnemonic", this.heightLabel, this.heightSpinner);
+      configureInspectorFieldLabel(this.preferences, WallPanel.class,
+          "patternLabel.mnemonic", this.patternLabel, this.patternComboBox);
       stylePanel.add(this.thicknessLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
@@ -2560,6 +2624,12 @@ public class SelectionInspectorPane extends JPanel {
 
       JPanel sizePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           HomeFurniturePanel.class, "sizePanel.title"));
+      configureInspectorFieldLabel(this.preferences, HomeFurniturePanel.class,
+          "widthLabel.mnemonic", this.widthLabel, this.widthSpinner);
+      configureInspectorFieldLabel(this.preferences, HomeFurniturePanel.class,
+          "depthLabel.mnemonic", this.depthLabel, this.depthSpinner);
+      configureInspectorFieldLabel(this.preferences, HomeFurniturePanel.class,
+          "heightLabel.mnemonic", this.heightLabel, this.heightSpinner);
       sizePanel.add(this.widthLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
@@ -2584,6 +2654,8 @@ public class SelectionInspectorPane extends JPanel {
 
       JPanel orientationPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           HomeFurniturePanel.class, "orientationPanel.title"));
+      configureInspectorFieldLabel(this.preferences, HomeFurniturePanel.class,
+          "angleLabel.mnemonic", this.angleLabel, this.angleSpinner);
       orientationPanel.add(this.angleLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
@@ -2596,6 +2668,8 @@ public class SelectionInspectorPane extends JPanel {
 
       JPanel paintPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           HomeFurniturePanel.class, "colorAndTexturePanel.title"));
+      configureInspectorFieldLabel(this.preferences, HomeFurniturePanel.class,
+          "colorRadioButton.mnemonic", this.colorLabel, this.colorButton);
       paintPanel.add(this.colorLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));

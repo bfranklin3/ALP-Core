@@ -250,6 +250,7 @@ public class HomePane extends JRootPane implements HomeView {
 
   private static final double   DEFAULT_PLAN_INSPECTOR_PLAN_PROPORTION           = 0.78;
   private static final int      MIN_PLAN_INSPECTOR_PLAN_WIDTH                    = Math.max(1, (int)(320 * SwingTools.getResolutionScale()));
+  private static final int      DEFAULT_PLAN_INSPECTOR_INSPECTOR_WIDTH           = Math.max(1, (int)(300 * SwingTools.getResolutionScale()));
   private static final int      MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH               = Math.max(1, (int)(200 * SwingTools.getResolutionScale()));
 
   private static final int    DEFAULT_SMALL_ICON_HEIGHT = Math.round(16 * SwingTools.getResolutionScale());
@@ -3198,6 +3199,8 @@ public class HomePane extends JRootPane implements HomeView {
                                              UserPreferences preferences,
                                              final HomeController controller) {
     final JComponent inspectorPane = createInspectorPane(home, preferences, controller);
+    inspectorPane.setMinimumSize(new Dimension(MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH, 0));
+    inspectorPane.setPreferredSize(new Dimension(DEFAULT_PLAN_INSPECTOR_INSPECTOR_WIDTH, 0));
     planView3DPane.setMinimumSize(new Dimension(MIN_PLAN_INSPECTOR_PLAN_WIDTH, 0));
     boolean leftToRightOrientation = ComponentOrientation.getOrientation(Locale.getDefault()).isLeftToRight();
     final JSplitPane planInspectorPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
@@ -3230,6 +3233,25 @@ public class HomePane extends JRootPane implements HomeView {
   }
 
   /**
+   * Returns a divider location that reserves the requested inspector width.
+   */
+  private int getPlanInspectorDividerLocationForInspectorWidth(JSplitPane planInspectorPane,
+                                                               boolean planOnLeft,
+                                                               int inspectorWidth) {
+    int paneWidth = planInspectorPane.getWidth();
+    if (paneWidth <= 0) {
+      return (int)(paneWidth * DEFAULT_PLAN_INSPECTOR_PLAN_PROPORTION);
+    }
+    int dividerSize = planInspectorPane.getDividerSize();
+    int maxDividerLocation = paneWidth - dividerSize - inspectorWidth;
+    if (planOnLeft) {
+      return Math.max(MIN_PLAN_INSPECTOR_PLAN_WIDTH, maxDividerLocation);
+    } else {
+      return Math.max(0, Math.min(inspectorWidth, maxDividerLocation));
+    }
+  }
+
+  /**
    * Ensures the plan view keeps a usable width when opening homes saved before the inspector
    * column existed or with a divider location that collapsed the plan pane.
    */
@@ -3250,23 +3272,27 @@ public class HomePane extends JRootPane implements HomeView {
                 Component planComponent = planOnLeft
                     ? planInspectorPane.getLeftComponent()
                     : planInspectorPane.getRightComponent();
+                Component inspectorComponent = planOnLeft
+                    ? planInspectorPane.getRightComponent()
+                    : planInspectorPane.getLeftComponent();
                 int planWidth = planComponent != null ? planComponent.getWidth() : 0;
+                int inspectorWidth = inspectorComponent != null ? inspectorComponent.getWidth() : 0;
                 boolean invalidSavedLocation = savedDividerLocation != null
-                    && planWidth < MIN_PLAN_INSPECTOR_PLAN_WIDTH;
+                    && (planWidth < MIN_PLAN_INSPECTOR_PLAN_WIDTH
+                        || inspectorWidth < MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH);
                 if (savedDividerLocation == null || invalidSavedLocation) {
-                  planInspectorPane.setDividerLocation(DEFAULT_PLAN_INSPECTOR_PLAN_PROPORTION);
+                  planInspectorPane.setDividerLocation(
+                      getPlanInspectorDividerLocationForInspectorWidth(planInspectorPane, planOnLeft,
+                          DEFAULT_PLAN_INSPECTOR_INSPECTOR_WIDTH));
                 }
-                // Re-check after applying default proportion
+                // Re-check after applying default width
                 planWidth = planComponent != null ? planComponent.getWidth() : 0;
                 if (planWidth < MIN_PLAN_INSPECTOR_PLAN_WIDTH) {
-                  int maxDividerLocation = planInspectorPane.getWidth()
-                      - planInspectorPane.getDividerSize()
-                      - MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH;
-                  if (maxDividerLocation > MIN_PLAN_INSPECTOR_PLAN_WIDTH) {
-                    planInspectorPane.setDividerLocation(maxDividerLocation);
-                  }
+                  planInspectorPane.setDividerLocation(
+                      getPlanInspectorDividerLocationForInspectorWidth(planInspectorPane, planOnLeft,
+                          MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH));
                 }
-                if (invalidSavedLocation) {
+                if (savedDividerLocation == null || invalidSavedLocation) {
                   controller.setHomeProperty(INSPECTOR_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY,
                       String.valueOf(planInspectorPane.getDividerLocation()));
                 }
