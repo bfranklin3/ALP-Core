@@ -586,7 +586,42 @@ public class LevelController implements Controller {
     updateLevelElevationIndex(level, newElevationIndex, home.getLevels());
     if (undoSupport != null) {
       undoSupport.postEdit(new LevelElevationIndexUndoableEdit(home, preferences, level,
-          oldElevationIndex, newElevationIndex, direction > 0));
+          oldElevationIndex, newElevationIndex, direction > 0 ? "undoMoveLayerUp" : "undoMoveLayerDown"));
+    }
+  }
+
+  /**
+   * Returns whether {@code level} can move to {@code targetStackIndex} in {@code home.getLevels()}.
+   */
+  public static boolean canMoveLevelToStackIndex(Home home, Level level, int targetStackIndex) {
+    List<Level> levels = home.getLevels();
+    int sourceStackIndex = levels.indexOf(level);
+    if (sourceStackIndex < 0
+        || targetStackIndex < 0
+        || targetStackIndex >= levels.size()) {
+      return false;
+    }
+    if (sourceStackIndex == targetStackIndex) {
+      return false;
+    }
+    return levels.get(targetStackIndex).getElevation() == level.getElevation();
+  }
+
+  /**
+   * Moves {@code level} to {@code targetStackIndex} in overlay stack order and posts an undo edit if requested.
+   */
+  public static void moveLevelToStackIndex(Home home, UserPreferences preferences,
+                                           UndoableEditSupport undoSupport, Level level, int targetStackIndex) {
+    if (!canMoveLevelToStackIndex(home, level, targetStackIndex)) {
+      return;
+    }
+    List<Level> levels = home.getLevels();
+    int oldElevationIndex = level.getElevationIndex();
+    int targetElevationIndex = levels.get(targetStackIndex).getElevationIndex();
+    updateLevelElevationIndex(level, targetElevationIndex, levels);
+    if (undoSupport != null) {
+      undoSupport.postEdit(new LevelElevationIndexUndoableEdit(home, preferences, level,
+          oldElevationIndex, targetElevationIndex, "undoMoveLayerName"));
     }
   }
 
@@ -600,8 +635,8 @@ public class LevelController implements Controller {
     private final int   newElevationIndex;
 
     public LevelElevationIndexUndoableEdit(Home home, UserPreferences preferences, Level level,
-                                           int oldElevationIndex, int newElevationIndex, boolean moveUp) {
-      super(preferences, LevelController.class, moveUp ? "undoMoveLayerUp" : "undoMoveLayerDown");
+                                           int oldElevationIndex, int newElevationIndex, String undoKey) {
+      super(preferences, LevelController.class, undoKey);
       this.home = home;
       this.level = level;
       this.oldElevationIndex = oldElevationIndex;

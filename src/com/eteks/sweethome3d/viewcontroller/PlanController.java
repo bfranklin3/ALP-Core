@@ -4256,6 +4256,22 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Returns whether {@code level} can be reordered to {@code targetStackIndex}.
+   */
+  public boolean canReorderLevelToStackIndex(Level level, int targetStackIndex) {
+    return LevelController.canMoveLevelToStackIndex(this.home, level, targetStackIndex);
+  }
+
+  /**
+   * Reorders {@code level} to {@code targetStackIndex} in tab / overlay stack order.
+   */
+  public void reorderLevelToStackIndex(Level level, int targetStackIndex) {
+    LevelController.moveLevelToStackIndex(this.home, this.preferences, this.undoSupport,
+        level, targetStackIndex);
+    setSelectedLevel(level);
+  }
+
+  /**
    * Deletes the selected level and the items that belongs to it.
    */
   public void deleteSelectedLevel() {

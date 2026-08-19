@@ -34,6 +34,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
@@ -98,13 +99,18 @@ import com.eteks.sweethome3d.viewcontroller.View;
 public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printable {
   private static final String ONE_LEVEL_PANEL_NAME = "oneLevelPanel";
   private static final String MULTIPLE_LEVELS_PANEL_NAME = "multipleLevelsPanel";
+  private static final int LEVEL_TAB_DRAG_THRESHOLD = 5;
 
   private static final ImageIcon sameElevationIcon = SwingTools.getScaledImageIcon(MultipleLevelsPlanPanel.class.getResource("resources/sameElevation.png"));
 
   private JComponent  planComponent;
   private JScrollPane planScrollPane;
-  private JTabbedPane multipleLevelsTabbedPane;
+  private LevelTabbedPane multipleLevelsTabbedPane;
   private JPanel      oneLevelPanel;
+  private int         levelTabDragSourceStackIndex = -1;
+  private Point       levelTabDragStartPoint;
+  private boolean     levelTabDragging;
+  private boolean     levelTabDragOccurred;
 
   public MultipleLevelsPlanPanel(Home home,
                                  UserPreferences preferences,
@@ -125,7 +131,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
     UIManager.getDefaults().put("TabbedPane.contentBorderInsets", OperatingSystem.isMacOSX()
         ? new Insets(2, 2, 2, 2)
         : new Insets(-1, 0, 2, 2));
-    this.multipleLevelsTabbedPane = new JTabbedPane();
+    this.multipleLevelsTabbedPane = new LevelTabbedPane();
     if (OperatingSystem.isMacOSX()) {
       this.multipleLevelsTabbedPane.setBorder(new EmptyBorder(-2, -6, -7, -6));
     }
@@ -147,11 +153,60 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
         }
       };
     this.multipleLevelsTabbedPane.addChangeListener(changeListener);
-    // Add a mouse listener that will give focus to plan component only if a change in tabbed pane comes from the mouse
-    // and will add a level only if user clicks on the last tab
-    this.multipleLevelsTabbedPane.addMouseListener(new MouseAdapter() {
+    // Add mouse listeners for tab selection, add level, modify level, and drag-reorder
+    MouseAdapter levelTabMouseHandler = new MouseAdapter() {
+        @Override
+        public void mousePressed(MouseEvent ev) {
+          resetLevelTabDragState();
+          int levelCount = home.getLevels().size();
+          int indexAtLocation = multipleLevelsTabbedPane.indexAtLocation(ev.getX(), ev.getY());
+          if (indexAtLocation >= 0 && indexAtLocation < levelCount) {
+            levelTabDragSourceStackIndex = indexAtLocation;
+            levelTabDragStartPoint = ev.getPoint();
+          }
+        }
+
+        @Override
+        public void mouseDragged(MouseEvent ev) {
+          if (levelTabDragSourceStackIndex < 0 || levelTabDragStartPoint == null) {
+            return;
+          }
+          if (!levelTabDragging) {
+            if (levelTabDragStartPoint.distance(ev.getPoint()) < LEVEL_TAB_DRAG_THRESHOLD) {
+              return;
+            }
+            levelTabDragging = true;
+            levelTabDragOccurred = true;
+            multipleLevelsTabbedPane.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+            controller.setSelectedLevel(home.getLevels().get(levelTabDragSourceStackIndex));
+          }
+          int dropStackIndex = getLevelTabDropStackIndex(ev.getX(), ev.getY(), addLevelTabCreated);
+          if (dropStackIndex >= 0
+              && controller.canReorderLevelToStackIndex(home.getLevels().get(levelTabDragSourceStackIndex), dropStackIndex)) {
+            multipleLevelsTabbedPane.setInsertIndicatorStackIndex(dropStackIndex);
+          } else {
+            multipleLevelsTabbedPane.setInsertIndicatorStackIndex(null);
+          }
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent ev) {
+          if (levelTabDragging) {
+            Level draggedLevel = home.getLevels().get(levelTabDragSourceStackIndex);
+            int dropStackIndex = getLevelTabDropStackIndex(ev.getX(), ev.getY(), addLevelTabCreated);
+            if (controller.canReorderLevelToStackIndex(draggedLevel, dropStackIndex)) {
+              controller.reorderLevelToStackIndex(draggedLevel, dropStackIndex);
+            }
+          }
+          endLevelTabDrag();
+        }
+
         @Override
         public void mouseClicked(MouseEvent ev) {
+          if (levelTabDragOccurred) {
+            levelTabDragOccurred = false;
+            return;
+          }
           int indexAtLocation = multipleLevelsTabbedPane.indexAtLocation(ev.getX(), ev.getY());
           if (ev.getClickCount() == 1) {
             if (indexAtLocation == multipleLevelsTabbedPane.getTabCount() - 1 && addLevelTabCreated) {
@@ -177,7 +232,9 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
             controller.modifySelectedLevel();
           }
         }
-      });
+      };
+    this.multipleLevelsTabbedPane.addMouseListener(levelTabMouseHandler);
+    this.multipleLevelsTabbedPane.addMouseMotionListener(levelTabMouseHandler);
 
      // Add listeners to levels to maintain tabs name and order
     final PropertyChangeListener levelChangeListener = new PropertyChangeListener() {
@@ -822,6 +879,120 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
    */
   public float getPrintPreferredScale(float preferredWidth, float preferredHeight) {
     return ((PlanView)this.planComponent).getPrintPreferredScale(preferredWidth, preferredHeight);
+  }
+
+  private void resetLevelTabDragState() {
+    this.levelTabDragSourceStackIndex = -1;
+    this.levelTabDragStartPoint = null;
+    this.levelTabDragging = false;
+    this.levelTabDragOccurred = false;
+  }
+
+  private void endLevelTabDrag() {
+    this.levelTabDragging = false;
+    this.levelTabDragSourceStackIndex = -1;
+    this.levelTabDragStartPoint = null;
+    this.multipleLevelsTabbedPane.setInsertIndicatorStackIndex(null);
+    this.multipleLevelsTabbedPane.setCursor(Cursor.getDefaultCursor());
+  }
+
+  /**
+   * Returns the stack index where a dragged level tab would be inserted, or {@code -1} if invalid.
+   */
+  private int getLevelTabDropStackIndex(int x, int y, boolean addLevelTabCreated) {
+    int levelCount = this.multipleLevelsTabbedPane.getLevelTabCount();
+    if (levelCount <= 1) {
+      return -1;
+    }
+    int indexAtLocation = this.multipleLevelsTabbedPane.indexAtLocation(x, y);
+    if (addLevelTabCreated
+        && indexAtLocation == this.multipleLevelsTabbedPane.getTabCount() - 1) {
+      return -1;
+    }
+    for (int i = 0; i < levelCount; i++) {
+      Rectangle bounds = this.multipleLevelsTabbedPane.getBoundsAt(i);
+      if (bounds != null && bounds.contains(x, y)) {
+        if (x < bounds.x + bounds.width / 2) {
+          return i;
+        } else {
+          return Math.min(i + 1, levelCount - 1);
+        }
+      }
+    }
+    for (int i = 0; i < levelCount; i++) {
+      Rectangle bounds = this.multipleLevelsTabbedPane.getBoundsAt(i);
+      if (bounds != null && x < bounds.x + bounds.width / 2) {
+        return i;
+      }
+    }
+    return levelCount - 1;
+  }
+
+  /**
+   * Tabbed pane subclass that paints a drop insert indicator during level tab drag-reorder.
+   */
+  private class LevelTabbedPane extends JTabbedPane {
+    private Integer insertIndicatorStackIndex;
+
+    public int getLevelTabCount() {
+      int tabCount = getTabCount();
+      if (tabCount > 0 && !isEnabledAt(tabCount - 1)) {
+        return tabCount - 1;
+      }
+      return tabCount;
+    }
+
+    public void setInsertIndicatorStackIndex(Integer insertIndicatorStackIndex) {
+      if (this.insertIndicatorStackIndex != insertIndicatorStackIndex
+          && (this.insertIndicatorStackIndex == null
+              || !this.insertIndicatorStackIndex.equals(insertIndicatorStackIndex))) {
+        this.insertIndicatorStackIndex = insertIndicatorStackIndex;
+        repaint();
+      }
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+      super.paintComponent(g);
+      if (this.insertIndicatorStackIndex != null) {
+        int indicatorX = getInsertIndicatorX(this.insertIndicatorStackIndex);
+        Rectangle tabBounds = getInsertIndicatorTabAreaBounds();
+        if (indicatorX >= 0 && tabBounds != null) {
+          Graphics2D g2D = (Graphics2D)g;
+          g2D.setColor(getForeground());
+          g2D.setStroke(new BasicStroke(2f));
+          g2D.drawLine(indicatorX, tabBounds.y + 1, indicatorX, tabBounds.y + tabBounds.height - 1);
+        }
+      }
+    }
+
+    private Rectangle getInsertIndicatorTabAreaBounds() {
+      for (int i = 0, levelCount = getLevelTabCount(); i < levelCount; i++) {
+        Rectangle bounds = getBoundsAt(i);
+        if (bounds != null) {
+          return bounds;
+        }
+      }
+      return null;
+    }
+
+    private int getInsertIndicatorX(int insertStackIndex) {
+      int levelCount = getLevelTabCount();
+      if (insertStackIndex <= 0) {
+        Rectangle bounds = getBoundsAt(0);
+        return bounds != null ? bounds.x : -1;
+      }
+      if (insertStackIndex >= levelCount) {
+        Rectangle bounds = getBoundsAt(levelCount - 1);
+        return bounds != null ? bounds.x + bounds.width : -1;
+      }
+      Rectangle previousTabBounds = getBoundsAt(insertStackIndex - 1);
+      Rectangle nextTabBounds = getBoundsAt(insertStackIndex);
+      if (previousTabBounds != null && nextTabBounds != null) {
+        return (previousTabBounds.x + previousTabBounds.width + nextTabBounds.x) / 2;
+      }
+      return -1;
+    }
   }
 
   /**
