@@ -71,6 +71,11 @@ public final class AlpCatalogStyles {
     return scale(4);
   }
 
+  /** Extra right margin so category counts clear the divider and scrollbar. */
+  public static int categoryRowRightReserve() {
+    return scale(14);
+  }
+
   public static Border filterRowBorder() {
     return new EmptyBorder(scale(6), scale(8), scale(4), scale(8));
   }
