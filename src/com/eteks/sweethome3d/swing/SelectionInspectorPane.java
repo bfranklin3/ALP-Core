@@ -74,6 +74,8 @@ import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.LevelCategory;
+import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Selectable;
@@ -3104,6 +3106,9 @@ public class SelectionInspectorPane extends JPanel {
     private JCheckBox              viewableCheckBox;
     private JCheckBox              lockedCheckBox;
     private JCheckBox              selectCurrentLayerOnlyCheckBox;
+    private JComboBox<LevelCategory> categoryComboBox;
+    private JLabel                 plantTakeoffLabel;
+    private JComboBox<LevelPlantTakeoff> plantTakeoffComboBox;
     private boolean                updatingFromController;
     private boolean                nameFieldUserEdited;
     private String                 nameFieldSyncedValue;
@@ -3242,6 +3247,36 @@ public class SelectionInspectorPane extends JPanel {
             }
           });
 
+      this.categoryComboBox = AlpLevelRoleControls.createCategoryComboBox(this.preferences);
+      this.categoryComboBox.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            LevelCategory category = (LevelCategory)categoryComboBox.getSelectedItem();
+            if (category != null) {
+              levelController.setCategory(category);
+              updatePlantTakeoffVisibility();
+              applyLevelChanges();
+            }
+          }
+        });
+
+      this.plantTakeoffLabel = AlpLevelRoleControls.createPlantTakeoffLabel(this.preferences);
+      this.plantTakeoffComboBox = AlpLevelRoleControls.createPlantTakeoffComboBox(this.preferences);
+      this.plantTakeoffComboBox.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            LevelPlantTakeoff plantTakeoff = (LevelPlantTakeoff)plantTakeoffComboBox.getSelectedItem();
+            if (plantTakeoff != null) {
+              levelController.setPlantTakeoff(plantTakeoff);
+              applyLevelChanges();
+            }
+          }
+        });
+
     }
 
     private void layoutFields() {
@@ -3275,6 +3310,21 @@ public class SelectionInspectorPane extends JPanel {
       propertiesPanel.add(this.selectCurrentLayerOnlyCheckBox, new GridBagConstraints(
           0, 3, 2, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      JLabel categoryLabel = AlpLevelRoleControls.createCategoryLabel(this.preferences);
+      configureInspectorFieldLabel(this.preferences, LevelPanel.class,
+          "categoryLabel.mnemonic", categoryLabel, this.categoryComboBox);
+      propertiesPanel.add(categoryLabel, new GridBagConstraints(
+          0, 4, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      propertiesPanel.add(this.categoryComboBox, new GridBagConstraints(
+          1, 4, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      propertiesPanel.add(this.plantTakeoffLabel, new GridBagConstraints(
+          0, 5, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      propertiesPanel.add(this.plantTakeoffComboBox, new GridBagConstraints(
+          1, 5, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
 
       fieldsPanel.add(propertiesPanel, new GridBagConstraints(
           0, row, 1, 1, 1, 0, GridBagConstraints.LINE_START,
@@ -3313,6 +3363,7 @@ public class SelectionInspectorPane extends JPanel {
         this.viewableCheckBox.setSelected(viewable == null || viewable);
         this.lockedCheckBox.setSelected(Boolean.TRUE.equals(this.levelController.getLocked()));
         this.selectCurrentLayerOnlyCheckBox.setSelected(this.home.isSelectCurrentLayerOnly());
+        syncRoleControlsFromModel();
       } finally {
         this.updatingFromController = false;
       }
@@ -3398,7 +3449,38 @@ public class SelectionInspectorPane extends JPanel {
       this.nameFieldSyncedValue = this.nameTextField.getText();
       this.nameFieldUserEdited = false;
       syncCheckBoxesFromModel();
+      syncRoleControlsFromModel();
       updateSelectionSummary();
+    }
+
+    private void syncRoleControlsFromModel() {
+      Level level = this.home.getSelectedLevel();
+      LevelCategory category = level != null ? level.getCategory() : this.levelController.getCategory();
+      LevelPlantTakeoff plantTakeoff = level != null
+          ? level.getPlantTakeoff() : this.levelController.getPlantTakeoff();
+      if (category == null) {
+        category = LevelCategory.GENERAL;
+      }
+      if (plantTakeoff == null) {
+        plantTakeoff = LevelPlantTakeoff.EXCLUDE;
+      }
+      this.updatingFromController = true;
+      try {
+        this.categoryComboBox.setSelectedItem(category);
+        this.plantTakeoffComboBox.setSelectedItem(plantTakeoff);
+        updatePlantTakeoffVisibility();
+      } finally {
+        this.updatingFromController = false;
+      }
+    }
+
+    private void updatePlantTakeoffVisibility() {
+      LevelCategory category = (LevelCategory)this.categoryComboBox.getSelectedItem();
+      if (category == null) {
+        category = LevelCategory.GENERAL;
+      }
+      AlpLevelRoleControls.updatePlantTakeoffVisibility(
+          this.plantTakeoffLabel, this.plantTakeoffComboBox, category);
     }
 
     /**

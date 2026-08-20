@@ -34,7 +34,7 @@ public class Level extends HomeObject {
    * The properties of a level that may change. <code>PropertyChangeListener</code>s added
    * to a level will be notified under a property name equal to the string value of one these properties.
    */
-  public enum Property {NAME, ELEVATION, HEIGHT, FLOOR_THICKNESS, BACKGROUND_IMAGE, VISIBLE, VIEWABLE, ELEVATION_INDEX, LOCKED};
+  public enum Property {NAME, ELEVATION, HEIGHT, FLOOR_THICKNESS, BACKGROUND_IMAGE, VISIBLE, VIEWABLE, ELEVATION_INDEX, LOCKED, CATEGORY, PLANT_TAKEOFF};
 
   private String              name;
   private float               elevation;
@@ -45,6 +45,8 @@ public class Level extends HomeObject {
   private boolean             viewable;
   private boolean             locked;
   private int                 elevationIndex;
+  private LevelCategory       category;
+  private LevelPlantTakeoff   plantTakeoff;
 
   /**
    * Creates a home level.
@@ -76,6 +78,8 @@ public class Level extends HomeObject {
     this.viewable = true;
     this.locked = false;
     this.elevationIndex = -1;
+    this.category = LevelCategory.GENERAL;
+    this.plantTakeoff = LevelPlantTakeoff.EXCLUDE;
   }
 
   /**
@@ -87,7 +91,15 @@ public class Level extends HomeObject {
     this.viewable = true;
     this.locked = false;
     this.elevationIndex = -1;
+    this.category = LevelCategory.GENERAL;
+    this.plantTakeoff = LevelPlantTakeoff.EXCLUDE;
     in.defaultReadObject();
+    if (this.category == null) {
+      this.category = LevelCategory.GENERAL;
+    }
+    if (this.plantTakeoff == null) {
+      this.plantTakeoff = LevelPlantTakeoff.EXCLUDE;
+    }
   }
 
   /**
@@ -269,6 +281,66 @@ public class Level extends HomeObject {
       int oldElevationIndex = this.elevationIndex;
       this.elevationIndex = elevationIndex;
       firePropertyChange(Property.ELEVATION_INDEX.name(), oldElevationIndex, elevationIndex);
+    }
+  }
+
+  /**
+   * Returns the ALP layer category.
+   */
+  public LevelCategory getCategory() {
+    return this.category;
+  }
+
+  /**
+   * Sets the ALP layer category. When category is not {@link LevelCategory#PLANTING},
+   * {@link #setPlantTakeoff(LevelPlantTakeoff) plant takeoff} is reset to
+   * {@link LevelPlantTakeoff#EXCLUDE}. When category becomes Planting, takeoff defaults
+   * to {@link LevelPlantTakeoff#PROPOSED} if it was excluded.
+   */
+  public void setCategory(LevelCategory category) {
+    if (category == null) {
+      category = LevelCategory.GENERAL;
+    }
+    if (category != this.category) {
+      LevelCategory oldCategory = this.category;
+      this.category = category;
+      if (category != LevelCategory.PLANTING) {
+        LevelPlantTakeoff oldTakeoff = this.plantTakeoff;
+        this.plantTakeoff = LevelPlantTakeoff.EXCLUDE;
+        if (oldTakeoff != LevelPlantTakeoff.EXCLUDE) {
+          firePropertyChange(Property.PLANT_TAKEOFF.name(), oldTakeoff, this.plantTakeoff);
+        }
+      } else if (this.plantTakeoff == LevelPlantTakeoff.EXCLUDE) {
+        LevelPlantTakeoff oldTakeoff = this.plantTakeoff;
+        this.plantTakeoff = LevelPlantTakeoff.PROPOSED;
+        firePropertyChange(Property.PLANT_TAKEOFF.name(), oldTakeoff, this.plantTakeoff);
+      }
+      firePropertyChange(Property.CATEGORY.name(), oldCategory, category);
+    }
+  }
+
+  /**
+   * Returns how plant symbols on this level participate in takeoff.
+   */
+  public LevelPlantTakeoff getPlantTakeoff() {
+    return this.plantTakeoff;
+  }
+
+  /**
+   * Sets how plant symbols on this level participate in takeoff.
+   * Ignored unless category is {@link LevelCategory#PLANTING}.
+   */
+  public void setPlantTakeoff(LevelPlantTakeoff plantTakeoff) {
+    if (this.category != LevelCategory.PLANTING) {
+      return;
+    }
+    if (plantTakeoff == null) {
+      plantTakeoff = LevelPlantTakeoff.EXCLUDE;
+    }
+    if (plantTakeoff != this.plantTakeoff) {
+      LevelPlantTakeoff oldTakeoff = this.plantTakeoff;
+      this.plantTakeoff = plantTakeoff;
+      firePropertyChange(Property.PLANT_TAKEOFF.name(), oldTakeoff, plantTakeoff);
     }
   }
 

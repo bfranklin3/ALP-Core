@@ -59,7 +59,10 @@ import com.eteks.sweethome3d.model.HomePrint;
 import com.eteks.sweethome3d.model.HomeShelfUnit;
 import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Label;
+import com.eteks.sweethome3d.model.AlpLevelDefaults;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.LevelCategory;
+import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.LightSource;
 import com.eteks.sweethome3d.model.ObjectProperty;
 import com.eteks.sweethome3d.model.ObserverCamera;
@@ -1208,6 +1211,16 @@ public class HomeXMLHandler extends DefaultHandler {
     }
     level.setVisible(!"false".equals(attributes.get("visible")));
     level.setViewable(!"false".equals(attributes.get("viewable")));
+    String categoryAttribute = attributes.get("category");
+    if (categoryAttribute != null) {
+      level.setCategory(LevelCategory.fromXmlAttribute(categoryAttribute));
+    } else {
+      AlpLevelDefaults.migrateLevelRoleFromName(level, this.preferences);
+    }
+    String plantTakeoffAttribute = attributes.get("plantTakeoff");
+    if (plantTakeoffAttribute != null) {
+      level.setPlantTakeoff(LevelPlantTakeoff.fromXmlAttribute(plantTakeoffAttribute));
+    }
   }
 
   /**

@@ -33,6 +33,8 @@ import javax.swing.undo.UndoableEditSupport;
 import com.eteks.sweethome3d.model.Elevatable;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.LevelCategory;
+import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.Selectable;
 import com.eteks.sweethome3d.model.UserPreferences;
 
@@ -44,7 +46,7 @@ public class LevelController implements Controller {
   /**
    * The properties that may be edited by the view associated to this controller.
    */
-  public enum Property {VIEWABLE, NAME, ELEVATION, ELEVATION_INDEX, FLOOR_THICKNESS, HEIGHT, LEVELS, SELECT_LEVEL_INDEX, LOCKED}
+  public enum Property {VIEWABLE, NAME, ELEVATION, ELEVATION_INDEX, FLOOR_THICKNESS, HEIGHT, LEVELS, SELECT_LEVEL_INDEX, LOCKED, CATEGORY, PLANT_TAKEOFF}
 
   private final Home                  home;
   private final UserPreferences       preferences;
@@ -60,6 +62,8 @@ public class LevelController implements Controller {
   private Float    floorThickness;
   private Float    height;
   private Boolean  locked;
+  private LevelCategory    category;
+  private LevelPlantTakeoff plantTakeoff;
   private Level [] levels;
   private Integer  selectedLevelIndex;
 
@@ -133,6 +137,8 @@ public class LevelController implements Controller {
       setHeight(null);
       setLocked(Boolean.FALSE);
       setElevationIndex(null, false);
+      setCategory(LevelCategory.GENERAL);
+      setPlantTakeoff(LevelPlantTakeoff.EXCLUDE);
     } else {
       setSelectedLevelIndex(this.home.getLevels().indexOf(selectedLevel));
       setName(selectedLevel.getName());
@@ -142,6 +148,8 @@ public class LevelController implements Controller {
       setHeight(selectedLevel.getHeight());
       setLocked(selectedLevel.isLocked());
       setElevationIndex(selectedLevel.getElevationIndex(), false);
+      setCategory(selectedLevel.getCategory());
+      setPlantTakeoff(selectedLevel.getPlantTakeoff());
     }
   }
 
@@ -396,6 +404,60 @@ public class LevelController implements Controller {
   }
 
   /**
+   * Sets the edited layer category.
+   */
+  public void setCategory(LevelCategory category) {
+    if (category == null) {
+      category = LevelCategory.GENERAL;
+    }
+    if (category != this.category) {
+      LevelCategory oldCategory = this.category;
+      this.category = category;
+      this.propertyChangeSupport.firePropertyChange(Property.CATEGORY.name(), oldCategory, category);
+      if (this.selectedLevelIndex != null) {
+        this.levels [this.selectedLevelIndex].setCategory(category);
+        this.plantTakeoff = this.levels [this.selectedLevelIndex].getPlantTakeoff();
+        this.propertyChangeSupport.firePropertyChange(Property.PLANT_TAKEOFF.name(),
+            null, this.plantTakeoff);
+        this.propertyChangeSupport.firePropertyChange(Property.LEVELS.name(), null, this.levels);
+      }
+    }
+  }
+
+  /**
+   * Returns the edited layer category.
+   */
+  public LevelCategory getCategory() {
+    return this.category;
+  }
+
+  /**
+   * Sets the edited plant takeoff mode.
+   */
+  public void setPlantTakeoff(LevelPlantTakeoff plantTakeoff) {
+    if (plantTakeoff == null) {
+      plantTakeoff = LevelPlantTakeoff.EXCLUDE;
+    }
+    if (plantTakeoff != this.plantTakeoff) {
+      LevelPlantTakeoff oldPlantTakeoff = this.plantTakeoff;
+      this.plantTakeoff = plantTakeoff;
+      this.propertyChangeSupport.firePropertyChange(Property.PLANT_TAKEOFF.name(),
+          oldPlantTakeoff, plantTakeoff);
+      if (this.selectedLevelIndex != null) {
+        this.levels [this.selectedLevelIndex].setPlantTakeoff(plantTakeoff);
+        this.propertyChangeSupport.firePropertyChange(Property.LEVELS.name(), null, this.levels);
+      }
+    }
+  }
+
+  /**
+   * Returns the edited plant takeoff mode.
+   */
+  public LevelPlantTakeoff getPlantTakeoff() {
+    return this.plantTakeoff;
+  }
+
+  /**
    * Sets home levels.
    */
   private void setLevels(Level [] levels) {
@@ -445,14 +507,18 @@ public class LevelController implements Controller {
       Float height = getHeight();
       Boolean locked = getLocked();
       Integer elevationIndex = getElevationIndex();
+      LevelCategory category = getCategory();
+      LevelPlantTakeoff plantTakeoff = getPlantTakeoff();
 
       ModifiedLevel modifiedLevel = new ModifiedLevel(selectedLevel);
       // Apply modification
-      doModifyLevel(this.home, modifiedLevel, name, viewable, elevation, floorThickness, height, locked, elevationIndex);
+      doModifyLevel(this.home, modifiedLevel, name, viewable, elevation, floorThickness, height,
+          locked, elevationIndex, category, plantTakeoff);
       if (this.undoSupport != null) {
         UndoableEdit undoableEdit = new LevelModificationUndoableEdit(
             this.home, this.preferences, oldSelection.toArray(new Selectable [oldSelection.size()]),
-            modifiedLevel, name, viewable,  elevation, floorThickness, height, locked, elevationIndex);
+            modifiedLevel, name, viewable,  elevation, floorThickness, height, locked, elevationIndex,
+            category, plantTakeoff);
         this.undoSupport.postEdit(undoableEdit);
       }
       if (name != null) {
@@ -476,6 +542,8 @@ public class LevelController implements Controller {
     private final Float         height;
     private final Boolean       locked;
     private final Integer       elevationIndex;
+    private final LevelCategory category;
+    private final LevelPlantTakeoff plantTakeoff;
 
     private LevelModificationUndoableEdit(Home home,
                                           UserPreferences preferences,
@@ -487,7 +555,9 @@ public class LevelController implements Controller {
                                           Float floorThickness,
                                           Float height,
                                           Boolean locked,
-                                          Integer elevationIndex) {
+                                          Integer elevationIndex,
+                                          LevelCategory category,
+                                          LevelPlantTakeoff plantTakeoff) {
       super(preferences, LevelController.class, "undoModifyLevelName");
       this.home = home;
       this.oldSelection = oldSelection;
@@ -499,6 +569,8 @@ public class LevelController implements Controller {
       this.height = height;
       this.locked = locked;
       this.elevationIndex = elevationIndex;
+      this.category = category;
+      this.plantTakeoff = plantTakeoff;
     }
 
     @Override
@@ -514,7 +586,8 @@ public class LevelController implements Controller {
       super.redo();
       this.home.setSelectedLevel(this.modifiedLevel.getLevel());
       doModifyLevel(this.home, this.modifiedLevel, this.name, this.viewable,
-          this.elevation, this.floorThickness, this.height, this.locked, this.elevationIndex);
+          this.elevation, this.floorThickness, this.height, this.locked, this.elevationIndex,
+          this.category, this.plantTakeoff);
     }
   }
 
@@ -524,7 +597,8 @@ public class LevelController implements Controller {
   private static void doModifyLevel(Home home, ModifiedLevel modifiedLevel,
                                     String name, Boolean viewable, Float elevation,
                                     Float floorThickness, Float height, Boolean locked,
-                                    Integer elevationIndex) {
+                                    Integer elevationIndex, LevelCategory category,
+                                    LevelPlantTakeoff plantTakeoff) {
     Level level = modifiedLevel.getLevel();
     if (name != null) {
       level.setName(name);
@@ -563,6 +637,12 @@ public class LevelController implements Controller {
       if (locked) {
         home.setSelectedItems(getUnlockedSublist(home.getSelectedItems()));
       }
+    }
+    if (category != null) {
+      level.setCategory(category);
+    }
+    if (plantTakeoff != null) {
+      level.setPlantTakeoff(plantTakeoff);
     }
   }
 
@@ -718,8 +798,10 @@ public class LevelController implements Controller {
     private final float   elevation;
     private final float   floorThickness;
     private final float   height;
-    private final boolean locked;
-    private final int     elevationIndex;
+    private final boolean           locked;
+    private final int               elevationIndex;
+    private final LevelCategory     category;
+    private final LevelPlantTakeoff plantTakeoff;
 
     public ModifiedLevel(Level level) {
       this.level = level;
@@ -730,6 +812,8 @@ public class LevelController implements Controller {
       this.height = level.getHeight();
       this.locked = level.isLocked();
       this.elevationIndex = level.getElevationIndex();
+      this.category = level.getCategory();
+      this.plantTakeoff = level.getPlantTakeoff();
     }
 
     public Level getLevel() {
@@ -750,6 +834,8 @@ public class LevelController implements Controller {
       this.level.setFloorThickness(this.floorThickness);
       this.level.setHeight(this.height);
       this.level.setLocked(this.locked);
+      this.level.setCategory(this.category);
+      this.level.setPlantTakeoff(this.plantTakeoff);
     }
   }
 }

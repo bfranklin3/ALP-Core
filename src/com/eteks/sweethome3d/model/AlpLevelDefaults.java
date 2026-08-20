@@ -68,6 +68,7 @@ public final class AlpLevelDefaults {
         level.setLocked(true);
       }
       home.addLevel(level);
+      applyStarterLevelRole(level, i);
       if (i == STARTER_SELECTED_LEVEL_INDEX) {
         selectedLevel = level;
       }
@@ -151,5 +152,59 @@ public final class AlpLevelDefaults {
       }
     }
     return null;
+  }
+
+  /**
+   * Assigns starter site-plan category and takeoff metadata by template index.
+   */
+  public static void applyStarterLevelRole(Level level, int starterLevelIndex) {
+    if (level == null) {
+      return;
+    }
+    switch (starterLevelIndex) {
+      case 0:
+        level.setCategory(LevelCategory.REFERENCE);
+        break;
+      case 1:
+      case 2:
+        level.setCategory(LevelCategory.SITE);
+        break;
+      case 3:
+        level.setCategory(LevelCategory.PLANTING);
+        break;
+      case 4:
+        level.setCategory(LevelCategory.ANNOTATION);
+        break;
+      default:
+        level.setCategory(LevelCategory.GENERAL);
+        break;
+    }
+  }
+
+  /**
+   * Infers category and takeoff for older homes that lack SPIKE-30 XML attributes.
+   */
+  public static void migrateLevelRoleFromName(Level level, UserPreferences preferences) {
+    if (level == null || preferences == null) {
+      return;
+    }
+    String levelName = level.getName();
+    if (levelName == null || levelName.trim().length() == 0) {
+      level.setCategory(LevelCategory.GENERAL);
+      return;
+    }
+    String normalizedName = levelName.trim();
+    if (normalizedName.equalsIgnoreCase(getStarterLevelName(preferences, 0).trim())) {
+      level.setCategory(LevelCategory.REFERENCE);
+    } else if (normalizedName.equalsIgnoreCase(getStarterLevelName(preferences, 1).trim())
+        || normalizedName.equalsIgnoreCase(getStarterLevelName(preferences, 2).trim())) {
+      level.setCategory(LevelCategory.SITE);
+    } else if (isPlantsLevel(level, preferences)) {
+      level.setCategory(LevelCategory.PLANTING);
+    } else if (normalizedName.equalsIgnoreCase(getStarterLevelName(preferences, 4).trim())) {
+      level.setCategory(LevelCategory.ANNOTATION);
+    } else {
+      level.setCategory(LevelCategory.GENERAL);
+    }
   }
 }

@@ -33,6 +33,7 @@ import javax.swing.DefaultCellEditor;
 import javax.swing.DefaultListSelectionModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -55,6 +56,8 @@ import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
 
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.LevelCategory;
+import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.DialogView;
@@ -77,6 +80,10 @@ public class LevelPanel extends JPanel implements DialogView {
   private JSpinner              floorThicknessSpinner;
   private JLabel                heightLabel;
   private JSpinner              heightSpinner;
+  private JLabel                  categoryLabel;
+  private JComboBox<LevelCategory> categoryComboBox;
+  private JLabel                  plantTakeoffLabel;
+  private JComboBox<LevelPlantTakeoff> plantTakeoffComboBox;
   private JButton               increaseElevationIndexButton;
   private JButton               decreaseElevationIndexButton;
   private JLabel                levelsSummaryLabel;
@@ -176,6 +183,46 @@ public class LevelPanel extends JPanel implements DialogView {
             changedUpdate(ev);
           }
         });
+    }
+
+    if (controller.isPropertyEditable(LevelController.Property.CATEGORY)) {
+      this.categoryLabel = AlpLevelRoleControls.createCategoryLabel(preferences);
+      this.categoryComboBox = AlpLevelRoleControls.createCategoryComboBox(preferences);
+      this.categoryComboBox.setSelectedItem(controller.getCategory());
+      this.categoryComboBox.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            LevelCategory category = (LevelCategory)categoryComboBox.getSelectedItem();
+            if (category != null) {
+              controller.setCategory(category);
+              updatePlantTakeoffVisibility();
+            }
+          }
+        });
+      controller.addPropertyChangeListener(LevelController.Property.CATEGORY,
+          new PropertyChangeListener() {
+              public void propertyChange(PropertyChangeEvent ev) {
+                categoryComboBox.setSelectedItem(controller.getCategory());
+                updatePlantTakeoffVisibility();
+              }
+            });
+      this.plantTakeoffLabel = AlpLevelRoleControls.createPlantTakeoffLabel(preferences);
+      this.plantTakeoffComboBox = AlpLevelRoleControls.createPlantTakeoffComboBox(preferences);
+      this.plantTakeoffComboBox.setSelectedItem(controller.getPlantTakeoff());
+      this.plantTakeoffComboBox.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            LevelPlantTakeoff plantTakeoff = (LevelPlantTakeoff)plantTakeoffComboBox.getSelectedItem();
+            if (plantTakeoff != null) {
+              controller.setPlantTakeoff(plantTakeoff);
+            }
+          }
+        });
+      controller.addPropertyChangeListener(LevelController.Property.PLANT_TAKEOFF,
+          new PropertyChangeListener() {
+              public void propertyChange(PropertyChangeEvent ev) {
+                plantTakeoffComboBox.setSelectedItem(controller.getPlantTakeoff());
+              }
+            });
+      updatePlantTakeoffVisibility();
     }
 
     final float maximumLength = preferences.getLengthUnit().getMaximumLength();
@@ -492,60 +539,71 @@ public class LevelPanel extends JPanel implements DialogView {
           1, 1, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
     }
-    if (this.elevationLabel != null) {
-      // Third row
-      add(this.elevationLabel, new GridBagConstraints(
+    if (this.categoryLabel != null) {
+      add(this.categoryLabel, new GridBagConstraints(
           0, 2, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, labelInsets, 0, 0));
-      add(this.elevationSpinner, new GridBagConstraints(
-          1, 2, 1, 1, 0.1, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, rightComponentInsets, -15, 0));
-      add(new JLabel(), new GridBagConstraints(
-          2, 2, 1, 1, 0.2, 0, GridBagConstraints.LINE_START,
+      add(this.categoryComboBox, new GridBagConstraints(
+          1, 2, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
-    }
-    if (this.floorThicknessLabel != null) {
-      // Forth row
-      add(this.floorThicknessLabel, new GridBagConstraints(
+      add(this.plantTakeoffLabel, new GridBagConstraints(
           0, 3, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, labelInsets, 0, 0));
-      add(this.floorThicknessSpinner, new GridBagConstraints(
-          1, 3, 1, 1, 0.1, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, rightComponentInsets, -15, 0));
-      add(new JLabel(), new GridBagConstraints(
-          2, 3, 1, 1, 0.2, 0, GridBagConstraints.LINE_START,
+      add(this.plantTakeoffComboBox, new GridBagConstraints(
+          1, 3, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
     }
-    if (this.heightLabel != null) {
-      // Fifth row
-      add(this.heightLabel, new GridBagConstraints(
+    if (this.elevationLabel != null) {
+      add(this.elevationLabel, new GridBagConstraints(
           0, 4, 1, 1, 0, 0, labelAlignment,
-          GridBagConstraints.NONE, new Insets(0, 0, 0, standardGap), 0, 0));
-      add(this.heightSpinner, new GridBagConstraints(
+          GridBagConstraints.NONE, labelInsets, 0, 0));
+      add(this.elevationSpinner, new GridBagConstraints(
           1, 4, 1, 1, 0.1, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), -15, 0));
+          GridBagConstraints.HORIZONTAL, rightComponentInsets, -15, 0));
       add(new JLabel(), new GridBagConstraints(
           2, 4, 1, 1, 0.2, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
     }
+    if (this.floorThicknessLabel != null) {
+      add(this.floorThicknessLabel, new GridBagConstraints(
+          0, 5, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.NONE, labelInsets, 0, 0));
+      add(this.floorThicknessSpinner, new GridBagConstraints(
+          1, 5, 1, 1, 0.1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, rightComponentInsets, -15, 0));
+      add(new JLabel(), new GridBagConstraints(
+          2, 5, 1, 1, 0.2, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
+    }
+    if (this.heightLabel != null) {
+      add(this.heightLabel, new GridBagConstraints(
+          0, 6, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.NONE, new Insets(0, 0, 0, standardGap), 0, 0));
+      add(this.heightSpinner, new GridBagConstraints(
+          1, 6, 1, 1, 0.1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), -15, 0));
+      add(new JLabel(), new GridBagConstraints(
+          2, 6, 1, 1, 0.2, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
+    }
     add(new JSeparator(), new GridBagConstraints(
-        0, 5, 4, 1, 0, 0, GridBagConstraints.LINE_START,
+        0, 7, 4, 1, 0, 0, GridBagConstraints.LINE_START,
         GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, standardGap, 0), 0, 0));
     add(this.levelsSummaryLabel, new GridBagConstraints(
-        0, 6, 3, 1, 0, 0, GridBagConstraints.LINE_START,
+        0, 8, 3, 1, 0, 0, GridBagConstraints.LINE_START,
         GridBagConstraints.NONE, new Insets(0, 0, standardGap, 0), 0, 0));
     JScrollPane levelsSummaryPane = new JScrollPane(this.levelsSummaryTable);
     levelsSummaryPane.setPreferredSize(new Dimension(Math.round(320 * SwingTools.getResolutionScale()),
         this.levelsSummaryTable.getTableHeader().getPreferredSize().height + this.levelsSummaryTable.getRowHeight() * 8 + 1));
     add(levelsSummaryPane, new GridBagConstraints(
-        0, 7, 3, 2, 1, 1, GridBagConstraints.CENTER,
+        0, 9, 3, 2, 1, 1, GridBagConstraints.CENTER,
         GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
     // Add elevation index buttons at right of the levels table
     add(this.increaseElevationIndexButton, new GridBagConstraints(
-        3, 7, 1, 1, 0, 0.5, GridBagConstraints.SOUTH,
+        3, 9, 1, 1, 0, 0.5, GridBagConstraints.SOUTH,
         GridBagConstraints.NONE, new Insets(0, standardGap, 2, 0), 0, 0));
     add(this.decreaseElevationIndexButton, new GridBagConstraints(
-        3, 8, 1, 1, 0, 0.5, GridBagConstraints.NORTH,
+        3, 10, 1, 1, 0, 0.5, GridBagConstraints.NORTH,
         GridBagConstraints.NONE, new Insets(2, standardGap, 0, 0), 0, 0));
 
     if (!OperatingSystem.isMacOSX()) {
@@ -556,6 +614,18 @@ public class LevelPanel extends JPanel implements DialogView {
       this.increaseElevationIndexButton.setPreferredSize(preferredSize);
       this.decreaseElevationIndexButton.setPreferredSize(preferredSize);
     }
+  }
+
+  private void updatePlantTakeoffVisibility() {
+    if (this.categoryComboBox == null) {
+      return;
+    }
+    LevelCategory category = (LevelCategory)this.categoryComboBox.getSelectedItem();
+    if (category == null) {
+      category = LevelCategory.GENERAL;
+    }
+    AlpLevelRoleControls.updatePlantTakeoffVisibility(
+        this.plantTakeoffLabel, this.plantTakeoffComboBox, category);
   }
 
   /**

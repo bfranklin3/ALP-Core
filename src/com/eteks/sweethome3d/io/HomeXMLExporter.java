@@ -47,6 +47,8 @@ import com.eteks.sweethome3d.model.HomeShelfUnit;
 import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.LevelCategory;
+import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.LightSource;
 import com.eteks.sweethome3d.model.ObjectProperty;
 import com.eteks.sweethome3d.model.ObserverCamera;
@@ -355,6 +357,13 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           writer.writeIntegerAttribute("elevationIndex", level.getElevationIndex());
           writer.writeBooleanAttribute("visible", level.isVisible(), true);
           writer.writeBooleanAttribute("viewable", level.isViewable(), true);
+          if (level.getCategory() != LevelCategory.GENERAL) {
+            writer.writeAttribute("category", level.getCategory().name());
+          }
+          if (level.getCategory() == LevelCategory.PLANTING
+              && level.getPlantTakeoff() != LevelPlantTakeoff.EXCLUDE) {
+            writer.writeAttribute("plantTakeoff", level.getPlantTakeoff().name());
+          }
         }
 
         @Override
