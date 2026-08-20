@@ -3403,6 +3403,37 @@ public class HomePane extends JRootPane implements HomeView {
   }
 
   /**
+   * Client property on the Library section wrapper; catalog hot-swap updates content in place.
+   */
+  private static final String LIBRARY_SECTION_CLIENT_PROPERTY = "alp.librarySection";
+
+  /**
+   * Wraps a left-column catalog or inventory component in a titled section panel.
+   */
+  private JPanel wrapCatalogSection(JComponent content, UserPreferences preferences,
+                                    String title, boolean librarySection) {
+    JPanel section = SwingTools.createTitledPanel(title);
+    AlpCatalogStyles.applyCatalogPanel(section);
+    if (librarySection) {
+      section.putClientProperty(LIBRARY_SECTION_CLIENT_PROPERTY, Boolean.TRUE);
+    }
+    setCatalogSectionContent(section, content);
+    return section;
+  }
+
+  /**
+   * Sets the sole child of a catalog/inventory section panel.
+   */
+  private static void setCatalogSectionContent(JPanel section, JComponent content) {
+    section.removeAll();
+    section.add(content, new GridBagConstraints(
+        0, 0, 1, 1, 1, 1, GridBagConstraints.CENTER,
+        GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
+    section.revalidate();
+    section.repaint();
+  }
+
+  /**
    * Returns the catalog tree and furniture table pane.
    */
   private JComponent createCatalogFurniturePane(Home home,
@@ -3520,6 +3551,15 @@ public class HomePane extends JRootPane implements HomeView {
     
     furnitureView = inventoryTabbedPane;
 
+    if (catalogView != null) {
+      catalogView = wrapCatalogSection(catalogView, preferences,
+          preferences.getLocalizedString(HomePane.class, "libraryPanel.title"), true);
+    }
+    if (furnitureView != null) {
+      furnitureView = wrapCatalogSection(furnitureView, preferences,
+          preferences.getLocalizedString(HomePane.class, "inventoryPanel.title"), false);
+    }
+
     if (catalogView == null) {
       return furnitureView;
     } else if (furnitureView == null) {
@@ -3564,14 +3604,22 @@ public class HomePane extends JRootPane implements HomeView {
           JComponent newFurnitureCatalogView = (JComponent)homePane.controller.getFurnitureCatalogController().getView();
           newFurnitureCatalogView.setComponentPopupMenu(oldFurnitureCatalogView.getComponentPopupMenu());
           homePane.setTransferEnabled(transferHandlerEnabled);
-          JComponent splitPaneTopComponent = newFurnitureCatalogView;
+          JComponent catalogContent = newFurnitureCatalogView;
           if (newFurnitureCatalogView instanceof Scrollable) {
-            splitPaneTopComponent = SwingTools.createScrollPane(newFurnitureCatalogView);
-          } else {
-            splitPaneTopComponent = newFurnitureCatalogView;
+            JScrollPane catalogScrollPane = SwingTools.createScrollPane(newFurnitureCatalogView);
+            AlpCatalogStyles.applyCatalogScrollPane(catalogScrollPane);
+            catalogContent = catalogScrollPane;
           }
-          ((JSplitPane)SwingUtilities.getAncestorOfClass(JSplitPane.class, oldFurnitureCatalogView)).
-              setTopComponent(splitPaneTopComponent);
+          Component splitPaneTopComponent = ((JSplitPane)SwingUtilities.getAncestorOfClass(
+              JSplitPane.class, oldFurnitureCatalogView)).getTopComponent();
+          if (splitPaneTopComponent instanceof JPanel
+              && Boolean.TRUE.equals(((JPanel)splitPaneTopComponent).getClientProperty(
+                  LIBRARY_SECTION_CLIENT_PROPERTY))) {
+            setCatalogSectionContent((JPanel)splitPaneTopComponent, catalogContent);
+          } else {
+            ((JSplitPane)SwingUtilities.getAncestorOfClass(JSplitPane.class, oldFurnitureCatalogView)).
+                setTopComponent(catalogContent);
+          }
           newFurnitureCatalogView.applyComponentOrientation(ComponentOrientation.getOrientation(Locale.getDefault()));
           this.furnitureCatalogView = new WeakReference<JComponent>(newFurnitureCatalogView);
         }
