@@ -36,6 +36,8 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.MouseAdapter;
@@ -57,6 +59,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Properties;
 
+import javax.swing.JButton;
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -105,7 +108,10 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
 
   private JComponent  planComponent;
   private JScrollPane planScrollPane;
+  private UserPreferences preferences;
   private LevelTabbedPane multipleLevelsTabbedPane;
+  private JPanel      multipleLevelsPanel;
+  private JButton     addLayerButton;
   private JPanel      oneLevelPanel;
   private int         levelTabDragSourceStackIndex = -1;
   private Point       levelTabDragStartPoint;
@@ -126,6 +132,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
    */
   private void createComponents(final Home home,
                                 final UserPreferences preferences, final PlanController controller) {
+    this.preferences = preferences;
     this.planComponent = (JComponent)createPlanComponent(home, preferences, controller);
 
     UIManager.getDefaults().put("TabbedPane.contentBorderInsets", OperatingSystem.isMacOSX()
@@ -135,6 +142,13 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
     if (OperatingSystem.isMacOSX()) {
       this.multipleLevelsTabbedPane.setBorder(new EmptyBorder(-2, -6, -7, -6));
     }
+    this.multipleLevelsPanel = new JPanel(new BorderLayout(0, 0));
+    AlpCatalogStyles.applyLevelTabBar(this.multipleLevelsPanel);
+    this.multipleLevelsPanel.add(this.multipleLevelsTabbedPane, BorderLayout.CENTER);
+    this.addLayerButton = createAddLayerButton(preferences, controller);
+    if (this.addLayerButton != null) {
+      this.multipleLevelsPanel.add(this.addLayerButton, BorderLayout.EAST);
+    }
     List<Level> levels = home.getLevels();
     this.planScrollPane = new JScrollPane(this.planComponent);
     this.planScrollPane.setMinimumSize(new Dimension());
@@ -143,13 +157,14 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
       this.planScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
     }
 
-    final boolean addLevelTabCreated = createTabs(home, preferences);
+    final boolean addLayerControlAvailable = createTabs(home, preferences);
     final ChangeListener changeListener = new ChangeListener() {
         public void stateChanged(ChangeEvent ev) {
           Component selectedComponent = multipleLevelsTabbedPane.getSelectedComponent();
           if (selectedComponent instanceof LevelLabel) {
             controller.setSelectedLevel(((LevelLabel)selectedComponent).getLevel());
           }
+          refreshTabSelectionStates(home);
         }
       };
     this.multipleLevelsTabbedPane.addChangeListener(changeListener);
@@ -180,7 +195,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
             multipleLevelsTabbedPane.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
             controller.setSelectedLevel(home.getLevels().get(levelTabDragSourceStackIndex));
           }
-          int dropStackIndex = getLevelTabDropStackIndex(ev.getX(), ev.getY(), addLevelTabCreated);
+          int dropStackIndex = getLevelTabDropStackIndex(ev.getX(), ev.getY());
           if (dropStackIndex >= 0
               && controller.canReorderLevelToStackIndex(home.getLevels().get(levelTabDragSourceStackIndex), dropStackIndex)) {
             multipleLevelsTabbedPane.setInsertIndicatorStackIndex(dropStackIndex);
@@ -193,7 +208,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
         public void mouseReleased(MouseEvent ev) {
           if (levelTabDragging) {
             Level draggedLevel = home.getLevels().get(levelTabDragSourceStackIndex);
-            int dropStackIndex = getLevelTabDropStackIndex(ev.getX(), ev.getY(), addLevelTabCreated);
+            int dropStackIndex = getLevelTabDropStackIndex(ev.getX(), ev.getY());
             if (controller.canReorderLevelToStackIndex(draggedLevel, dropStackIndex)) {
               controller.reorderLevelToStackIndex(draggedLevel, dropStackIndex);
             }
@@ -209,9 +224,6 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
           }
           int indexAtLocation = multipleLevelsTabbedPane.indexAtLocation(ev.getX(), ev.getY());
           if (ev.getClickCount() == 1) {
-            if (indexAtLocation == multipleLevelsTabbedPane.getTabCount() - 1 && addLevelTabCreated) {
-              controller.addLevel();
-            }
             final Level oldSelectedLevel = home.getSelectedLevel();
             EventQueue.invokeLater(new Runnable() {
                 public void run() {
@@ -221,10 +233,6 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
                 }
               });
           } else if (indexAtLocation != -1) {
-            if (multipleLevelsTabbedPane.getSelectedIndex() == multipleLevelsTabbedPane.getTabCount() - 1 && addLevelTabCreated) {
-              // May happen with a row of tabs is full
-              multipleLevelsTabbedPane.setSelectedIndex(multipleLevelsTabbedPane.getTabCount() - 2);
-            }
             Component tabComponent = multipleLevelsTabbedPane.getComponentAt(indexAtLocation);
             if (tabComponent instanceof LevelLabel) {
               controller.setSelectedLevel(((LevelLabel)tabComponent).getLevel());
@@ -243,7 +251,9 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
             int index = home.getLevels().indexOf(ev.getSource());
             multipleLevelsTabbedPane.setTitleAt(index, (String)ev.getNewValue());
             updateTabComponent(home, index);
-          } else if (Level.Property.VIEWABLE.name().equals(ev.getPropertyName())) {
+          } else if (Level.Property.VIEWABLE.name().equals(ev.getPropertyName())
+              || Level.Property.LOCKED.name().equals(ev.getPropertyName())
+              || Level.Property.CATEGORY.name().equals(ev.getPropertyName())) {
             updateTabComponent(home, home.getLevels().indexOf(ev.getSource()));
           } else if (Level.Property.ELEVATION.name().equals(ev.getPropertyName())
               || Level.Property.ELEVATION_INDEX.name().equals(ev.getPropertyName())) {
@@ -291,14 +301,37 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
       home.addPropertyChangeListener(Home.Property.ALL_LEVELS_SELECTION, new PropertyChangeListener() {
           public void propertyChange(PropertyChangeEvent ev) {
             multipleLevelsTabbedPane.repaint();
+            refreshTabComponents(home);
           }
         });
     }
 
-    if (addLevelTabCreated) {
+    if (addLayerControlAvailable) {
       preferences.addPropertyChangeListener(UserPreferences.Property.LANGUAGE,
           new LanguageChangeListener(this));
     }
+  }
+
+  /**
+   * Creates the + Layer button shown beside the tab strip.
+   */
+  private JButton createAddLayerButton(UserPreferences preferences, final PlanController controller) {
+    try {
+      preferences.getLocalizedString(MultipleLevelsPlanPanel.class, "ADD_LEVEL.SmallIcon");
+    } catch (IllegalArgumentException ex) {
+      return null;
+    }
+    JButton button = new JButton(SwingTools.getLocalizedLabelText(
+        preferences, MultipleLevelsPlanPanel.class, "addLayerButton.text"));
+    button.setToolTipText(preferences.getLocalizedString(
+        MultipleLevelsPlanPanel.class, "ADD_LEVEL.ShortDescription"));
+    AlpCatalogStyles.applyAddLayerButton(button);
+    button.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent ev) {
+          controller.addLevel();
+        }
+      });
+    return button;
   }
 
   /**
@@ -315,52 +348,65 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
    */
   private void updateTabComponent(final Home home, int i) {
     if (OperatingSystem.isJavaVersionGreaterOrEqual("1.6")) {
-      JLabel tabLabel = new JLabel(this.multipleLevelsTabbedPane.getTitleAt(i)) {
-          @Override
-          protected void paintComponent(Graphics g) {
-            if (home.isAllLevelsSelection() && isEnabled()) {
-              Graphics2D g2D = (Graphics2D)g;
-              // Draw text outline with half transparent selection color when all tabs are selected
-              g2D.setPaint(PlanComponent.getDefaultSelectionColor(planComponent));
-              Composite oldComposite = g2D.getComposite();
-              g2D.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-              g2D.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f));
-              Font font = getFont();
-              FontMetrics fontMetrics = getFontMetrics(font);
-              float strokeWidth = fontMetrics.getHeight() * 0.125f;
-              g2D.setStroke(new BasicStroke(strokeWidth));
-              FontRenderContext fontRenderContext = g2D.getFontRenderContext();
-              TextLayout textLayout = new TextLayout(getText(), font, fontRenderContext);
-              AffineTransform oldTransform = g2D.getTransform();
-              if (getIcon() != null) {
-                g2D.translate(getIcon().getIconWidth() + getIconTextGap(), 0);
-              }
-              g2D.draw(textLayout.getOutline(AffineTransform.getTranslateInstance(-strokeWidth / 5,
-                  (getHeight() - fontMetrics.getHeight()) / 2 + fontMetrics.getAscent() - strokeWidth / 5)));
-              g2D.setComposite(oldComposite);
-              g2D.setTransform(oldTransform);
-            }
-            super.paintComponent(g);
-          }
-        };
       List<Level> levels = home.getLevels();
-      tabLabel.setEnabled(levels.get(i).isViewable());
-      if (i > 0
-          && levels.get(i - 1).getElevation() == levels.get(i).getElevation()) {
-        tabLabel.setIcon(sameElevationIcon);
+      if (i < 0 || i >= levels.size()) {
+        return;
       }
+      Level level = levels.get(i);
+      boolean selected = this.multipleLevelsTabbedPane.getSelectedIndex() == i;
+      Component existingTabComponent = getTabComponentAt(i);
+      AlpLevelTabComponent tabComponent;
+      if (existingTabComponent instanceof AlpLevelTabComponent) {
+        tabComponent = (AlpLevelTabComponent)existingTabComponent;
+      } else {
+        tabComponent = new AlpLevelTabComponent(home, this.planComponent, this.preferences, sameElevationIcon);
+        setTabComponentAt(i, tabComponent);
+      }
+      tabComponent.updateLevel(level, levels, i, selected);
+    }
+  }
 
-      try {
-        // Invoke dynamically Java 6 setTabComponentAt method
-        this.multipleLevelsTabbedPane.getClass().getMethod("setTabComponentAt", int.class, Component.class)
-            .invoke(this.multipleLevelsTabbedPane, i, tabLabel);
-      } catch (InvocationTargetException ex) {
-        throw new RuntimeException(ex);
-      } catch (IllegalAccessException ex) {
-        throw new IllegalAccessError(ex.getMessage());
-      } catch (NoSuchMethodException ex) {
-        throw new NoSuchMethodError(ex.getMessage());
+  private void refreshTabSelectionStates(Home home) {
+    int selectedIndex = this.multipleLevelsTabbedPane.getSelectedIndex();
+    for (int i = 0; i < home.getLevels().size(); i++) {
+      Component tabComponent = getTabComponentAt(i);
+      if (tabComponent instanceof AlpLevelTabComponent) {
+        ((AlpLevelTabComponent)tabComponent).setTabSelected(i == selectedIndex);
       }
+    }
+  }
+
+  private void refreshTabComponents(Home home) {
+    for (int i = 0; i < home.getLevels().size(); i++) {
+      updateTabComponent(home, i);
+    }
+  }
+
+  private Component getTabComponentAt(int index) {
+    try {
+      return (Component)this.multipleLevelsTabbedPane.getClass()
+          .getMethod("getTabComponentAt", int.class)
+          .invoke(this.multipleLevelsTabbedPane, index);
+    } catch (InvocationTargetException ex) {
+      throw new RuntimeException(ex);
+    } catch (IllegalAccessException ex) {
+      throw new IllegalAccessError(ex.getMessage());
+    } catch (NoSuchMethodException ex) {
+      throw new NoSuchMethodError(ex.getMessage());
+    }
+  }
+
+  private void setTabComponentAt(int index, Component tabComponent) {
+    try {
+      this.multipleLevelsTabbedPane.getClass()
+          .getMethod("setTabComponentAt", int.class, Component.class)
+          .invoke(this.multipleLevelsTabbedPane, index, tabComponent);
+    } catch (InvocationTargetException ex) {
+      throw new RuntimeException(ex);
+    } catch (IllegalAccessException ex) {
+      throw new IllegalAccessError(ex.getMessage());
+    } catch (NoSuchMethodException ex) {
+      throw new NoSuchMethodError(ex.getMessage());
     }
   }
 
@@ -382,16 +428,19 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
       if (planPanel == null) {
         preferences.removePropertyChangeListener(UserPreferences.Property.LANGUAGE, this);
       } else {
-        // Update create level tooltip in new locale
-        String createNewLevelTooltip = preferences.getLocalizedString(MultipleLevelsPlanPanel.class, "ADD_LEVEL.ShortDescription");
-        planPanel.multipleLevelsTabbedPane.setToolTipTextAt(planPanel.multipleLevelsTabbedPane.getTabCount() - 1, createNewLevelTooltip);
+        if (planPanel.addLayerButton != null) {
+          planPanel.addLayerButton.setText(SwingTools.getLocalizedLabelText(
+              preferences, MultipleLevelsPlanPanel.class, "addLayerButton.text"));
+          planPanel.addLayerButton.setToolTipText(preferences.getLocalizedString(
+              MultipleLevelsPlanPanel.class, "ADD_LEVEL.ShortDescription"));
+        }
       }
     }
   }
 
   /**
    * Creates the tabs from <code>home</code> levels, and returns <code>true</code>
-   * if an additional tab able to add a new level was added.
+   * if the + Layer control is available.
    */
   private boolean createTabs(Home home, UserPreferences preferences) {
     List<Level> levels = home.getLevels();
@@ -400,19 +449,15 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
       this.multipleLevelsTabbedPane.addTab(level.getName(), new LevelLabel(level));
       updateTabComponent(home, i);
     }
-    String createNewLevelIcon = null;
     try {
-      createNewLevelIcon = preferences.getLocalizedString(MultipleLevelsPlanPanel.class, "ADD_LEVEL.SmallIcon");
+      preferences.getLocalizedString(MultipleLevelsPlanPanel.class, "ADD_LEVEL.SmallIcon");
+      return this.addLayerButton != null;
     } catch (IllegalArgumentException ex) {
+      if (this.addLayerButton != null) {
+        this.addLayerButton.setVisible(false);
+      }
       return false;
     }
-    String createNewLevelTooltip = preferences.getLocalizedString(MultipleLevelsPlanPanel.class, "ADD_LEVEL.ShortDescription");
-    ImageIcon newLevelIcon = SwingTools.getScaledImageIcon(MultipleLevelsPlanPanel.class.getResource(createNewLevelIcon));
-    this.multipleLevelsTabbedPane.addTab("", newLevelIcon, new JLabel(), createNewLevelTooltip);
-    // Disable last tab to avoid user stops on it
-    this.multipleLevelsTabbedPane.setEnabledAt(this.multipleLevelsTabbedPane.getTabCount() - 1, false);
-    this.multipleLevelsTabbedPane.setDisabledIconAt(this.multipleLevelsTabbedPane.getTabCount() - 1, newLevelIcon);
-    return true;
   }
 
   /**
@@ -424,6 +469,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
     if (levels.size() >= 2 && selectedLevel != null) {
       this.multipleLevelsTabbedPane.setSelectedIndex(levels.indexOf(selectedLevel));
       displayPlanComponentAtSelectedIndex(home);
+      refreshTabSelectionStates(home);
     }
     updateLayout(home);
   }
@@ -467,7 +513,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
    * Layouts the components displayed by this panel.
    */
   private void layoutComponents() {
-    add(this.multipleLevelsTabbedPane, MULTIPLE_LEVELS_PANEL_NAME);
+    add(this.multipleLevelsPanel, MULTIPLE_LEVELS_PANEL_NAME);
     add(this.oneLevelPanel, ONE_LEVEL_PANEL_NAME);
 
     SwingTools.installFocusBorder(this.planComponent);
@@ -494,14 +540,14 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
         final ResourceAction.PopupMenuItemAction menuItemAction = new ResourceAction.PopupMenuItemAction(((JMenuItem)component).getAction());
         planComponentPopup.add(menuItemAction);
         final JMenuItem planMenuItem = (JMenuItem)planComponentPopup.getComponent(planComponentPopup.getComponentCount() - 1);
-        planMenuItem.setEnabled(this.multipleLevelsTabbedPane.getTabCount() <= 2 && menuItemAction.isEnabled());
+        planMenuItem.setEnabled(this.multipleLevelsTabbedPane.getTabCount() <= 1 && menuItemAction.isEnabled());
         this.multipleLevelsTabbedPane.addPropertyChangeListener("indexForTabComponent",
             new PropertyChangeListener() {
               public void propertyChange(PropertyChangeEvent ev) {
                 // Change visibility later once tabs are fully updated
                 EventQueue.invokeLater(new Runnable() {
                     public void run() {
-                      planMenuItem.setEnabled(multipleLevelsTabbedPane.getTabCount() <= 2 && menuItemAction.isEnabled());
+                      planMenuItem.setEnabled(multipleLevelsTabbedPane.getTabCount() <= 1 && menuItemAction.isEnabled());
                     }
                   });
               }
@@ -899,14 +945,9 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
   /**
    * Returns the stack index where a dragged level tab would be inserted, or {@code -1} if invalid.
    */
-  private int getLevelTabDropStackIndex(int x, int y, boolean addLevelTabCreated) {
+  private int getLevelTabDropStackIndex(int x, int y) {
     int levelCount = this.multipleLevelsTabbedPane.getLevelTabCount();
     if (levelCount <= 1) {
-      return -1;
-    }
-    int indexAtLocation = this.multipleLevelsTabbedPane.indexAtLocation(x, y);
-    if (addLevelTabCreated
-        && indexAtLocation == this.multipleLevelsTabbedPane.getTabCount() - 1) {
       return -1;
     }
     for (int i = 0; i < levelCount; i++) {
@@ -935,11 +976,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
     private Integer insertIndicatorStackIndex;
 
     public int getLevelTabCount() {
-      int tabCount = getTabCount();
-      if (tabCount > 0 && !isEnabledAt(tabCount - 1)) {
-        return tabCount - 1;
-      }
-      return tabCount;
+      return getTabCount();
     }
 
     public void setInsertIndicatorStackIndex(Integer insertIndicatorStackIndex) {

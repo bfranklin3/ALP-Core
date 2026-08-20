@@ -5,6 +5,8 @@
  */
 package com.eteks.sweethome3d.swing;
 
+import com.eteks.sweethome3d.model.LevelCategory;
+
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
@@ -202,5 +204,50 @@ public final class AlpCatalogStyles {
     button.setBorderPainted(false);
     button.setContentAreaFilled(false);
     button.setFocusable(false);
+  }
+
+  /** Category color strip for layer tabs (SPIKE-31). */
+  public static Color levelCategoryStripColor(LevelCategory category) {
+    if (category == null) {
+      category = LevelCategory.GENERAL;
+    }
+    switch (category) {
+      case REFERENCE:
+        return new Color(0x9E, 0x9E, 0x9E);
+      case SITE:
+        return new Color(0xF5, 0x9E, 0x0B);
+      case PLANTING:
+        return new Color(0x22, 0xA9, 0x47);
+      case ANNOTATION:
+        return new Color(0x3B, 0x82, 0xF6);
+      default:
+        return new Color(0xD1, 0xD5, 0xDB);
+    }
+  }
+
+  /** Applies selected/unselected styling to a custom layer tab component. */
+  public static void applyLevelTabComponent(JComponent tabComponent, boolean selected) {
+    tabComponent.setOpaque(true);
+    tabComponent.setBackground(selected ? CATEGORY_SELECTED : PANEL_BACKGROUND);
+    tabComponent.setBorder(new EmptyBorder(scale(2), scale(6), scale(1), scale(6)));
+  }
+
+  public static Color levelTabTextColor(boolean selected) {
+    return selected ? TAB_TEXT_SELECTED : TAB_TEXT_UNSELECTED;
+  }
+
+  /** Styles the layer tab bar wrapper and + Layer control. */
+  public static void applyLevelTabBar(JPanel tabBarPanel) {
+    applyWorkspacePanel(tabBarPanel);
+  }
+
+  /** Styles the + Layer button adjacent to the tab strip. */
+  public static void applyAddLayerButton(AbstractButton button) {
+    button.setFocusable(false);
+    button.setMargin(new Insets(scale(2), scale(8), scale(2), scale(8)));
+    button.setBackground(PANEL_BACKGROUND);
+    button.setBorder(new CompoundBorder(
+        new LineBorder(CHIP_BORDER, 1, true),
+        new EmptyBorder(scale(2), scale(4), scale(2), scale(4))));
   }
 }
