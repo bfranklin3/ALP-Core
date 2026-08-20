@@ -1994,20 +1994,15 @@ public class HomePane extends JRootPane implements HomeView {
     if (disableDraftModeAction != null
         && disableDraftModeAction.getValue(Action.NAME) != null
         && enableDraftModeAction.getValue(Action.NAME) != null) {
-      final JButton draftModeButton = new JButton(
-          new ResourceAction.ToolBarAction(home.isDraftMode()
+      final JButton draftModeButton = AlpToolBarButton.createButton(home.isDraftMode()
               ? disableDraftModeAction
-              : enableDraftModeAction));
-      draftModeButton.setBorderPainted(false);
-      draftModeButton.setContentAreaFilled(false);
-      draftModeButton.setFocusable(false);
+              : enableDraftModeAction);
       home.addPropertyChangeListener(Home.Property.DRAFT_MODE,
           new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
-              draftModeButton.setAction(
-                  new ResourceAction.ToolBarAction(home.isDraftMode()
-                      ? disableDraftModeAction
-                      : enableDraftModeAction));
+              AlpToolBarButton.setButtonAction(draftModeButton, home.isDraftMode()
+                  ? disableDraftModeAction
+                  : enableDraftModeAction);
             }
           });
       return draftModeButton;
@@ -2026,10 +2021,10 @@ public class HomePane extends JRootPane implements HomeView {
     if (disableMagnetismAction != null
         && disableMagnetismAction.getValue(Action.NAME) != null
         && enableMagnetismAction.getValue(Action.NAME) != null) {
-      final JButton enableDisableMagnetismButton = new JButton(
-          new ResourceAction.ToolBarAction(preferences.isMagnetismEnabled()
+      final JButton enableDisableMagnetismButton = AlpToolBarButton.createButton(
+          preferences.isMagnetismEnabled()
               ? disableMagnetismAction
-              : enableMagnetismAction));
+              : enableMagnetismAction);
       // Add a listener to preferences on magnestismEnabled property change to
       // switch action according to magnestismEnabled change
       preferences.addPropertyChangeListener(UserPreferences.Property.MAGNETISM_ENABLED,
@@ -2062,10 +2057,10 @@ public class HomePane extends JRootPane implements HomeView {
       if (homePane == null || enableDisableMagnetismButton == null) {
         preferences.removePropertyChangeListener(property, this);
       } else {
-        enableDisableMagnetismButton.setAction(
-            new ResourceAction.ToolBarAction(preferences.isMagnetismEnabled()
+        AlpToolBarButton.setButtonAction(enableDisableMagnetismButton,
+            preferences.isMagnetismEnabled()
                 ? homePane.getActionMap().get(ActionType.DISABLE_MAGNETISM)
-                : homePane.getActionMap().get(ActionType.ENABLE_MAGNETISM)));
+                : homePane.getActionMap().get(ActionType.ENABLE_MAGNETISM));
       }
     }
   }
@@ -2660,6 +2655,7 @@ public class HomePane extends JRootPane implements HomeView {
    */
   private JToolBar createToolBar(Home home, UserPreferences preferences) {
     final JToolBar toolBar = new UnfocusableToolBar();
+    AlpCatalogStyles.applyToolBar(toolBar);
     addActionToToolBar(ActionType.NEW_HOME, toolBar);
     addActionToToolBar(ActionType.OPEN, toolBar);
     addActionToToolBar(ActionType.SAVE, toolBar);
@@ -2731,7 +2727,7 @@ public class HomePane extends JRootPane implements HomeView {
     boolean pluginActionsAdded = false;
     for (Action pluginAction : this.pluginActions) {
       if (Boolean.TRUE.equals(pluginAction.getValue(PluginAction.Property.TOOL_BAR.name()))) {
-        addActionToToolBar(new ResourceAction.ToolBarAction(pluginAction), toolBar);
+        addActionToToolBar(pluginAction, toolBar);
         pluginActionsAdded = true;
       }
     }
@@ -2752,8 +2748,9 @@ public class HomePane extends JRootPane implements HomeView {
     }
 
     if (OperatingSystem.isMacOSXLeopardOrSuperior() && OperatingSystem.isJavaVersionBetween("1.7", "1.7.0_40")) {
-      // Reduce tool bar height to balance segmented buttons with higher insets
-      toolBar.setPreferredSize(new Dimension(0, toolBar.getPreferredSize().height - 4));
+      Dimension preferredSize = toolBar.getPreferredSize();
+      toolBar.setPreferredSize(new Dimension(preferredSize.width,
+          Math.max(preferredSize.height, AlpCatalogStyles.scale(56))));
     }
 
     return toolBar;
@@ -2767,24 +2764,7 @@ public class HomePane extends JRootPane implements HomeView {
                                         JToolBar toolBar) {
     Action action = getActionMap().get(actionType);
     if (action!= null && action.getValue(Action.NAME) != null) {
-      Action toolBarAction = new ResourceAction.ToolBarAction(action);
-      JToggleButton toggleButton;
-      if (OperatingSystem.isMacOSXLeopardOrSuperior() && OperatingSystem.isJavaVersionBetween("1.7", "1.7.0_40")) {
-        // Use higher insets to ensure the top and bottom of segmented buttons are correctly drawn
-        toggleButton = new JToggleButton(toolBarAction) {
-            @Override
-            public Insets getInsets() {
-              Insets insets = super.getInsets();
-              insets.top += 3;
-              insets.bottom += 3;
-              return insets;
-            }
-          };
-      } else {
-        toggleButton = new JToggleButton(toolBarAction);
-      }
-      toggleButton.setModel((JToggleButton.ToggleButtonModel)action.getValue(ResourceAction.TOGGLE_BUTTON_MODEL));
-      toolBar.add(toggleButton);
+      toolBar.add(AlpToolBarButton.createToggleButton(action));
     }
   }
 
@@ -2795,7 +2775,7 @@ public class HomePane extends JRootPane implements HomeView {
                                   JToolBar toolBar) {
     Action action = getActionMap().get(actionType);
     if (action!= null && action.getValue(Action.NAME) != null) {
-      addActionToToolBar(new ResourceAction.ToolBarAction(action), toolBar);
+      addActionToToolBar(action, toolBar);
     }
   }
 
@@ -2804,20 +2784,7 @@ public class HomePane extends JRootPane implements HomeView {
    */
   private void addActionToToolBar(Action action,
                                   JToolBar toolBar) {
-    if (OperatingSystem.isMacOSXLeopardOrSuperior() && OperatingSystem.isJavaVersionBetween("1.7", "1.7.0_40")) {
-      // Add a button with higher insets to ensure the top and bottom of segmented buttons are correctly drawn
-      toolBar.add(new JButton(new ResourceAction.ToolBarAction(action)) {
-          @Override
-          public Insets getInsets() {
-            Insets insets = super.getInsets();
-            insets.top += 3;
-            insets.bottom += 3;
-            return insets;
-          }
-        });
-    } else {
-      toolBar.add(new JButton(new ResourceAction.ToolBarAction(action)));
-    }
+    toolBar.add(AlpToolBarButton.createButton(action));
   }
 
   /**

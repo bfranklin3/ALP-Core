@@ -12,12 +12,14 @@ import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 
+import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
+import javax.swing.JToolBar;
 import javax.swing.JTree;
 import javax.swing.JTable;
 import javax.swing.border.Border;
@@ -185,5 +187,20 @@ public final class AlpCatalogStyles {
     if (width > 0 && height > 0) {
       paintChipBackground(g, x, y, width, height, selected);
     }
+  }
+
+  /** Applies ALP styling to the main plan toolbar (SPIKE-31). */
+  public static void applyToolBar(JToolBar toolBar) {
+    toolBar.setFloatable(false);
+    applyWorkspacePanel(toolBar);
+    toolBar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, CHIP_BORDER));
+  }
+
+  /** Applies ALP styling to a labeled toolbar button (SPIKE-31). */
+  public static void applyToolBarButton(AbstractButton button) {
+    button.setBackground(PANEL_BACKGROUND);
+    button.setBorderPainted(false);
+    button.setContentAreaFilled(false);
+    button.setFocusable(false);
   }
 }

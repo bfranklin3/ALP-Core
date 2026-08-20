@@ -49,6 +49,7 @@ public class ResourceAction extends AbstractAction {
   public static final String POPUP   = "Popup";
   public static final String TOGGLE_BUTTON_MODEL = "ToggleButtonModel";
   public static final String TOOL_BAR_ICON       = "ToolBarIcon";
+  public static final String TOOL_BAR_LABEL      = "ToolBarLabel";
   public static final String UNLOCALIZED_NAME    = "UnlocalizedName";
 
   /**
@@ -136,6 +137,9 @@ public class ResourceAction extends AbstractAction {
     if (toolBarIcon != null) {
       putValue(TOOL_BAR_ICON, SwingTools.getScaledImageIcon(resourceClass.getResource(toolBarIcon)));
     }
+
+    putValue(TOOL_BAR_LABEL,
+        getOptionalString(preferences, resourceClass, propertyPrefix + TOOL_BAR_LABEL, true));
 
     String propertyKey = propertyPrefix + ACCELERATOR_KEY;
     // Search first if there's a key for this OS
@@ -350,6 +354,32 @@ public class ResourceAction extends AbstractAction {
             || key.equals(ACCELERATOR_KEY)) {
           // Avoid accelerators and icons in Mac OS X popups
           return null;
+        }
+      }
+      return super.getValue(key);
+    }
+  }
+
+  /**
+   * An action decorator for labeled tool bar buttons (SPIKE-31).
+   */
+  public static class LabeledToolBarAction extends AbstractDecoratedAction {
+    public LabeledToolBarAction(Action action) {
+      super(action);
+    }
+
+    public Object getValue(String key) {
+      if (key.equals(NAME)) {
+        Object toolBarLabel = super.getValue(TOOL_BAR_LABEL);
+        if (toolBarLabel != null) {
+          return toolBarLabel;
+        }
+        return super.getValue(NAME);
+      }
+      if (key.equals(SMALL_ICON)) {
+        Object toolBarIcon = super.getValue(TOOL_BAR_ICON);
+        if (toolBarIcon != null) {
+          return toolBarIcon;
         }
       }
       return super.getValue(key);
