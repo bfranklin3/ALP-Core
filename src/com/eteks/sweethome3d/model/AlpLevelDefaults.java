@@ -43,6 +43,7 @@ public final class AlpLevelDefaults {
         0, preferences.getNewFloorThickness(), preferences.getNewLevelHeight());
     home.addLevel(plan);
     home.setSelectedLevel(plan);
+    applyNewHomeDefaults(home);
   }
 
   /**
@@ -69,7 +70,15 @@ public final class AlpLevelDefaults {
       }
     }
     home.setSelectedLevel(selectedLevel);
+    applyNewHomeDefaults(home);
     applySitePlanUiDefaults(home);
+  }
+
+  /**
+   * Applies ALP defaults shared by regular new homes and site plans (SPIKE-25).
+   */
+  public static void applyNewHomeDefaults(Home home) {
+    home.setSelectCurrentLayerOnly(true);
   }
 
   /**

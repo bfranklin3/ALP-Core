@@ -1115,6 +1115,68 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Returns <code>true</code> if the given elevatable item may be picked on the plan.
+   * When {@linkplain Home#isSelectCurrentLayerOnly() current layer only} mode is on,
+   * normal picks require strict layer membership; cross-layer marquee uses stock overlay rules.
+   * Locked layers are never pickable.
+   * @since ALP SPIKE-25
+   */
+  protected boolean isItemPickableAtLevel(Elevatable item, boolean crossLayerMarquee) {
+    if (isItemLocked(item)) {
+      return false;
+    }
+    Level selectedLevel = this.home.getSelectedLevel();
+    if (!this.home.isSelectCurrentLayerOnly() || crossLayerMarquee) {
+      return item.isAtLevel(selectedLevel);
+    }
+    return item.getLevel() == selectedLevel;
+  }
+
+  /**
+   * Returns <code>true</code> if the given furniture may be picked on the plan.
+   * @since ALP SPIKE-25
+   */
+  protected boolean isPieceOfFurniturePickableAtLevel(HomePieceOfFurniture piece,
+                                                      boolean crossLayerMarquee) {
+    if (isItemLocked(piece)) {
+      return false;
+    }
+    Level selectedLevel = this.home.getSelectedLevel();
+    if (!piece.isVisible()
+        || piece.getLevel() != null && !piece.getLevel().isViewable()) {
+      return false;
+    }
+    if (!this.home.isSelectCurrentLayerOnly() || crossLayerMarquee) {
+      return piece.getLevel() == selectedLevel
+          || piece.isAtLevel(selectedLevel);
+    }
+    return piece.getLevel() == selectedLevel;
+  }
+
+  /**
+   * Returns whether selection should be treated as spanning multiple levels.
+   * @since ALP SPIKE-25
+   */
+  private boolean isAllLevelsSelection(List<? extends Selectable> selectedItems, boolean shiftDown) {
+    if (!shiftDown) {
+      return false;
+    }
+    if (this.home.isSelectCurrentLayerOnly()) {
+      Level selectedLevel = this.home.getSelectedLevel();
+      for (Selectable item : selectedItems) {
+        if (item instanceof Elevatable) {
+          Level level = ((Elevatable)item).getLevel();
+          if (level != null && level != selectedLevel) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    return this.home.isAllLevelsSelection();
+  }
+
+  /**
    * Returns <code>true</code> if the given <code>item</code> may be moved
    * in the plan. Default implementation returns <code>true</code>.
    */
@@ -2431,15 +2493,23 @@ public class PlanController extends FurnitureController implements Controller {
    * Returns the viewable and selectable home items at the selected level, except camera.
    */
   private List<Selectable> getVisibleItemsAtSelectedLevel() {
+    return getVisibleItemsAtSelectedLevel(false);
+  }
+
+  /**
+   * Returns the viewable and selectable home items at the selected level, except camera.
+   * @param crossLayerMarquee if <code>true</code> and current-layer-only mode is on,
+   *     include items from other visible overlay layers (Shift+marquee).
+   */
+  private List<Selectable> getVisibleItemsAtSelectedLevel(boolean crossLayerMarquee) {
     List<Selectable> selectableItems = new ArrayList<Selectable>();
-    Level selectedLevel = this.home.getSelectedLevel();
     for (Selectable item : this.home.getSelectableViewableItems()) {
       if (item instanceof HomePieceOfFurniture) {
-        if (isPieceOfFurnitureVisibleAtSelectedLevel((HomePieceOfFurniture)item)) {
+        if (isPieceOfFurniturePickableAtLevel((HomePieceOfFurniture)item, crossLayerMarquee)) {
           selectableItems.add(item);
         }
       } else if (!(item instanceof Elevatable)
-          || ((Elevatable)item).isAtLevel(selectedLevel)) {
+          || isItemPickableAtLevel((Elevatable)item, crossLayerMarquee)) {
         selectableItems.add(item);
       }
     }
@@ -5279,7 +5349,7 @@ public class PlanController extends FurnitureController implements Controller {
       if ((!basePlanLocked
             || !isItemPartOfBasePlan(label))
           && isLevelNullOrViewable(label.getLevel())
-          && label.isAtLevel(selectedLevel)
+          && isItemPickableAtLevel(label, false)
           && (label.containsPoint(x, y, margin)
               || isItemTextAt(label, label.getText(), label.getStyle(),
                     label.getX(), label.getY(), label.getAngle(), x, y, textMargin))) {
@@ -5294,7 +5364,7 @@ public class PlanController extends FurnitureController implements Controller {
       if ((!basePlanLocked
             || !isItemPartOfBasePlan(dimensionLine))
           && isLevelNullOrViewable(dimensionLine.getLevel())
-          && dimensionLine.isAtLevel(selectedLevel)
+          && isItemPickableAtLevel(dimensionLine, false)
           && dimensionLine.containsPoint(x, y, margin)) {
         items.add(dimensionLine);
         if (stopAtFirstItem) {
@@ -5310,7 +5380,7 @@ public class PlanController extends FurnitureController implements Controller {
       if ((!basePlanLocked
             || !isItemPartOfBasePlan(polyline))
           && isLevelNullOrViewable(polyline.getLevel())
-          && polyline.isAtLevel(selectedLevel)
+          && isItemPickableAtLevel(polyline, false)
           && polyline.containsPoint(x, y, margin)) {
         items.add(polyline);
         if (stopAtFirstItem) {
@@ -5328,7 +5398,7 @@ public class PlanController extends FurnitureController implements Controller {
       HomePieceOfFurniture piece = furniture.get(i);
       if ((!basePlanLocked
             || !isItemPartOfBasePlan(piece))
-          && isPieceOfFurnitureVisibleAtSelectedLevel(piece)) {
+          && isPieceOfFurniturePickableAtLevel(piece, false)) {
         if (piece.containsPoint(x, y, margin)) {
           foundFurniture.add(piece);
           if (foundPiece == null
@@ -5356,7 +5426,7 @@ public class PlanController extends FurnitureController implements Controller {
         if (item instanceof HomePieceOfFurniture) {
           HomePieceOfFurniture piece = (HomePieceOfFurniture)item;
           if (!isItemPartOfBasePlan(piece)
-              && isPieceOfFurnitureVisibleAtSelectedLevel(piece)
+              && isPieceOfFurniturePickableAtLevel(piece, false)
               && (piece.containsPoint(x, y, margin)
                   || piece.getName() != null
                       && piece.isNameVisible()
@@ -5425,7 +5495,7 @@ public class PlanController extends FurnitureController implements Controller {
         if ((!basePlanLocked
               || !isItemPartOfBasePlan(wall))
             && isLevelNullOrViewable(wall.getLevel())
-            && wall.isAtLevel(selectedLevel)
+            && isItemPickableAtLevel(wall, false)
             && wall.containsPoint(x, y, margin)) {
           items.add(wall);
           if (stopAtFirstItem) {
@@ -5443,7 +5513,7 @@ public class PlanController extends FurnitureController implements Controller {
         if ((!basePlanLocked
               || !isItemPartOfBasePlan(room))
             && isLevelNullOrViewable(room.getLevel())
-            && room.isAtLevel(selectedLevel)) {
+            && isItemPickableAtLevel(room, false)) {
           if (room.containsPoint(x, y, margin)) {
             items.add(room);
              if (foundRoom == null
@@ -5507,9 +5577,18 @@ public class PlanController extends FurnitureController implements Controller {
    * <code>y0</code>), (<code>x1</code>, <code>y1</code>) opposite corners.
    */
   protected List<Selectable> getSelectableItemsIntersectingRectangle(float x0, float y0, float x1, float y1) {
+    return getSelectableItemsIntersectingRectangle(x0, y0, x1, y1, false);
+  }
+
+  /**
+   * Returns the items that intersects with the rectangle of (<code>x0</code>,
+   * <code>y0</code>), (<code>x1</code>, <code>y1</code>) opposite corners.
+   */
+  protected List<Selectable> getSelectableItemsIntersectingRectangle(float x0, float y0, float x1, float y1,
+                                                                   boolean crossLayerMarquee) {
     List<Selectable> items = new ArrayList<Selectable>();
     boolean basePlanLocked = this.home.isBasePlanLocked();
-    for (Selectable item : getVisibleItemsAtSelectedLevel()) {
+    for (Selectable item : getVisibleItemsAtSelectedLevel(crossLayerMarquee)) {
       if ((!basePlanLocked
             || !isItemPartOfBasePlan(item))
           && item.intersectsRectangle(x0, y0, x1, y1)) {
@@ -10446,7 +10525,7 @@ public class PlanController extends FurnitureController implements Controller {
             }
           }
           selectItems(this.selectedItemsMousePressed,
-              home.isAllLevelsSelection() && wasShiftDownLastMousePress());
+              isAllLevelsSelection(this.selectedItemsMousePressed, wasShiftDownLastMousePress()));
         }
       }
       // Change state to SelectionState
@@ -10480,8 +10559,10 @@ public class PlanController extends FurnitureController implements Controller {
         selectedItems = new ArrayList<Selectable>();
       }
 
+      boolean crossLayerMarquee = home.isSelectCurrentLayerOnly() && shiftDown;
+
       // For all the items that intersect with rectangle
-      for (Selectable item : getSelectableItemsIntersectingRectangle(x0, y0, x1, y1)) {
+      for (Selectable item : getSelectableItemsIntersectingRectangle(x0, y0, x1, y1, crossLayerMarquee)) {
         // Don't let the camera be able to be selected with a rectangle
         if (!(item instanceof Camera)) {
           // If shift was down at mouse press
@@ -10499,7 +10580,7 @@ public class PlanController extends FurnitureController implements Controller {
         }
       }
       // Update selection
-      selectItems(selectedItems, home.isAllLevelsSelection() && shiftDown);
+      selectItems(selectedItems, isAllLevelsSelection(selectedItems, shiftDown));
     }
   }
 

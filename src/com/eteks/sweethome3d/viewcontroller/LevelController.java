@@ -560,7 +560,24 @@ public class LevelController implements Controller {
     }
     if (locked != null) {
       level.setLocked(locked);
+      if (locked) {
+        home.setSelectedItems(getUnlockedSublist(home.getSelectedItems()));
+      }
     }
+  }
+
+  /**
+   * Returns a sub list of <code>items</code> that aren't on a locked level.
+   */
+  private static List<Selectable> getUnlockedSublist(List<? extends Selectable> items) {
+    List<Selectable> unlockedItems = new ArrayList<Selectable>(items.size());
+    for (Selectable item : items) {
+      if (!(item instanceof Elevatable)
+          || !((Elevatable)item).getLevel().isLocked()) {
+        unlockedItems.add(item);
+      }
+    }
+    return unlockedItems;
   }
 
   /**

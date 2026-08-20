@@ -86,6 +86,7 @@ import com.eteks.sweethome3d.tools.URLContent;
  *       selectedLevel CDATA #IMPLIED
  *       wallHeight CDATA #IMPLIED
  *       basePlanLocked (false | true) "false"
+ *       selectCurrentLayerOnly (false | true) "false"
  *       draftMode (false | true) "false"
  *       furnitureSortedProperty CDATA #IMPLIED
  *       furnitureDescendingSorted (false | true) "false">
@@ -958,6 +959,7 @@ public class HomeXMLHandler extends DefaultHandler {
       this.home.setCamera(this.home.getObserverCamera());
     }
     home.setBasePlanLocked("true".equals(attributes.get("basePlanLocked")));
+    home.setSelectCurrentLayerOnly("true".equals(attributes.get("selectCurrentLayerOnly")));
     home.setDraftMode("true".equals(attributes.get("draftMode")));
     String furnitureSortedPropertyName = attributes.get("furnitureSortedProperty");
     if (furnitureSortedPropertyName != null) {

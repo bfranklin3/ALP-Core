@@ -3103,6 +3103,7 @@ public class SelectionInspectorPane extends JPanel {
     private JTextField             nameTextField;
     private JCheckBox              viewableCheckBox;
     private JCheckBox              lockedCheckBox;
+    private JCheckBox              selectCurrentLayerOnlyCheckBox;
     private JList                  layersList;
     private boolean                updatingFromController;
     private boolean                updatingListSelection;
@@ -3212,6 +3213,37 @@ public class SelectionInspectorPane extends JPanel {
           }
         });
 
+      this.selectCurrentLayerOnlyCheckBox = createImmediateClickCheckBox(
+          this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "selectCurrentLayerOnlyCheckBox.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.selectCurrentLayerOnlyCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "selectCurrentLayerOnlyCheckBox.mnemonic")).getKeyCode());
+      }
+      this.selectCurrentLayerOnlyCheckBox.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            home.setSelectCurrentLayerOnly(selectCurrentLayerOnlyCheckBox.isSelected());
+          }
+        });
+      this.home.addPropertyChangeListener(
+          Home.Property.SELECT_CURRENT_LAYER_ONLY, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              if (updatingFromController) {
+                return;
+              }
+              updatingFromController = true;
+              try {
+                selectCurrentLayerOnlyCheckBox.setSelected(home.isSelectCurrentLayerOnly());
+              } finally {
+                updatingFromController = false;
+              }
+            }
+          });
+
       this.layersList = new JList();
       this.layersList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
       this.layersList.setCellRenderer(new LevelListCellRenderer());
@@ -3256,6 +3288,9 @@ public class SelectionInspectorPane extends JPanel {
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
       propertiesPanel.add(this.lockedCheckBox, new GridBagConstraints(
           0, 2, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      propertiesPanel.add(this.selectCurrentLayerOnlyCheckBox, new GridBagConstraints(
+          0, 3, 2, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
 
       fieldsPanel.add(propertiesPanel, new GridBagConstraints(
@@ -3314,6 +3349,7 @@ public class SelectionInspectorPane extends JPanel {
         Boolean viewable = this.levelController.getViewable();
         this.viewableCheckBox.setSelected(viewable == null || viewable);
         this.lockedCheckBox.setSelected(Boolean.TRUE.equals(this.levelController.getLocked()));
+        this.selectCurrentLayerOnlyCheckBox.setSelected(this.home.isSelectCurrentLayerOnly());
       } finally {
         this.updatingFromController = false;
       }

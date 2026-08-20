@@ -73,7 +73,8 @@ public class Home implements Serializable, Cloneable {
   public enum Property {NAME, MODIFIED,
     FURNITURE_SORTED_PROPERTY, FURNITURE_DESCENDING_SORTED, FURNITURE_VISIBLE_PROPERTIES,
     BACKGROUND_IMAGE, CAMERA, PRINT, BASE_PLAN_LOCKED, DRAFT_MODE, STORED_CAMERAS, RECOVERED, REPAIRED,
-    SELECTED_LEVEL, ALL_LEVELS_SELECTION, FURNITURE_ADDITIONAL_PROPERTIES};
+    SELECTED_LEVEL, ALL_LEVELS_SELECTION, SELECT_CURRENT_LAYER_ONLY,
+    FURNITURE_ADDITIONAL_PROPERTIES};
 
   private List<HomePieceOfFurniture>                  furniture;
   private transient CollectionChangeSupport<HomePieceOfFurniture> furnitureChangeSupport;
@@ -113,6 +114,7 @@ public class Home implements Serializable, Cloneable {
   private transient PropertyChangeSupport             propertyChangeSupport;
   private long                                        version;
   private boolean                                     basePlanLocked;
+  private boolean                                     selectCurrentLayerOnly;
   private boolean                                     draftMode;
   private Compass                                     compass;
   private transient ArrayList<ObjectProperty>         furnitureAdditionalProperties;
@@ -1943,6 +1945,27 @@ public class Home implements Serializable, Cloneable {
   }
 
   /**
+   * Returns <code>true</code> if plan click and marquee selection should pick only
+   * items on the active layer (ALP overlay workflow).
+   * @since ALP SPIKE-25
+   */
+  public boolean isSelectCurrentLayerOnly() {
+    return this.selectCurrentLayerOnly;
+  }
+
+  /**
+   * Sets whether plan click and marquee selection should pick only items on the active layer.
+   * @since ALP SPIKE-25
+   */
+  public void setSelectCurrentLayerOnly(boolean selectCurrentLayerOnly) {
+    if (selectCurrentLayerOnly != this.selectCurrentLayerOnly) {
+      this.selectCurrentLayerOnly = selectCurrentLayerOnly;
+      this.propertyChangeSupport.firePropertyChange(
+          Property.SELECT_CURRENT_LAYER_ONLY.name(), !selectCurrentLayerOnly, selectCurrentLayerOnly);
+    }
+  }
+
+  /**
    * Returns <code>true</code> if plan view is displayed in draft (monochrome) mode.
    */
   public boolean isDraftMode() {
@@ -2014,6 +2037,7 @@ public class Home implements Serializable, Cloneable {
     destination.furnitureDescendingSorted = source.furnitureDescendingSorted;
     destination.version = source.version;
     destination.basePlanLocked = source.basePlanLocked;
+    destination.selectCurrentLayerOnly = source.selectCurrentLayerOnly;
     destination.draftMode = source.draftMode;
     destination.skyColor = source.skyColor;
     destination.groundColor = source.groundColor;

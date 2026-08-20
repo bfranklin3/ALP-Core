@@ -118,6 +118,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
     writer.writeAttribute("selectedLevel", getId(home.getSelectedLevel()), null);
     writer.writeFloatAttribute("wallHeight", home.getWallHeight());
     writer.writeBooleanAttribute("basePlanLocked", home.isBasePlanLocked(), false);
+    writer.writeBooleanAttribute("selectCurrentLayerOnly", home.isSelectCurrentLayerOnly(), false);
     writer.writeBooleanAttribute("draftMode", home.isDraftMode(), false);
     if (home.getFurnitureSortedPropertyName() != null) {
       writer.writeAttribute("furnitureSortedProperty", home.getFurnitureSortedPropertyName());
