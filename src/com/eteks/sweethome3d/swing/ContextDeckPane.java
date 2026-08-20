@@ -1,7 +1,7 @@
 /*
  * ContextDeckPane.java
  *
- * ALP CAD — right-column context deck (SPIKE-29a): selector + Layers / Selection panels.
+ * ALP CAD — right-column context deck (SPIKE-29): selector + situational panels.
  */
 package com.eteks.sweethome3d.swing;
 
@@ -9,13 +9,16 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
@@ -31,6 +34,8 @@ import javax.swing.ListSelectionModel;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 
+import com.eteks.sweethome3d.model.AlpLevelDefaults;
+import com.eteks.sweethome3d.model.AlpPlantUtils;
 import com.eteks.sweethome3d.model.CollectionEvent;
 import com.eteks.sweethome3d.model.CollectionListener;
 import com.eteks.sweethome3d.model.DimensionLine;
@@ -103,8 +108,10 @@ public class ContextDeckPane extends JPanel {
   private final JToggleButton     selectionButton;
   private final JToggleButton     layerItemsButton;
   private final JToggleButton     plantsButton;
+  private final PlantScheduleDeckPanel plantSchedulePanel;
   private Panel                   manualPanel;
   private Panel                   showingPanel;
+  private final Set<Level>        plantsAutoShownLevels;
 
   public ContextDeckPane(Home home, UserPreferences preferences, HomeController controller) {
     super(new BorderLayout());
@@ -116,6 +123,7 @@ public class ContextDeckPane extends JPanel {
 
     this.manualPanel = Panel.fromId(home.getProperty(LAST_PANEL_PROPERTY));
     this.showingPanel = this.manualPanel;
+    this.plantsAutoShownLevels = new HashSet<Level>();
 
     this.cardLayout = new CardLayout();
     this.cardPanel = new JPanel(this.cardLayout);
@@ -132,10 +140,14 @@ public class ContextDeckPane extends JPanel {
     this.selectionList = createSelectionList();
     this.cardPanel.add(wrapScrollPane(this.selectionList), Panel.SELECTION.getId());
 
-    this.cardPanel.add(createPlaceholderPanel(Panel.LAYER_ITEMS), Panel.LAYER_ITEMS.getId());
-    this.cardPanel.add(createPlaceholderPanel(Panel.PLANTS), Panel.PLANTS.getId());
+    LayerItemsDeckPanel layerItemsPanel = new LayerItemsDeckPanel(home, preferences, controller);
+    this.cardPanel.add(layerItemsPanel, Panel.LAYER_ITEMS.getId());
 
-    JPanel selectorPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, AlpInspectorStyles.scale(4), 0));
+    this.plantSchedulePanel = new PlantScheduleDeckPanel(home, preferences);
+    this.cardPanel.add(this.plantSchedulePanel, Panel.PLANTS.getId());
+
+    JPanel selectorPanel = new JPanel(new GridLayout(2, 2,
+        AlpInspectorStyles.scale(4), AlpInspectorStyles.scale(2)));
     AlpCatalogStyles.applyWorkspacePanel(selectorPanel);
     selectorPanel.setBorder(BorderFactory.createEmptyBorder(
         AlpInspectorStyles.scale(4), AlpInspectorStyles.scale(8),
@@ -145,8 +157,6 @@ public class ContextDeckPane extends JPanel {
     this.selectionButton = createSelectorButton(Panel.SELECTION);
     this.layerItemsButton = createSelectorButton(Panel.LAYER_ITEMS);
     this.plantsButton = createSelectorButton(Panel.PLANTS);
-    this.layerItemsButton.setEnabled(false);
-    this.plantsButton.setEnabled(false);
 
     ButtonGroup selectorGroup = new ButtonGroup();
     selectorGroup.add(this.layersButton);
@@ -175,23 +185,19 @@ public class ContextDeckPane extends JPanel {
       });
     home.addPropertyChangeListener(Home.Property.SELECTED_LEVEL, ev -> {
         updateLayersListSelection();
+        applyPlantsAutoSwitch();
+      });
+    home.addFurnitureListener(new CollectionListener<HomePieceOfFurniture>() {
+        public void collectionChanged(CollectionEvent<HomePieceOfFurniture> ev) {
+          updateSelectorEnabledState();
+          applyPlantsAutoSwitch();
+        }
       });
 
     refreshLayersList();
     refreshSelectionList();
     showPanel(resolveInitialPanel(), false);
-  }
-
-  private JPanel createPlaceholderPanel(Panel panel) {
-    JLabel label = new JLabel(this.preferences.getLocalizedString(
-        ContextDeckPane.class, panel == Panel.LAYER_ITEMS
-            ? "layerItemsPlaceholder.text" : "plantsPlaceholder.text"), JLabel.CENTER);
-    label.setBorder(AlpInspectorStyles.emptyStateBorder());
-    AlpCatalogStyles.applyWorkspacePanel(label);
-    JPanel placeholder = new JPanel(new BorderLayout());
-    AlpCatalogStyles.applyWorkspacePanel(placeholder);
-    placeholder.add(label, BorderLayout.CENTER);
-    return placeholder;
+    updateSelectorEnabledState();
   }
 
   private JScrollPane wrapScrollPane(JComponent view) {
@@ -253,9 +259,33 @@ public class ContextDeckPane extends JPanel {
     if (selectionCount >= 2) {
       return Panel.SELECTION;
     } else if (selectionCount == 0) {
+      Level selectedLevel = this.home.getSelectedLevel();
+      if (selectedLevel != null
+          && AlpLevelDefaults.isPlantsLevel(selectedLevel, this.preferences)
+          && AlpPlantUtils.countPlantsOnLevel(this.home, selectedLevel) > 0) {
+        return Panel.PLANTS;
+      }
       return Panel.LAYERS;
     }
     return this.manualPanel;
+  }
+
+  private void applyPlantsAutoSwitch() {
+    if (this.home.getSelectedItems().size() >= 2) {
+      return;
+    }
+    Level selectedLevel = this.home.getSelectedLevel();
+    if (selectedLevel == null
+        || !AlpLevelDefaults.isPlantsLevel(selectedLevel, this.preferences)
+        || this.plantsAutoShownLevels.contains(selectedLevel)) {
+      updateSelectorEnabledState();
+      return;
+    }
+    if (AlpPlantUtils.countPlantsOnLevel(this.home, selectedLevel) > 0) {
+      this.plantsAutoShownLevels.add(selectedLevel);
+      showPanel(Panel.PLANTS, false);
+    }
+    updateSelectorEnabledState();
   }
 
   private void applyAutoSwitch() {
@@ -269,9 +299,6 @@ public class ContextDeckPane extends JPanel {
   }
 
   private void showPanel(Panel panel, boolean manual) {
-    if (panel == Panel.LAYER_ITEMS || panel == Panel.PLANTS) {
-      return;
-    }
     if (panel == Panel.SELECTION && this.home.getSelectedItems().size() < 2) {
       panel = this.manualPanel != null ? this.manualPanel : Panel.LAYERS;
     }
@@ -297,6 +324,8 @@ public class ContextDeckPane extends JPanel {
   private void updateSelectorEnabledState() {
     this.selectionButton.setEnabled(this.home.getSelectedItems().size() >= 2
         || this.showingPanel == Panel.SELECTION);
+    this.plantsButton.setEnabled(this.plantSchedulePanel.hasPlantsOnPlantsLayer()
+        || this.showingPanel == Panel.PLANTS);
   }
 
   private void refreshLayersList() {

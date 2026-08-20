@@ -133,17 +133,42 @@ public class RoomTable extends JTable {
     });
   }
 
+  /**
+   * Sets the level filter applied when listing rooms, or {@code null} for all levels.
+   */
+  public void setLevelFilter(Level levelFilter) {
+    ((RoomTableModel)getModel()).setLevelFilter(levelFilter);
+  }
+
+  /**
+   * Returns the room at the given row in this table.
+   */
+  public Room getRoomAt(int rowIndex) {
+    return ((RoomTableModel)getModel()).getRoom(rowIndex);
+  }
+
   private class RoomTableModel extends AbstractTableModel {
     private final Home home;
     private List<Room> rooms;
+    private Level      levelFilter;
 
     public RoomTableModel(Home home) {
       this.home = home;
       updateRooms();
     }
 
+    public void setLevelFilter(Level levelFilter) {
+      this.levelFilter = levelFilter;
+      updateRooms();
+    }
+
     public void updateRooms() {
-      this.rooms = new ArrayList<Room>(this.home.getRooms());
+      this.rooms = new ArrayList<Room>();
+      for (Room room : this.home.getRooms()) {
+        if (this.levelFilter == null || room.getLevel() == this.levelFilter) {
+          this.rooms.add(room);
+        }
+      }
       fireTableDataChanged();
     }
 

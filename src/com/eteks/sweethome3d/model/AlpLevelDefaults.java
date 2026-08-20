@@ -9,6 +9,9 @@ package com.eteks.sweethome3d.model;
  * Helpers for ALP landscape-oriented level defaults on new homes.
  */
 public final class AlpLevelDefaults {
+  /** Index of the Plants level in the starter site-plan template. */
+  public static final int PLANTS_LEVEL_INDEX = 3;
+
   private static final String [] STARTER_LEVEL_NAME_KEYS = {
       "referenceLevelName",
       "existingLevelName",
@@ -101,5 +104,52 @@ public final class AlpLevelDefaults {
    */
   public static String getLayerName(UserPreferences preferences, int layerNumber) {
     return preferences.getLocalizedString(AlpLevelDefaults.class, "layerName", layerNumber);
+  }
+
+  /**
+   * Returns the localized name for a starter site-plan level by index.
+   */
+  public static String getStarterLevelName(UserPreferences preferences, int levelIndex) {
+    if (levelIndex >= 0 && levelIndex < STARTER_LEVEL_NAME_KEYS.length) {
+      return preferences.getLocalizedString(AlpLevelDefaults.class,
+          STARTER_LEVEL_NAME_KEYS [levelIndex]);
+    }
+    return getLayerName(preferences, levelIndex + 1);
+  }
+
+  /**
+   * Returns the localized default name for the Plants layer.
+   */
+  public static String getPlantsLevelName(UserPreferences preferences) {
+    return getStarterLevelName(preferences, PLANTS_LEVEL_INDEX);
+  }
+
+  /**
+   * Returns whether the given level is the Plants layer (by localized default name).
+   */
+  public static boolean isPlantsLevel(Level level, UserPreferences preferences) {
+    if (level == null || preferences == null) {
+      return false;
+    }
+    String levelName = level.getName();
+    if (levelName == null || levelName.trim().length() == 0) {
+      return false;
+    }
+    return levelName.trim().equalsIgnoreCase(getPlantsLevelName(preferences).trim());
+  }
+
+  /**
+   * Returns the Plants level in {@code home}, or {@code null} if none matches.
+   */
+  public static Level findPlantsLevel(Home home, UserPreferences preferences) {
+    if (home == null || preferences == null) {
+      return null;
+    }
+    for (Level level : home.getLevels()) {
+      if (isPlantsLevel(level, preferences)) {
+        return level;
+      }
+    }
+    return null;
   }
 }
