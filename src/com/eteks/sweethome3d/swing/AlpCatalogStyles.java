@@ -236,6 +236,17 @@ public final class AlpCatalogStyles {
     return selected ? TAB_TEXT_SELECTED : TAB_TEXT_UNSELECTED;
   }
 
+  /** Maximum width for a layer tab header (SPIKE-31 Phase 2). */
+  public static int levelTabMaxWidth() {
+    return scale(120);
+  }
+
+  /** Applies ALP styling to the plan-adjacent draw strip. */
+  public static void applyDrawStrip(JToolBar drawStrip) {
+    applyToolBar(drawStrip);
+    drawStrip.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, CHIP_BORDER));
+  }
+
   /** Styles the layer tab bar wrapper and + Layer control. */
   public static void applyLevelTabBar(JPanel tabBarPanel) {
     applyWorkspacePanel(tabBarPanel);

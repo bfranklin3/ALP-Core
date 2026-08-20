@@ -8,6 +8,7 @@ package com.eteks.sweethome3d.swing;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Composite;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -15,7 +16,16 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Point;
 import java.awt.RenderingHints;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.font.FontRenderContext;
 import java.awt.font.TextLayout;
 import java.awt.geom.AffineTransform;
@@ -25,6 +35,9 @@ import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTabbedPane;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.Level;
@@ -45,8 +58,19 @@ public final class AlpLevelTabComponent extends JPanel {
   private final JLabel           lockLabel;
   private final JLabel           hiddenLabel;
   private final JPanel           categoryStrip;
+  private final JPanel           contentPanel;
   private final ImageIcon        sameElevationIcon;
   private boolean                selected;
+  private JTextField             renameField;
+  private InlineRenameListener   renameListener;
+
+  /**
+   * Callback for inline tab rename (SPIKE-31 Phase 2).
+   */
+  public interface InlineRenameListener {
+    void commitRename(String newName);
+    void cancelRename();
+  }
 
   public AlpLevelTabComponent(Home home,
                               JComponent planComponent,
@@ -70,6 +94,7 @@ public final class AlpLevelTabComponent extends JPanel {
     contentPanel.add(this.nameLabel);
     contentPanel.add(this.lockLabel);
     contentPanel.add(this.hiddenLabel);
+    this.contentPanel = contentPanel;
 
     add(contentPanel, BorderLayout.CENTER);
     add(this.categoryStrip, BorderLayout.SOUTH);
@@ -111,6 +136,9 @@ public final class AlpLevelTabComponent extends JPanel {
 
     AlpCatalogStyles.applyLevelTabComponent(this, selected);
     this.nameLabel.setForeground(AlpCatalogStyles.levelTabTextColor(selected));
+    int maxWidth = AlpCatalogStyles.levelTabMaxWidth();
+    setPreferredSize(new Dimension(maxWidth, getPreferredSize().height));
+    setMaximumSize(new Dimension(maxWidth, Short.MAX_VALUE));
     revalidate();
     repaint();
   }
@@ -122,6 +150,131 @@ public final class AlpLevelTabComponent extends JPanel {
       this.nameLabel.setForeground(AlpCatalogStyles.levelTabTextColor(selected));
       repaint();
     }
+  }
+
+  /**
+   * Forwards tab mouse events to the tabbed pane handler (fixes Modify Level double-click).
+   */
+  public void installTabMouseHandler(final JTabbedPane tabbedPane, final MouseAdapter handler) {
+    MouseAdapter forwarder = new MouseAdapter() {
+        private MouseEvent forward(MouseEvent e) {
+          Component source = (Component)e.getSource();
+          Point point = SwingUtilities.convertPoint(source, e.getPoint(), tabbedPane);
+          return new MouseEvent(tabbedPane, e.getID(), e.getWhen(), e.getModifiersEx(),
+              point.x, point.y, e.getClickCount(), e.isPopupTrigger(), e.getButton());
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+          handler.mousePressed(forward(e));
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+          handler.mouseReleased(forward(e));
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent e) {
+          handler.mouseClicked(forward(e));
+        }
+
+        @Override
+        public void mouseDragged(MouseEvent e) {
+          handler.mouseDragged(forward(e));
+        }
+      };
+    installMouseHandlerRecursive(this, forwarder);
+  }
+
+  private static void installMouseHandlerRecursive(JComponent component, MouseAdapter handler) {
+    component.addMouseListener(handler);
+    component.addMouseMotionListener(handler);
+    for (Component child : component.getComponents()) {
+      if (child instanceof JComponent) {
+        installMouseHandlerRecursive((JComponent)child, handler);
+      }
+    }
+  }
+
+  /**
+   * Shows an inline editor on this tab for renaming.
+   * @return {@code false} if rename is already in progress
+   */
+  public boolean beginInlineRename(String currentName, InlineRenameListener listener) {
+    if (this.renameField != null) {
+      return false;
+    }
+    this.renameListener = listener;
+    this.renameField = new JTextField(currentName, 12);
+    this.renameField.setBorder(null);
+    this.renameField.selectAll();
+    this.contentPanel.remove(this.nameLabel);
+    this.contentPanel.add(this.renameField, 0);
+    this.contentPanel.revalidate();
+    this.renameField.requestFocusInWindow();
+    this.renameField.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent ev) {
+          commitInlineRename();
+        }
+      });
+    this.renameField.addKeyListener(new KeyAdapter() {
+        @Override
+        public void keyPressed(KeyEvent ev) {
+          if (ev.getKeyCode() == KeyEvent.VK_ESCAPE) {
+            cancelInlineRename();
+          }
+        }
+      });
+    this.renameField.addFocusListener(new FocusAdapter() {
+        @Override
+        public void focusLost(FocusEvent ev) {
+          if (renameField != null && !ev.isTemporary()) {
+            commitInlineRename();
+          }
+        }
+      });
+    revalidate();
+    repaint();
+    return true;
+  }
+
+  public void cancelInlineRename() {
+    if (this.renameField == null) {
+      return;
+    }
+    endInlineRename(false);
+    if (this.renameListener != null) {
+      this.renameListener.cancelRename();
+    }
+  }
+
+  private void commitInlineRename() {
+    if (this.renameField == null) {
+      return;
+    }
+    String newName = this.renameField.getText().trim();
+    endInlineRename(true);
+    if (this.renameListener != null && newName.length() > 0) {
+      this.renameListener.commitRename(newName);
+    } else if (this.renameListener != null) {
+      this.renameListener.cancelRename();
+    }
+  }
+
+  private void endInlineRename(boolean keepEditorRemoved) {
+    if (this.renameField != null) {
+      this.contentPanel.remove(this.renameField);
+      this.contentPanel.add(this.nameLabel, 0);
+      this.renameField = null;
+      this.renameListener = null;
+      revalidate();
+      repaint();
+    }
+  }
+
+  public boolean isInlineRenameActive() {
+    return this.renameField != null;
   }
 
   private JLabel createNameLabel() {
@@ -162,7 +315,7 @@ public final class AlpLevelTabComponent extends JPanel {
   }
 
   private String truncateName(String name) {
-    int maxWidth = AlpCatalogStyles.scale(96);
+    int maxWidth = AlpCatalogStyles.levelTabMaxWidth() - AlpCatalogStyles.scale(16);
     FontMetrics fontMetrics = this.nameLabel.getFontMetrics(this.nameLabel.getFont());
     if (fontMetrics.stringWidth(name) <= maxWidth) {
       return name;

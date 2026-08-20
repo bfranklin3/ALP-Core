@@ -59,6 +59,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Properties;
 
+import javax.swing.AbstractAction;
+import javax.swing.Action;
 import javax.swing.JButton;
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
@@ -68,6 +70,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
+import javax.swing.KeyStroke;
 import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
 import javax.swing.TransferHandler;
@@ -87,6 +90,8 @@ import com.eteks.sweethome3d.model.LengthUnit;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.Selectable;
 import com.eteks.sweethome3d.model.TextStyle;
+import com.eteks.sweethome3d.model.SelectionEvent;
+import com.eteks.sweethome3d.model.SelectionListener;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.HomeView;
@@ -106,13 +111,20 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
 
   private static final ImageIcon sameElevationIcon = SwingTools.getScaledImageIcon(MultipleLevelsPlanPanel.class.getResource("resources/sameElevation.png"));
 
+  private final Home    home;
   private JComponent  planComponent;
   private JScrollPane planScrollPane;
+  private JPanel      planContentPanel;
+  private JPanel      planChromePanel;
+  private JComponent  drawStrip;
+  private JComponent  textFormattingPanel;
   private UserPreferences preferences;
+  private PlanController planController;
   private LevelTabbedPane multipleLevelsTabbedPane;
   private JPanel      multipleLevelsPanel;
   private JButton     addLayerButton;
   private JPanel      oneLevelPanel;
+  private MouseAdapter levelTabMouseHandler;
   private int         levelTabDragSourceStackIndex = -1;
   private Point       levelTabDragStartPoint;
   private boolean     levelTabDragging;
@@ -122,6 +134,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
                                  UserPreferences preferences,
                                  PlanController controller) {
     super(new CardLayout());
+    this.home = home;
     createComponents(home, preferences, controller);
     layoutComponents();
     updateSelectedTab(home);
@@ -133,6 +146,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
   private void createComponents(final Home home,
                                 final UserPreferences preferences, final PlanController controller) {
     this.preferences = preferences;
+    this.planController = controller;
     this.planComponent = (JComponent)createPlanComponent(home, preferences, controller);
 
     UIManager.getDefaults().put("TabbedPane.contentBorderInsets", OperatingSystem.isMacOSX()
@@ -156,6 +170,12 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
       this.planScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
       this.planScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
     }
+    this.planChromePanel = new JPanel(new BorderLayout(0, 0));
+    AlpCatalogStyles.applyWorkspacePanel(this.planChromePanel);
+    this.planContentPanel = new JPanel(new BorderLayout(0, 0));
+    this.planContentPanel.add(this.planChromePanel, BorderLayout.NORTH);
+    this.planContentPanel.add(this.planScrollPane, BorderLayout.CENTER);
+    installRenameKeyBinding(home);
 
     final boolean addLayerControlAvailable = createTabs(home, preferences);
     final ChangeListener changeListener = new ChangeListener() {
@@ -168,8 +188,8 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
         }
       };
     this.multipleLevelsTabbedPane.addChangeListener(changeListener);
-    // Add mouse listeners for tab selection, add level, modify level, and drag-reorder
-    MouseAdapter levelTabMouseHandler = new MouseAdapter() {
+    // Add mouse listeners for tab selection, modify level, and drag-reorder
+    this.levelTabMouseHandler = new MouseAdapter() {
         @Override
         public void mousePressed(MouseEvent ev) {
           resetLevelTabDragState();
@@ -232,17 +252,15 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
                   }
                 }
               });
-          } else if (indexAtLocation != -1) {
-            Component tabComponent = multipleLevelsTabbedPane.getComponentAt(indexAtLocation);
-            if (tabComponent instanceof LevelLabel) {
-              controller.setSelectedLevel(((LevelLabel)tabComponent).getLevel());
-            }
+          } else if (indexAtLocation != -1 && ev.getClickCount() >= 2) {
+            Level level = home.getLevels().get(indexAtLocation);
+            controller.setSelectedLevel(level);
             controller.modifySelectedLevel();
           }
         }
       };
-    this.multipleLevelsTabbedPane.addMouseListener(levelTabMouseHandler);
-    this.multipleLevelsTabbedPane.addMouseMotionListener(levelTabMouseHandler);
+    this.multipleLevelsTabbedPane.addMouseListener(this.levelTabMouseHandler);
+    this.multipleLevelsTabbedPane.addMouseMotionListener(this.levelTabMouseHandler);
 
      // Add listeners to levels to maintain tabs name and order
     final PropertyChangeListener levelChangeListener = new PropertyChangeListener() {
@@ -363,7 +381,91 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
         setTabComponentAt(i, tabComponent);
       }
       tabComponent.updateLevel(level, levels, i, selected);
+      tabComponent.installTabMouseHandler(this.multipleLevelsTabbedPane, this.levelTabMouseHandler);
     }
+  }
+
+  /**
+   * Installs plan-adjacent draw strip and contextual text formatting (SPIKE-31 Phase 2).
+   */
+  public void setPlanChrome(JComponent drawStrip, JComponent textFormattingPanel) {
+    this.drawStrip = drawStrip;
+    this.textFormattingPanel = textFormattingPanel;
+    rebuildPlanChrome();
+  }
+
+  /**
+   * Starts inline rename for the selected level tab (F2 or context menu).
+   */
+  public void startInlineRenameForSelectedLevel(final Home home) {
+    Level selectedLevel = home.getSelectedLevel();
+    if (selectedLevel == null) {
+      return;
+    }
+    int index = home.getLevels().indexOf(selectedLevel);
+    if (index < 0) {
+      return;
+    }
+    Component tabComponent = getTabComponentAt(index);
+    if (!(tabComponent instanceof AlpLevelTabComponent)) {
+      return;
+    }
+    final AlpLevelTabComponent levelTab = (AlpLevelTabComponent)tabComponent;
+    if (levelTab.isInlineRenameActive()) {
+      return;
+    }
+    levelTab.beginInlineRename(selectedLevel.getName(), new AlpLevelTabComponent.InlineRenameListener() {
+        public void commitRename(String newName) {
+          if (!newName.equals(selectedLevel.getName())) {
+            selectedLevel.setName(newName);
+          }
+        }
+
+        public void cancelRename() {
+        }
+      });
+  }
+
+  private void rebuildPlanChrome() {
+    this.planChromePanel.removeAll();
+    boolean hasChrome = false;
+    if (this.drawStrip != null) {
+      this.planChromePanel.add(this.drawStrip, BorderLayout.NORTH);
+      hasChrome = true;
+    }
+    if (this.textFormattingPanel != null) {
+      this.planChromePanel.add(this.textFormattingPanel, BorderLayout.SOUTH);
+      hasChrome = this.textFormattingPanel.isVisible() || hasChrome;
+    }
+    this.planChromePanel.setVisible(hasChrome);
+    this.planContentPanel.revalidate();
+    this.planContentPanel.repaint();
+  }
+
+  /**
+   * Updates visibility of the contextual text-formatting row.
+   */
+  public void updateTextFormattingVisibility(boolean visible) {
+    if (this.textFormattingPanel != null) {
+      this.textFormattingPanel.setVisible(visible);
+      rebuildPlanChrome();
+    }
+  }
+
+  private void installRenameKeyBinding(final Home home) {
+    KeyStroke f2 = KeyStroke.getKeyStroke("F2");
+    this.planComponent.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(f2, "renameLayer");
+    this.planComponent.getActionMap().put("renameLayer", new AbstractAction() {
+        public void actionPerformed(ActionEvent ev) {
+          startInlineRenameForSelectedLevel(home);
+        }
+      });
+    this.multipleLevelsTabbedPane.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(f2, "renameLayerTabBar");
+    this.multipleLevelsTabbedPane.getActionMap().put("renameLayerTabBar", new AbstractAction() {
+        public void actionPerformed(ActionEvent ev) {
+          startInlineRenameForSelectedLevel(home);
+        }
+      });
   }
 
   private void refreshTabSelectionStates(Home home) {
@@ -478,12 +580,12 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
    * Display the plan component at the selected tab index.
    */
   private void displayPlanComponentAtSelectedIndex(Home home) {
-    int planIndex = this.multipleLevelsTabbedPane.indexOfComponent(this.planScrollPane);
+    int planIndex = this.multipleLevelsTabbedPane.indexOfComponent(this.planContentPanel);
     if (planIndex != -1) {
       // Replace plan component by a dummy label to avoid losing tab
       this.multipleLevelsTabbedPane.setComponentAt(planIndex, new LevelLabel(home.getLevels().get(planIndex)));
     }
-    this.multipleLevelsTabbedPane.setComponentAt(this.multipleLevelsTabbedPane.getSelectedIndex(), this.planScrollPane);
+    this.multipleLevelsTabbedPane.setComponentAt(this.multipleLevelsTabbedPane.getSelectedIndex(), this.planContentPanel);
   }
 
   /**
@@ -494,12 +596,13 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
     List<Level> levels = home.getLevels();
     boolean focus = this.planComponent.hasFocus();
     if (levels.size() < 2 || home.getSelectedLevel() == null) {
-      int planIndex = this.multipleLevelsTabbedPane.indexOfComponent(this.planScrollPane);
+      int planIndex = this.multipleLevelsTabbedPane.indexOfComponent(this.planContentPanel);
       if (planIndex != -1) {
         // Replace plan component by a dummy label to avoid losing tab
         this.multipleLevelsTabbedPane.setComponentAt(planIndex, new LevelLabel(home.getLevels().get(planIndex)));
       }
-      this.oneLevelPanel.add(this.planScrollPane);
+      this.oneLevelPanel.removeAll();
+      this.oneLevelPanel.add(this.planContentPanel, BorderLayout.CENTER);
       layout.show(this, ONE_LEVEL_PANEL_NAME);
     } else {
       layout.show(this, MULTIPLE_LEVELS_PANEL_NAME);
@@ -588,6 +691,15 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
         }
       };
     if (tabbedPanePopup.getComponentCount() > 0) {
+      JMenuItem renameLayerMenuItem = new JMenuItem(
+          SwingTools.getLocalizedLabelText(this.preferences, MultipleLevelsPlanPanel.class, "renameLayer.text"));
+      renameLayerMenuItem.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            startInlineRenameForSelectedLevel(MultipleLevelsPlanPanel.this.home);
+          }
+        });
+      tabbedPanePopup.insert(renameLayerMenuItem, 0);
+      tabbedPanePopup.insert(new JPopupMenu.Separator(), 1);
       this.multipleLevelsTabbedPane.setComponentPopupMenu(tabbedPanePopup);
       SwingTools.hideDisabledMenuItems(tabbedPanePopup);
       tabbedPanePopup.addPopupMenuListener(popupMenuListener);
@@ -974,6 +1086,10 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
    */
   private class LevelTabbedPane extends JTabbedPane {
     private Integer insertIndicatorStackIndex;
+
+    public LevelTabbedPane() {
+      setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+    }
 
     public int getLevelTabCount() {
       return getTabCount();

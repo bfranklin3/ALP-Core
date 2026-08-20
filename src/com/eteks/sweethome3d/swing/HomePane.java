@@ -30,6 +30,7 @@ import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.FocusTraversalPolicy;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Graphics;
@@ -271,6 +272,8 @@ public class HomePane extends JRootPane implements HomeView {
   private boolean               exportAllToOBJ = true;
   private ActionMap             menuActionMap;
   private List<Action>          pluginActions;
+  private JComponent            textFormattingPanel;
+  private MultipleLevelsPlanPanel planPanel;
 
   /**
    * Creates home view associated with its controller.
@@ -296,6 +299,7 @@ public class HomePane extends JRootPane implements HomeView {
     addLevelVisibilityListener(home);
     addUserPreferencesListener(preferences);
     addPlanControllerListener(controller.getPlanController());
+    addTextFormattingVisibilityListeners(home, controller.getPlanController());
     addFocusListener();
     updateFocusTraversalPolicy();
     addClipboardListener();
@@ -931,8 +935,40 @@ public class HomePane extends JRootPane implements HomeView {
             setToggleButtonModelSelected(ActionType.CREATE_POLYLINES, mode == PlanController.Mode.POLYLINE_CREATION);
             setToggleButtonModelSelected(ActionType.CREATE_DIMENSION_LINES, mode == PlanController.Mode.DIMENSION_LINE_CREATION);
             setToggleButtonModelSelected(ActionType.CREATE_LABELS, mode == PlanController.Mode.LABEL_CREATION);
+            updateTextFormattingVisibility(planController);
           }
         });
+  }
+
+  /**
+   * Shows text formatting tools when Text mode is active or a label is selected (SPIKE-31 Phase 2).
+   */
+  private void addTextFormattingVisibilityListeners(final Home home, final PlanController planController) {
+    home.addSelectionListener(new SelectionListener() {
+        public void selectionChanged(SelectionEvent ev) {
+          updateTextFormattingVisibility(planController);
+        }
+      });
+    updateTextFormattingVisibility(planController);
+  }
+
+  private void updateTextFormattingVisibility(PlanController planController) {
+    if (this.textFormattingPanel == null) {
+      return;
+    }
+    boolean textMode = planController.getMode() == PlanController.Mode.LABEL_CREATION;
+    boolean labelSelected = false;
+    for (com.eteks.sweethome3d.model.Selectable item : this.home.getSelectedItems()) {
+      if (item instanceof com.eteks.sweethome3d.model.Label) {
+        labelSelected = true;
+        break;
+      }
+    }
+    boolean visible = textMode || labelSelected;
+    this.textFormattingPanel.setVisible(visible);
+    if (this.planPanel != null) {
+      this.planPanel.updateTextFormattingVisibility(visible);
+    }
   }
 
   /**
@@ -2675,27 +2711,6 @@ public class HomePane extends JRootPane implements HomeView {
     addActionToToolBar(ActionType.PASTE, toolBar);
     toolBar.addSeparator();
 
-    previousCount = toolBar.getComponentCount();
-    addToggleActionToToolBar(ActionType.SELECT, toolBar);
-    addToggleActionToToolBar(ActionType.PAN, toolBar);
-    addToggleActionToToolBar(ActionType.CREATE_WALLS, toolBar);
-    addToggleActionToToolBar(ActionType.CREATE_ROOMS, toolBar);
-    addToggleActionToToolBar(ActionType.CREATE_POLYLINES, toolBar);
-    addToggleActionToToolBar(ActionType.CREATE_DIMENSION_LINES, toolBar);
-    addToggleActionToToolBar(ActionType.CREATE_LABELS, toolBar);
-    if (previousCount != toolBar.getComponentCount()) {
-      toolBar.add(Box.createRigidArea(new Dimension(2, 2)));
-      previousCount = toolBar.getComponentCount();
-    }
-
-    addActionToToolBar(ActionType.INCREASE_TEXT_SIZE, toolBar);
-    addActionToToolBar(ActionType.DECREASE_TEXT_SIZE, toolBar);
-    addToggleActionToToolBar(ActionType.TOGGLE_BOLD_STYLE, toolBar);
-    addToggleActionToToolBar(ActionType.TOGGLE_ITALIC_STYLE, toolBar);
-    if (previousCount != toolBar.getComponentCount()) {
-      toolBar.add(Box.createRigidArea(new Dimension(2, 2)));
-    }
-
     addActionToToolBar(ActionType.ZOOM_IN, toolBar);
     addActionToToolBar(ActionType.ZOOM_OUT, toolBar);
 
@@ -2746,6 +2761,51 @@ public class HomePane extends JRootPane implements HomeView {
     }
 
     return toolBar;
+  }
+
+  /**
+   * Returns the plan-adjacent draw tool strip (SPIKE-31 Phase 2).
+   */
+  private JToolBar createDrawStrip() {
+    final JToolBar drawStrip = new UnfocusableToolBar();
+    AlpCatalogStyles.applyDrawStrip(drawStrip);
+    addToggleActionToToolBar(ActionType.SELECT, drawStrip);
+    addToggleActionToToolBar(ActionType.PAN, drawStrip);
+    addToggleActionToToolBar(ActionType.CREATE_WALLS, drawStrip);
+    addToggleActionToToolBar(ActionType.CREATE_ROOMS, drawStrip);
+    addToggleActionToToolBar(ActionType.CREATE_POLYLINES, drawStrip);
+    addToggleActionToToolBar(ActionType.CREATE_DIMENSION_LINES, drawStrip);
+    addToggleActionToToolBar(ActionType.CREATE_LABELS, drawStrip);
+    return drawStrip;
+  }
+
+  /**
+   * Returns contextual text-formatting controls shown for Text mode or label selection.
+   */
+  private JPanel createTextFormattingPanel() {
+    JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, AlpCatalogStyles.scale(2), AlpCatalogStyles.scale(2)));
+    AlpCatalogStyles.applyWorkspacePanel(panel);
+    addActionToPanel(ActionType.INCREASE_TEXT_SIZE, panel);
+    addActionToPanel(ActionType.DECREASE_TEXT_SIZE, panel);
+    addToggleActionToPanel(ActionType.TOGGLE_BOLD_STYLE, panel);
+    addToggleActionToPanel(ActionType.TOGGLE_ITALIC_STYLE, panel);
+    panel.setVisible(false);
+    this.textFormattingPanel = panel;
+    return panel;
+  }
+
+  private void addActionToPanel(ActionType actionType, JPanel panel) {
+    Action action = getActionMap().get(actionType);
+    if (action != null && action.getValue(Action.NAME) != null) {
+      panel.add(AlpToolBarButton.createButton(action));
+    }
+  }
+
+  private void addToggleActionToPanel(ActionType actionType, JPanel panel) {
+    Action action = getActionMap().get(actionType);
+    if (action != null && action.getValue(Action.NAME) != null) {
+      panel.add(AlpToolBarButton.createToggleButton(action));
+    }
   }
 
   /**
@@ -3606,6 +3666,11 @@ public class HomePane extends JRootPane implements HomeView {
                                           final HomeController controller) {
     JComponent planView = (JComponent)controller.getPlanController().getView();
     if (planView != null) {
+      if (planView instanceof MultipleLevelsPlanPanel) {
+        this.planPanel = (MultipleLevelsPlanPanel)planView;
+        this.planPanel.setPlanChrome(createDrawStrip(), createTextFormattingPanel());
+        updateTextFormattingVisibility(controller.getPlanController());
+      }
       // Create plan view popup menu
       JPopupMenu planViewPopup = new JPopupMenu();
       addActionToPopupMenu(ActionType.UNDO, planViewPopup);
