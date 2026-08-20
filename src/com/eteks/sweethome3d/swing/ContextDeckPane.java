@@ -34,7 +34,6 @@ import javax.swing.ListSelectionModel;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 
-import com.eteks.sweethome3d.model.AlpLevelDefaults;
 import com.eteks.sweethome3d.model.AlpPlantUtils;
 import com.eteks.sweethome3d.model.CollectionEvent;
 import com.eteks.sweethome3d.model.CollectionListener;
@@ -260,9 +259,7 @@ public class ContextDeckPane extends JPanel {
       return Panel.SELECTION;
     } else if (selectionCount == 0) {
       Level selectedLevel = this.home.getSelectedLevel();
-      if (selectedLevel != null
-          && AlpLevelDefaults.isPlantsLevel(selectedLevel, this.preferences)
-          && AlpPlantUtils.countPlantsOnLevel(this.home, selectedLevel) > 0) {
+      if (shouldAutoShowPlantsPanel(selectedLevel)) {
         return Panel.PLANTS;
       }
       return Panel.LAYERS;
@@ -276,16 +273,21 @@ public class ContextDeckPane extends JPanel {
     }
     Level selectedLevel = this.home.getSelectedLevel();
     if (selectedLevel == null
-        || !AlpLevelDefaults.isPlantsLevel(selectedLevel, this.preferences)
         || this.plantsAutoShownLevels.contains(selectedLevel)) {
       updateSelectorEnabledState();
       return;
     }
-    if (AlpPlantUtils.countPlantsOnLevel(this.home, selectedLevel) > 0) {
+    if (shouldAutoShowPlantsPanel(selectedLevel)) {
       this.plantsAutoShownLevels.add(selectedLevel);
       showPanel(Panel.PLANTS, false);
     }
     updateSelectorEnabledState();
+  }
+
+  private boolean shouldAutoShowPlantsPanel(Level level) {
+    return level != null
+        && AlpPlantUtils.isTakeoffPlantingLevel(level)
+        && AlpPlantUtils.countPlantsOnLevel(this.home, level) > 0;
   }
 
   private void applyAutoSwitch() {
@@ -324,7 +326,7 @@ public class ContextDeckPane extends JPanel {
   private void updateSelectorEnabledState() {
     this.selectionButton.setEnabled(this.home.getSelectedItems().size() >= 2
         || this.showingPanel == Panel.SELECTION);
-    this.plantsButton.setEnabled(this.plantSchedulePanel.hasPlantsOnPlantsLayer()
+    this.plantsButton.setEnabled(this.plantSchedulePanel.hasTakeoffPlants()
         || this.showingPanel == Panel.PLANTS);
   }
 

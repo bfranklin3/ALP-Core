@@ -3330,30 +3330,30 @@ public class SelectionInspectorPane extends JPanel {
       propertiesPanel.add(this.nameTextField, new GridBagConstraints(
           1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
-      propertiesPanel.add(this.viewableCheckBox, new GridBagConstraints(
-          0, 1, 2, 1, 1, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
-      propertiesPanel.add(this.lockedCheckBox, new GridBagConstraints(
-          0, 2, 2, 1, 1, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
-      propertiesPanel.add(this.selectCurrentLayerOnlyCheckBox, new GridBagConstraints(
-          0, 3, 2, 1, 1, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
       JLabel categoryLabel = AlpLevelRoleControls.createCategoryLabel(this.preferences);
       configureInspectorFieldLabel(this.preferences, LevelPanel.class,
           "categoryLabel.mnemonic", categoryLabel, this.categoryComboBox);
       propertiesPanel.add(categoryLabel, new GridBagConstraints(
-          0, 4, 1, 1, 0, 0, labelAlignment,
+          0, 1, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
       propertiesPanel.add(this.categoryComboBox, new GridBagConstraints(
-          1, 4, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          1, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
       propertiesPanel.add(this.plantTakeoffLabel, new GridBagConstraints(
-          0, 5, 1, 1, 0, 0, labelAlignment,
+          0, 2, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
       propertiesPanel.add(this.plantTakeoffComboBox, new GridBagConstraints(
-          1, 5, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          1, 2, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      propertiesPanel.add(this.viewableCheckBox, new GridBagConstraints(
+          0, 3, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      propertiesPanel.add(this.lockedCheckBox, new GridBagConstraints(
+          0, 4, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      propertiesPanel.add(this.selectCurrentLayerOnlyCheckBox, new GridBagConstraints(
+          0, 5, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
 
       fieldsPanel.add(propertiesPanel, new GridBagConstraints(
           0, row, 1, 1, 1, 0, GridBagConstraints.LINE_START,

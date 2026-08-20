@@ -49,10 +49,15 @@ final class AlpLevelRoleControls {
     plantTakeoffLabel.setVisible(planting);
     plantTakeoffComboBox.setVisible(planting);
     plantTakeoffComboBox.setEnabled(planting);
-    java.awt.Container parent = plantTakeoffLabel.getParent();
-    if (parent != null) {
+    revalidateAncestors(plantTakeoffLabel);
+  }
+
+  private static void revalidateAncestors(JComponent component) {
+    java.awt.Container parent = component;
+    while (parent != null) {
       parent.revalidate();
       parent.repaint();
+      parent = parent.getParent();
     }
   }
 

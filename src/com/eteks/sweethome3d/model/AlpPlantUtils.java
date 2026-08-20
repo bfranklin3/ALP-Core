@@ -1,14 +1,16 @@
 /*
  * AlpPlantUtils.java
  *
- * ALP CAD — plant identification and schedule aggregation (SPIKE-29b).
+ * ALP CAD — plant identification and schedule aggregation (SPIKE-29b, SPIKE-30).
  */
 package com.eteks.sweethome3d.model;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Helpers for landscape plant furniture and schedule takeoff.
@@ -32,6 +34,31 @@ public final class AlpPlantUtils {
   }
 
   /**
+   * Returns whether the level participates in proposed plant takeoff.
+   */
+  public static boolean isProposedPlantingLevel(Level level) {
+    return level != null
+        && level.getCategory() == LevelCategory.PLANTING
+        && level.getPlantTakeoff() == LevelPlantTakeoff.PROPOSED;
+  }
+
+  /**
+   * Returns whether the level participates in existing plant takeoff.
+   */
+  public static boolean isExistingPlantingLevel(Level level) {
+    return level != null
+        && level.getCategory() == LevelCategory.PLANTING
+        && level.getPlantTakeoff() == LevelPlantTakeoff.EXISTING;
+  }
+
+  /**
+   * Returns whether the level is a planting layer with any takeoff mode enabled.
+   */
+  public static boolean isTakeoffPlantingLevel(Level level) {
+    return isProposedPlantingLevel(level) || isExistingPlantingLevel(level);
+  }
+
+  /**
    * Returns the number of plant pieces on the given level.
    */
   public static int countPlantsOnLevel(Home home, Level level) {
@@ -48,13 +75,115 @@ public final class AlpPlantUtils {
   }
 
   /**
+   * Returns the number of plant pieces on proposed planting layers.
+   */
+  public static int countPlantsOnProposedLevels(Home home) {
+    return countPlantsOnLevels(home, getProposedPlantingLevels(home));
+  }
+
+  /**
+   * Returns the number of plant pieces on existing planting layers.
+   */
+  public static int countPlantsOnExistingLevels(Home home) {
+    return countPlantsOnLevels(home, getExistingPlantingLevels(home));
+  }
+
+  /**
+   * Returns whether the home has plants on any proposed planting layer.
+   */
+  public static boolean hasProposedPlants(Home home) {
+    return countPlantsOnProposedLevels(home) > 0;
+  }
+
+  /**
+   * Returns whether the home has plants on any existing planting layer.
+   */
+  public static boolean hasExistingPlants(Home home) {
+    return countPlantsOnExistingLevels(home) > 0;
+  }
+
+  /**
+   * Returns whether the home has plants on any takeoff planting layer.
+   */
+  public static boolean hasTakeoffPlants(Home home) {
+    return hasProposedPlants(home) || hasExistingPlants(home);
+  }
+
+  /**
+   * Returns proposed planting layers in home level order.
+   */
+  public static List<Level> getProposedPlantingLevels(Home home) {
+    List<Level> levels = new ArrayList<Level>();
+    if (home != null) {
+      for (Level level : home.getLevels()) {
+        if (isProposedPlantingLevel(level)) {
+          levels.add(level);
+        }
+      }
+    }
+    return levels;
+  }
+
+  /**
+   * Returns existing planting layers in home level order.
+   */
+  public static List<Level> getExistingPlantingLevels(Home home) {
+    List<Level> levels = new ArrayList<Level>();
+    if (home != null) {
+      for (Level level : home.getLevels()) {
+        if (isExistingPlantingLevel(level)) {
+          levels.add(level);
+        }
+      }
+    }
+    return levels;
+  }
+
+  /**
    * Returns aggregated plant schedule rows for the given level.
    */
   public static List<PlantScheduleRow> buildSchedule(Home home, Level level) {
+    List<Level> levels = new ArrayList<Level>(1);
+    if (level != null) {
+      levels.add(level);
+    }
+    return buildScheduleForLevels(home, levels);
+  }
+
+  /**
+   * Returns aggregated plant schedule rows for all proposed planting layers.
+   */
+  public static List<PlantScheduleRow> buildProposedSchedule(Home home) {
+    return buildScheduleForLevels(home, getProposedPlantingLevels(home));
+  }
+
+  /**
+   * Returns aggregated plant schedule rows for all existing planting layers.
+   */
+  public static List<PlantScheduleRow> buildExistingSchedule(Home home) {
+    return buildScheduleForLevels(home, getExistingPlantingLevels(home));
+  }
+
+  private static int countPlantsOnLevels(Home home, List<Level> levels) {
+    if (home == null || levels.isEmpty()) {
+      return 0;
+    }
+    Set<Level> levelSet = new HashSet<Level>(levels);
+    int count = 0;
+    for (HomePieceOfFurniture piece : home.getFurniture()) {
+      if (isPlant(piece) && levelSet.contains(piece.getLevel())) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private static List<PlantScheduleRow> buildScheduleForLevels(Home home, List<Level> levels) {
     Map<String, PlantScheduleRow> rowsByKey = new LinkedHashMap<String, PlantScheduleRow>();
-    if (home != null && level != null) {
+    if (home != null && levels != null && !levels.isEmpty()) {
+      Set<Level> levelSet = new HashSet<Level>(levels);
       for (HomePieceOfFurniture piece : home.getFurniture()) {
-        if (!isPlant(piece) || piece.getLevel() != level) {
+        if (!isPlant(piece) || !levelSet.contains(piece.getLevel())) {
           continue;
         }
         String key = getScheduleKey(piece);

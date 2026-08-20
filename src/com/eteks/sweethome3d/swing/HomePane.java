@@ -3205,9 +3205,11 @@ public class HomePane extends JRootPane implements HomeView {
 
     final ContextDeckPane contextDeckPane = new ContextDeckPane(home, preferences, controller);
     contextDeckPane.setMinimumSize(new Dimension(0, ContextDeckPane.MIN_CONTEXT_DECK_HEIGHT));
+    JComponent contextDeckWrapper = wrapCatalogSection(contextDeckPane, preferences,
+        preferences.getLocalizedString(HomePane.class, "contextDeckPanel.title"), false);
 
     final JSplitPane inspectorContextPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-        inspectorPane, contextDeckPane);
+        inspectorPane, contextDeckWrapper);
     inspectorContextPane.setBorder(null);
     inspectorContextPane.setMinimumSize(new Dimension(MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH, 0));
     configureSplitPane(inspectorContextPane, home, ContextDeckPane.DIVIDER_LOCATION_PROPERTY,

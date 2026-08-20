@@ -171,6 +171,7 @@ public final class AlpLevelDefaults {
         break;
       case 3:
         level.setCategory(LevelCategory.PLANTING);
+        level.setPlantTakeoff(LevelPlantTakeoff.PROPOSED);
         break;
       case 4:
         level.setCategory(LevelCategory.ANNOTATION);
