@@ -35,9 +35,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
 
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.Level;
@@ -61,6 +59,7 @@ public final class AlpLevelTabComponent extends JPanel {
   private final JPanel           contentPanel;
   private final ImageIcon        sameElevationIcon;
   private boolean                selected;
+  private boolean                mouseHandlerInstalled;
   private JTextField             renameField;
   private InlineRenameListener   renameListener;
 
@@ -103,6 +102,27 @@ public final class AlpLevelTabComponent extends JPanel {
   }
 
   /**
+   * Installs a shared tab-strip mouse handler once on this header and its children.
+   */
+  public void ensureMouseHandler(MouseAdapter handler) {
+    if (handler == null || this.mouseHandlerInstalled) {
+      return;
+    }
+    installMouseHandlerRecursive(this, handler);
+    this.mouseHandlerInstalled = true;
+  }
+
+  public static void installMouseHandlerRecursive(JComponent component, MouseAdapter handler) {
+    component.addMouseListener(handler);
+    component.addMouseMotionListener(handler);
+    for (Component child : component.getComponents()) {
+      if (child instanceof JComponent) {
+        installMouseHandlerRecursive((JComponent)child, handler);
+      }
+    }
+  }
+
+  /**
    * Refreshes tab content from the given level and tab index.
    */
   public void updateLevel(Level level, List<Level> levels, int index, boolean selected) {
@@ -137,8 +157,10 @@ public final class AlpLevelTabComponent extends JPanel {
     AlpCatalogStyles.applyLevelTabComponent(this, selected);
     this.nameLabel.setForeground(AlpCatalogStyles.levelTabTextColor(selected));
     int maxWidth = AlpCatalogStyles.levelTabMaxWidth();
-    setPreferredSize(new Dimension(maxWidth, getPreferredSize().height));
-    setMaximumSize(new Dimension(maxWidth, Short.MAX_VALUE));
+    int tabHeight = AlpCatalogStyles.scale(24);
+    setPreferredSize(new Dimension(maxWidth, tabHeight));
+    setMinimumSize(new Dimension(AlpCatalogStyles.scale(48), tabHeight));
+    setMaximumSize(new Dimension(maxWidth, tabHeight));
     revalidate();
     repaint();
   }
@@ -149,51 +171,6 @@ public final class AlpLevelTabComponent extends JPanel {
       AlpCatalogStyles.applyLevelTabComponent(this, selected);
       this.nameLabel.setForeground(AlpCatalogStyles.levelTabTextColor(selected));
       repaint();
-    }
-  }
-
-  /**
-   * Forwards tab mouse events to the tabbed pane handler (fixes Modify Level double-click).
-   */
-  public void installTabMouseHandler(final JTabbedPane tabbedPane, final MouseAdapter handler) {
-    MouseAdapter forwarder = new MouseAdapter() {
-        private MouseEvent forward(MouseEvent e) {
-          Component source = (Component)e.getSource();
-          Point point = SwingUtilities.convertPoint(source, e.getPoint(), tabbedPane);
-          return new MouseEvent(tabbedPane, e.getID(), e.getWhen(), e.getModifiersEx(),
-              point.x, point.y, e.getClickCount(), e.isPopupTrigger(), e.getButton());
-        }
-
-        @Override
-        public void mousePressed(MouseEvent e) {
-          handler.mousePressed(forward(e));
-        }
-
-        @Override
-        public void mouseReleased(MouseEvent e) {
-          handler.mouseReleased(forward(e));
-        }
-
-        @Override
-        public void mouseClicked(MouseEvent e) {
-          handler.mouseClicked(forward(e));
-        }
-
-        @Override
-        public void mouseDragged(MouseEvent e) {
-          handler.mouseDragged(forward(e));
-        }
-      };
-    installMouseHandlerRecursive(this, forwarder);
-  }
-
-  private static void installMouseHandlerRecursive(JComponent component, MouseAdapter handler) {
-    component.addMouseListener(handler);
-    component.addMouseMotionListener(handler);
-    for (Component child : component.getComponents()) {
-      if (child instanceof JComponent) {
-        installMouseHandlerRecursive((JComponent)child, handler);
-      }
     }
   }
 

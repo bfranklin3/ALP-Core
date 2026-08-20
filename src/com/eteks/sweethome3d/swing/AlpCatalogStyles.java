@@ -244,7 +244,9 @@ public final class AlpCatalogStyles {
   /** Applies ALP styling to the plan-adjacent draw strip. */
   public static void applyDrawStrip(JToolBar drawStrip) {
     applyToolBar(drawStrip);
-    drawStrip.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, CHIP_BORDER));
+    drawStrip.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createEmptyBorder(scale(8), scale(4), scale(4), scale(4)),
+        BorderFactory.createMatteBorder(0, 0, 1, 0, CHIP_BORDER)));
   }
 
   /** Styles the layer tab bar wrapper and + Layer control. */
