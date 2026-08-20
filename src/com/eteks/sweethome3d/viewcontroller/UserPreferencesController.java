@@ -36,7 +36,7 @@ public class UserPreferencesController implements Controller {
    */
   public enum Property {LANGUAGE, UNIT, CURRENCY, VALUE_ADDED_TAX_ENABLED,
       MAGNETISM_ENABLED, RULERS_VISIBLE, GRID_VISIBLE, DEFAULT_FONT_NAME,
-      FURNITURE_VIEWED_FROM_TOP, FURNITURE_MODEL_ICON_SIZE, ROOM_FLOOR_COLORED_OR_TEXTURED, WALL_PATTERN, NEW_WALL_PATTERN,
+      FURNITURE_VIEWED_FROM_TOP, FURNITURE_MODEL_ICON_SIZE, ROOM_FLOOR_COLORED_OR_TEXTURED, DEFAULT_TEXTURES_LIBRARY_ID, WALL_PATTERN, NEW_WALL_PATTERN,
       NEW_WALL_THICKNESS, NEW_WALL_HEIGHT, NEW_FLOOR_THICKNESS, FURNITURE_CATALOG_VIEWED_IN_TREE,
       NAVIGATION_PANEL_VISIBLE, EDITING_IN_3D_VIEW_ENABLED, AERIAL_VIEW_CENTERED_ON_SELECTION_ENABLED, OBSERVER_CAMERA_SELECTED_AT_CHANGE,
       CHECK_UPDATES_ENABLED, AUTO_SAVE_DELAY_FOR_RECOVERY, AUTO_SAVE_FOR_RECOVERY_ENABLED}
@@ -63,6 +63,7 @@ public class UserPreferencesController implements Controller {
   private boolean                       furnitureViewedFromTop;
   private int                           furnitureModelIconSize;
   private boolean                       roomFloorColoredOrTextured;
+  private String                        defaultTexturesLibraryId;
   private TextureImage                  wallPattern;
   private TextureImage                  newWallPattern;
   private float                         newWallThickness;
@@ -148,6 +149,7 @@ public class UserPreferencesController implements Controller {
     setFurnitureViewedFromTop(this.preferences.isFurnitureViewedFromTop());
     setFurnitureModelIconSize(this.preferences.getFurnitureModelIconSize());
     setRoomFloorColoredOrTextured(this.preferences.isRoomFloorColoredOrTextured());
+    setDefaultTexturesLibraryId(this.preferences.getDefaultTexturesLibraryId());
     setWallPattern(this.preferences.getWallPattern());
     setNewWallPattern(this.preferences.getNewWallPattern());
     float minimumLength = getUnit().getMinimumLength();
@@ -480,6 +482,27 @@ public class UserPreferencesController implements Controller {
   }
 
   /**
+   * Sets the default texture library id used when choosing area fill textures.
+   */
+  public void setDefaultTexturesLibraryId(String defaultTexturesLibraryId) {
+    if (this.defaultTexturesLibraryId != defaultTexturesLibraryId
+        && (this.defaultTexturesLibraryId == null
+            || !this.defaultTexturesLibraryId.equals(defaultTexturesLibraryId))) {
+      String oldDefaultTexturesLibraryId = this.defaultTexturesLibraryId;
+      this.defaultTexturesLibraryId = defaultTexturesLibraryId;
+      this.propertyChangeSupport.firePropertyChange(Property.DEFAULT_TEXTURES_LIBRARY_ID.name(),
+          oldDefaultTexturesLibraryId, defaultTexturesLibraryId);
+    }
+  }
+
+  /**
+   * Returns the default texture library id used when choosing area fill textures.
+   */
+  public String getDefaultTexturesLibraryId() {
+    return this.defaultTexturesLibraryId;
+  }
+
+  /**
    * Sets default walls top pattern in plan, and notifies
    * listeners of this change.
    */
@@ -685,6 +708,7 @@ public class UserPreferencesController implements Controller {
     this.preferences.setFurnitureViewedFromTop(isFurnitureViewedFromTop());
     this.preferences.setFurnitureModelIconSize(getFurnitureModelIconSize());
     this.preferences.setFloorColoredOrTextured(isRoomFloorColoredOrTextured());
+    this.preferences.setDefaultTexturesLibraryId(getDefaultTexturesLibraryId());
     this.preferences.setWallPattern(getWallPattern());
     this.preferences.setNewWallPattern(getNewWallPattern());
     this.preferences.setNewWallThickness(getNewWallThickness());

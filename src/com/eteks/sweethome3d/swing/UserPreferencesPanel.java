@@ -68,6 +68,7 @@ import javax.swing.event.ChangeListener;
 
 import com.eteks.sweethome3d.j3d.Component3DManager;
 import com.eteks.sweethome3d.model.LengthUnit;
+import com.eteks.sweethome3d.model.Library;
 import com.eteks.sweethome3d.model.TextureImage;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.tools.OperatingSystem;
@@ -116,6 +117,8 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
   private JLabel           roomRenderingLabel;
   private JRadioButton     monochromeRadioButton;
   private JRadioButton     floorColorOrTextureRadioButton;
+  private JLabel           defaultTextureLibraryLabel;
+  private JComboBox        defaultTextureLibraryComboBox;
   private JLabel           wallPatternLabel;
   private JComboBox        wallPatternComboBox;
   private JLabel           newWallPatternLabel;
@@ -633,6 +636,37 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
           });
     }
 
+    this.defaultTextureLibraryLabel = new JLabel(preferences.getLocalizedString(
+        UserPreferencesPanel.class, "defaultTextureLibraryLabel.text"));
+    this.defaultTextureLibraryComboBox = new JComboBox();
+    this.defaultTextureLibraryComboBox.setRenderer(new DefaultListCellRenderer() {
+        @Override
+        public Component getListCellRendererComponent(JList list, Object value, int index,
+            boolean isSelected, boolean cellHasFocus) {
+          super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+          if (value instanceof Library) {
+            Library library = (Library)value;
+            setText(library.getName() != null ? library.getName() : library.getId());
+          }
+          return this;
+        }
+      });
+    updateDefaultTextureLibraryComboBox(preferences, controller);
+    this.defaultTextureLibraryComboBox.addItemListener(new ItemListener() {
+        public void itemStateChanged(ItemEvent ev) {
+          if (ev.getStateChange() == ItemEvent.SELECTED) {
+            Library library = (Library)defaultTextureLibraryComboBox.getSelectedItem();
+            controller.setDefaultTexturesLibraryId(library != null ? library.getId() : null);
+          }
+        }
+      });
+    controller.addPropertyChangeListener(UserPreferencesController.Property.DEFAULT_TEXTURES_LIBRARY_ID,
+        new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            updateDefaultTextureLibraryComboBox(preferences, controller);
+          }
+        });
+
     if (controller.isPropertyEditable(UserPreferencesController.Property.NEW_WALL_PATTERN)) {
       // Create new wall pattern label and combo box bound to controller NEW_WALL_PATTERN property
       this.newWallPatternLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
@@ -987,6 +1021,11 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
         this.floorColorOrTextureRadioButton.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
             UserPreferencesPanel.class, "floorColorOrTextureRadioButton.mnemonic")).getKeyCode());
       }
+      if (this.defaultTextureLibraryLabel != null) {
+        this.defaultTextureLibraryLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
+            UserPreferencesPanel.class, "defaultTextureLibraryLabel.mnemonic")).getKeyCode());
+        this.defaultTextureLibraryLabel.setLabelFor(this.defaultTextureLibraryComboBox);
+      }
       if (this.newWallPatternLabel != null) {
         this.newWallPatternLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
             UserPreferencesPanel.class, "newWallPatternLabel.mnemonic")).getKeyCode());
@@ -1227,47 +1266,55 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
           1, 14, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, checkBoxInsets, 0, 0));
     }
-    if (this.newWallPatternLabel != null) {
-      // Sixteenth row
-      add(this.newWallPatternLabel, new GridBagConstraints(
+    if (this.defaultTextureLibraryLabel != null) {
+      add(this.defaultTextureLibraryLabel, new GridBagConstraints(
           0, 15, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, labelInsets, 0, 0));
-      add(this.newWallPatternComboBox, new GridBagConstraints(
+      add(this.defaultTextureLibraryComboBox, new GridBagConstraints(
           1, 15, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
+    }
+    if (this.newWallPatternLabel != null) {
+      // Seventeenth row
+      add(this.newWallPatternLabel, new GridBagConstraints(
+          0, 16, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.NONE, labelInsets, 0, 0));
+      add(this.newWallPatternComboBox, new GridBagConstraints(
+          1, 16, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, rightComponentInsets, 0, 0));
     } else if (this.wallPatternLabel != null) {
       add(this.wallPatternLabel, new GridBagConstraints(
-          0, 15, 1, 1, 0, 0, labelAlignment,
+          0, 16, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, labelInsets, 0, 0));
       add(this.wallPatternComboBox, new GridBagConstraints(
-          1, 15, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+          1, 16, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, rightComponentInsets, 0, 0));
     }
     if (this.newWallThicknessLabel != null) {
-      // Seventeenth row
-      add(this.newWallThicknessLabel, new GridBagConstraints(
-          0, 16, 1, 1, 0, 0, labelAlignment,
-          GridBagConstraints.NONE, labelInsets, 0, 0));
-      add(this.newWallThicknessSpinner, new GridBagConstraints(
-          1, 16, 1, 1, 0, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
-    }
-    if (this.newWallHeightLabel != null) {
       // Eighteenth row
-      add(this.newWallHeightLabel, new GridBagConstraints(
+      add(this.newWallThicknessLabel, new GridBagConstraints(
           0, 17, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, labelInsets, 0, 0));
-      add(this.newWallHeightSpinner, new GridBagConstraints(
+      add(this.newWallThicknessSpinner, new GridBagConstraints(
           1, 17, 1, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
     }
-    if (this.newFloorThicknessLabel != null) {
+    if (this.newWallHeightLabel != null) {
       // Nineteenth row
-      add(this.newFloorThicknessLabel, new GridBagConstraints(
+      add(this.newWallHeightLabel, new GridBagConstraints(
           0, 18, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, labelInsets, 0, 0));
-      add(this.newFloorThicknessSpinner, new GridBagConstraints(
+      add(this.newWallHeightSpinner, new GridBagConstraints(
           1, 18, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
+    }
+    if (this.newFloorThicknessLabel != null) {
+      // Twentieth row
+      add(this.newFloorThicknessLabel, new GridBagConstraints(
+          0, 19, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.NONE, labelInsets, 0, 0));
+      add(this.newFloorThicknessSpinner, new GridBagConstraints(
+          1, 19, 1, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
     }
     if (this.checkUpdatesCheckBox != null
@@ -1299,7 +1346,7 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
                 GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
       }
       add(updatesAndAutoSaveDelayForRecoveryPanel, new GridBagConstraints(
-          0, 19, 3, 1, 0, 0, GridBagConstraints.LINE_START,
+          0, 20, 3, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, rightComponentInsets, 0, 0));
     }
 
@@ -1308,8 +1355,24 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
         && this.resetDisplayedActionTipsButton.getText().length() > 0) {
       // Display reset button only if its text isn't empty
       add(this.resetDisplayedActionTipsButton, new GridBagConstraints(
-          0, 20, 3, 1, 0, 0, GridBagConstraints.CENTER,
+          0, 21, 3, 1, 0, 0, GridBagConstraints.CENTER,
           GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
+    }
+  }
+
+  private void updateDefaultTextureLibraryComboBox(UserPreferences preferences,
+                                                   UserPreferencesController controller) {
+    List libraries = AlpTextureCatalogSupport.getTextureLibraries(preferences);
+    this.defaultTextureLibraryComboBox.setModel(new DefaultComboBoxModel(
+        libraries.toArray()));
+    boolean singleLibrary = libraries.size() <= 1;
+    this.defaultTextureLibraryComboBox.setEnabled(!singleLibrary);
+    Library selectedLibrary = AlpTextureCatalogSupport.findLibraryById(
+        libraries, controller.getDefaultTexturesLibraryId());
+    if (selectedLibrary != null) {
+      this.defaultTextureLibraryComboBox.setSelectedItem(selectedLibrary);
+    } else if (!libraries.isEmpty()) {
+      this.defaultTextureLibraryComboBox.setSelectedIndex(0);
     }
   }
 

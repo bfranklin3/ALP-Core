@@ -7,13 +7,17 @@ package com.eteks.sweethome3d.swing;
 
 import com.eteks.sweethome3d.model.LevelCategory;
 
+import com.eteks.sweethome3d.tools.OperatingSystem;
+
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 
+import javax.swing.AbstractButton;
 import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
@@ -244,9 +248,46 @@ public final class AlpCatalogStyles {
   /** Applies ALP styling to the plan-adjacent draw strip. */
   public static void applyDrawStrip(JToolBar drawStrip) {
     applyToolBar(drawStrip);
+    int bottomPadding = scale(8);
     drawStrip.setBorder(BorderFactory.createCompoundBorder(
-        BorderFactory.createEmptyBorder(scale(8), scale(4), scale(4), scale(4)),
+        BorderFactory.createEmptyBorder(scale(4), scale(4), bottomPadding, scale(4)),
         BorderFactory.createMatteBorder(0, 0, 1, 0, CHIP_BORDER)));
+    int minHeight = drawStripHeight();
+    drawStrip.setMinimumSize(new Dimension(0, minHeight));
+    Dimension preferredSize = drawStrip.getPreferredSize();
+    drawStrip.setPreferredSize(new Dimension(preferredSize.width,
+        Math.max(preferredSize.height, minHeight)));
+  }
+
+  /** Ensures draw-strip buttons reserve enough height for icon + label text. */
+  public static void finalizeDrawStrip(JToolBar drawStrip) {
+    int stripHeight = drawStripHeight();
+    int buttonMinHeight = scale(52);
+    for (Component component : drawStrip.getComponents()) {
+      if (component instanceof AbstractButton) {
+        AbstractButton button = (AbstractButton)component;
+        int margin = scale(2);
+        button.setMargin(new Insets(margin, margin, margin + scale(3), margin));
+        Dimension preferredSize = button.getPreferredSize();
+        button.setPreferredSize(new Dimension(
+            Math.max(preferredSize.width, scale(48)),
+            Math.max(preferredSize.height, buttonMinHeight)));
+      }
+    }
+    Dimension preferredSize = drawStrip.getPreferredSize();
+    drawStrip.setPreferredSize(new Dimension(preferredSize.width,
+        Math.max(preferredSize.height, stripHeight)));
+    drawStrip.setMinimumSize(new Dimension(0, stripHeight));
+  }
+
+  /** Minimum height for the plan-adjacent draw tool strip. */
+  public static int drawStripHeight() {
+    return scale(68);
+  }
+
+  /** Preferred height for the layer tab header row. */
+  public static int levelTabBarHeight() {
+    return scale(OperatingSystem.isMacOSX() ? 32 : 28);
   }
 
   /** Styles the layer tab bar wrapper and + Layer control. */

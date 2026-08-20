@@ -2776,6 +2776,7 @@ public class HomePane extends JRootPane implements HomeView {
     addToggleActionToToolBar(ActionType.CREATE_POLYLINES, drawStrip);
     addToggleActionToToolBar(ActionType.CREATE_DIMENSION_LINES, drawStrip);
     addToggleActionToToolBar(ActionType.CREATE_LABELS, drawStrip);
+    AlpCatalogStyles.finalizeDrawStrip(drawStrip);
     return drawStrip;
   }
 

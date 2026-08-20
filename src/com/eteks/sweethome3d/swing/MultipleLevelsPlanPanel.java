@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Properties;
 
 import javax.swing.AbstractAction;
+import javax.swing.AbstractButton;
 import javax.swing.Action;
 import javax.swing.JButton;
 import javax.swing.ImageIcon;
@@ -122,6 +123,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
   private UserPreferences preferences;
   private PlanController planController;
   private LevelTabbedPane multipleLevelsTabbedPane;
+  private JPanel      tabBarRow;
   private JPanel      multipleLevelsPanel;
   private JButton     addLayerButton;
   private JPanel      oneLevelPanel;
@@ -130,6 +132,8 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
   private Point       levelTabDragStartPoint;
   private boolean     levelTabDragging;
   private boolean     levelTabDragOccurred;
+  private JPopupMenu  levelTabPopupMenu;
+  private boolean     levelTabPopupScheduled;
 
   public MultipleLevelsPlanPanel(Home home,
                                  UserPreferences preferences,
@@ -157,13 +161,16 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
     if (OperatingSystem.isMacOSX()) {
       this.multipleLevelsTabbedPane.setBorder(new EmptyBorder(-2, -6, -7, -6));
     }
-    this.multipleLevelsPanel = new JPanel(new BorderLayout(0, 0));
-    AlpCatalogStyles.applyLevelTabBar(this.multipleLevelsPanel);
-    this.multipleLevelsPanel.add(this.multipleLevelsTabbedPane, BorderLayout.CENTER);
+    this.tabBarRow = new JPanel(new BorderLayout(0, 0));
+    AlpCatalogStyles.applyLevelTabBar(this.tabBarRow);
+    this.tabBarRow.add(this.multipleLevelsTabbedPane, BorderLayout.CENTER);
     this.addLayerButton = createAddLayerButton(preferences, controller);
     if (this.addLayerButton != null) {
-      this.multipleLevelsPanel.add(this.addLayerButton, BorderLayout.EAST);
+      this.tabBarRow.add(this.addLayerButton, BorderLayout.EAST);
     }
+    this.multipleLevelsPanel = new JPanel(new BorderLayout(0, 0));
+    AlpCatalogStyles.applyWorkspacePanel(this.multipleLevelsPanel);
+    this.multipleLevelsPanel.add(this.tabBarRow, BorderLayout.NORTH);
     List<Level> levels = home.getLevels();
     this.planScrollPane = new JScrollPane(this.planComponent);
     this.planScrollPane.setMinimumSize(new Dimension());
@@ -177,6 +184,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
     this.planContentPanel = new JPanel(new BorderLayout(0, 0));
     this.planContentPanel.add(this.planChromePanel, BorderLayout.NORTH);
     this.planContentPanel.add(this.planScrollPane, BorderLayout.CENTER);
+    this.multipleLevelsPanel.add(this.planContentPanel, BorderLayout.CENTER);
     installRenameKeyBinding(home);
 
     // Must exist before createTabs() so tab headers can register it
@@ -270,6 +278,12 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
     return new MouseAdapter() {
         @Override
         public void mousePressed(MouseEvent ev) {
+          if (showLevelTabPopupIfNeeded(ev)) {
+            return;
+          }
+          if (SwingUtilities.isRightMouseButton(ev)) {
+            return;
+          }
           int tabIndex = resolveTabIndex(ev);
           if (tabIndex >= 0) {
             handleLevelTabMousePressed(tabIndex, ev, home, controller);
@@ -278,6 +292,9 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
 
         @Override
         public void mouseReleased(MouseEvent ev) {
+          if (showLevelTabPopupIfNeeded(ev)) {
+            return;
+          }
           int tabIndex = resolveTabIndex(ev);
           if (tabIndex >= 0) {
             handleLevelTabMouseReleased(tabIndex, ev, home, controller);
@@ -301,6 +318,54 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
           }
         }
       };
+  }
+
+  /**
+   * Shows the layer tab context menu on right-click or Ctrl-click (macOS).
+   */
+  private boolean showLevelTabPopupIfNeeded(MouseEvent event) {
+    if (!event.isPopupTrigger() || this.levelTabPopupMenu == null) {
+      return false;
+    }
+    if (this.levelTabPopupScheduled
+        || (this.levelTabPopupMenu.isVisible() && this.levelTabPopupMenu.isShowing())) {
+      return true;
+    }
+    this.levelTabPopupScheduled = true;
+    endLevelTabDrag();
+    final int tabIndex = resolveTabIndex(event);
+    final Component source = (Component)event.getSource();
+    final int x = event.getX();
+    final int y = event.getY();
+    EventQueue.invokeLater(new Runnable() {
+        public void run() {
+          levelTabPopupScheduled = false;
+          if (tabIndex >= 0) {
+            ensureLevelTabSelected(tabIndex, MultipleLevelsPlanPanel.this.home,
+                MultipleLevelsPlanPanel.this.planController);
+          }
+          levelTabPopupMenu.show(source, x, y);
+        }
+      });
+    return true;
+  }
+
+  private boolean isLevelTabPopupGesture(MouseEvent event) {
+    return event.isPopupTrigger()
+        || SwingUtilities.isRightMouseButton(event)
+        || (OperatingSystem.isMacOSX() && event.isControlDown());
+  }
+
+  private void ensureLevelTabSelected(int tabIndex, Home home, PlanController controller) {
+    if (tabIndex < 0 || tabIndex >= home.getLevels().size()) {
+      return;
+    }
+    Level level = home.getLevels().get(tabIndex);
+    if (this.multipleLevelsTabbedPane.getSelectedIndex() != tabIndex) {
+      selectLevelTab(tabIndex, home, controller);
+    } else if (home.getSelectedLevel() != level) {
+      controller.setSelectedLevel(level);
+    }
   }
 
   private void handleLevelTabMousePressed(int tabIndex, MouseEvent event,
@@ -330,6 +395,11 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
 
   private void handleLevelTabMouseClicked(int tabIndex, MouseEvent event,
       Home home, PlanController controller) {
+    if (this.levelTabPopupScheduled
+        || (this.levelTabPopupMenu != null && this.levelTabPopupMenu.isShowing())
+        || isLevelTabPopupGesture(event)) {
+      return;
+    }
     if (levelTabDragOccurred) {
       levelTabDragOccurred = false;
       return;
@@ -678,15 +748,10 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
   }
 
   /**
-   * Display the plan component at the selected tab index.
+   * Keeps the shared plan view aligned with the selected level tab.
    */
   private void displayPlanComponentAtSelectedIndex(Home home) {
-    int planIndex = this.multipleLevelsTabbedPane.indexOfComponent(this.planContentPanel);
-    if (planIndex != -1) {
-      // Replace plan component by a dummy label to avoid losing tab
-      this.multipleLevelsTabbedPane.setComponentAt(planIndex, new LevelLabel(home.getLevels().get(planIndex)));
-    }
-    this.multipleLevelsTabbedPane.setComponentAt(this.multipleLevelsTabbedPane.getSelectedIndex(), this.planContentPanel);
+    // Plan content lives below the tab bar; tab switches only change selected level.
   }
 
   /**
@@ -697,15 +762,17 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
     List<Level> levels = home.getLevels();
     boolean focus = this.planComponent.hasFocus();
     if (levels.size() < 2 || home.getSelectedLevel() == null) {
-      int planIndex = this.multipleLevelsTabbedPane.indexOfComponent(this.planContentPanel);
-      if (planIndex != -1) {
-        // Replace plan component by a dummy label to avoid losing tab
-        this.multipleLevelsTabbedPane.setComponentAt(planIndex, new LevelLabel(home.getLevels().get(planIndex)));
-      }
       this.oneLevelPanel.removeAll();
+      if (this.planContentPanel.getParent() == this.multipleLevelsPanel) {
+        this.multipleLevelsPanel.remove(this.planContentPanel);
+      }
       this.oneLevelPanel.add(this.planContentPanel, BorderLayout.CENTER);
       layout.show(this, ONE_LEVEL_PANEL_NAME);
     } else {
+      if (this.planContentPanel.getParent() == this.oneLevelPanel) {
+        this.oneLevelPanel.remove(this.planContentPanel);
+        this.multipleLevelsPanel.add(this.planContentPanel, BorderLayout.CENTER);
+      }
       layout.show(this, MULTIPLE_LEVELS_PANEL_NAME);
     }
     if (focus) {
@@ -801,7 +868,7 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
         });
       tabbedPanePopup.insert(renameLayerMenuItem, 0);
       tabbedPanePopup.insert(new JPopupMenu.Separator(), 1);
-      this.multipleLevelsTabbedPane.setComponentPopupMenu(tabbedPanePopup);
+      this.levelTabPopupMenu = tabbedPanePopup;
       SwingTools.hideDisabledMenuItems(tabbedPanePopup);
       tabbedPanePopup.addPopupMenuListener(popupMenuListener);
     }
@@ -1190,6 +1257,35 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
 
     public LevelTabbedPane() {
       setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+      Dimension size = super.getPreferredSize();
+      size.height = getTabAreaHeight(size.height);
+      return size;
+    }
+
+    @Override
+    public Dimension getMinimumSize() {
+      return getPreferredSize();
+    }
+
+    @Override
+    public Dimension getMaximumSize() {
+      Dimension preferredSize = getPreferredSize();
+      return new Dimension(Integer.MAX_VALUE, preferredSize.height);
+    }
+
+    private int getTabAreaHeight(int fallbackHeight) {
+      if (getTabCount() > 0) {
+        Rectangle tabBounds = getBoundsAt(0);
+        if (tabBounds != null) {
+          Insets insets = getInsets();
+          return tabBounds.y + tabBounds.height + insets.top + insets.bottom;
+        }
+      }
+      return Math.min(fallbackHeight, AlpCatalogStyles.levelTabBarHeight());
     }
 
     public int getLevelTabCount() {

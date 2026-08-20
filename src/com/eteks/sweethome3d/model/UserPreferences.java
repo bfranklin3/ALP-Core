@@ -52,7 +52,7 @@ public abstract class UserPreferences {
    */
   public enum Property {LANGUAGE, SUPPORTED_LANGUAGES, UNIT, CURRENCY, VALUE_ADDED_TAX_ENABLED, DEFAULT_VALUE_ADDED_TAX_PERCENTAGE,
                         MAGNETISM_ENABLED, RULERS_VISIBLE, GRID_VISIBLE, DEFAULT_FONT_NAME,
-                        FURNITURE_VIEWED_FROM_TOP, FURNITURE_MODEL_ICON_SIZE, ROOM_FLOOR_COLORED_OR_TEXTURED, WALL_PATTERN, NEW_WALL_PATTERN,
+                        FURNITURE_VIEWED_FROM_TOP, FURNITURE_MODEL_ICON_SIZE, ROOM_FLOOR_COLORED_OR_TEXTURED, DEFAULT_TEXTURES_LIBRARY_ID, WALL_PATTERN, NEW_WALL_PATTERN,
                         NEW_WALL_THICKNESS, NEW_WALL_HEIGHT, NEW_WALL_SIDEBOARD_THICKNESS, NEW_WALL_SIDEBOARD_HEIGHT, NEW_ROOM_FLOOR_COLOR, NEW_FLOOR_THICKNESS, NEW_LEVEL_HEIGHT,
                         RECENT_HOMES, IGNORED_ACTION_TIP, FURNITURE_CATALOG_VIEWED_IN_TREE, NAVIGATION_PANEL_VISIBLE,
                         AERIAL_VIEW_CENTERED_ON_SELECTION_ENABLED, OBSERVER_CAMERA_SELECTED_AT_CHANGE, EDITING_IN_3D_VIEW_ENABLED, CHECK_UPDATES_ENABLED,
@@ -114,6 +114,7 @@ public abstract class UserPreferences {
   private boolean          furnitureViewedFromTop;
   private int              furnitureModelIconSize = 128;
   private boolean          roomFloorColoredOrTextured;
+  private String           defaultTexturesLibraryId;
   private TextureImage     wallPattern;
   private TextureImage     newWallPattern;
   private float            newWallThickness;
@@ -865,6 +866,29 @@ public abstract class UserPreferences {
       this.roomFloorColoredOrTextured = roomFloorColoredOrTextured;
       this.propertyChangeSupport.firePropertyChange(Property.ROOM_FLOOR_COLORED_OR_TEXTURED.name(),
           !roomFloorColoredOrTextured, roomFloorColoredOrTextured);
+    }
+  }
+
+  /**
+   * Returns the default texture library id used when choosing area fill textures,
+   * or <code>null</code> if none is set.
+   */
+  public String getDefaultTexturesLibraryId() {
+    return this.defaultTexturesLibraryId;
+  }
+
+  /**
+   * Sets the default texture library id used when choosing area fill textures,
+   * and notifies listeners of this change.
+   */
+  public void setDefaultTexturesLibraryId(String defaultTexturesLibraryId) {
+    if (this.defaultTexturesLibraryId != defaultTexturesLibraryId
+        && (this.defaultTexturesLibraryId == null
+            || !this.defaultTexturesLibraryId.equals(defaultTexturesLibraryId))) {
+      String oldDefaultTexturesLibraryId = this.defaultTexturesLibraryId;
+      this.defaultTexturesLibraryId = defaultTexturesLibraryId;
+      this.propertyChangeSupport.firePropertyChange(Property.DEFAULT_TEXTURES_LIBRARY_ID.name(),
+          oldDefaultTexturesLibraryId, defaultTexturesLibraryId);
     }
   }
 

@@ -240,7 +240,17 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
                                   final TextureChoiceController controller) {
       this.availableTexturesLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
           TextureChoiceComponent.class, "availableTexturesLabel.text"));
-      final TexturesCatalogListModel texturesListModel = new TexturesCatalogListModel(preferences.getTexturesCatalog());
+      final TexturesCatalogListModel texturesListModel =
+          new TexturesCatalogListModel(preferences.getTexturesCatalog(), controller);
+      PropertyChangeListener filterChangeListener = new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            texturesListModel.resetTexturesList();
+          }
+        };
+      controller.addPropertyChangeListener(
+          TextureChoiceController.Property.LIBRARY_ID_FILTER, filterChangeListener);
+      controller.addPropertyChangeListener(
+          TextureChoiceController.Property.CATEGORY_NAME_FILTER, filterChangeListener);
       this.availableTexturesList = new JList(texturesListModel) {
           @Override
           public JToolTip createToolTip() {
@@ -999,12 +1009,15 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
      * List model adaptor to CatalogTexture instances of catalog.
      */
     private static class TexturesCatalogListModel extends AbstractListModel {
-      private TexturesCatalog        catalog;
-      private List<CatalogTexture>   textures;
-      private String                 filterText;
+      private TexturesCatalog             catalog;
+      private TextureChoiceController     controller;
+      private List<CatalogTexture>        textures;
+      private String                      filterText;
 
-      public TexturesCatalogListModel(TexturesCatalog catalog) {
+      public TexturesCatalogListModel(TexturesCatalog catalog,
+                                      TextureChoiceController controller) {
         this.catalog = catalog;
+        this.controller = controller;
         this.filterText = "";
         catalog.addTexturesListener(new TexturesCatalogListener(this));
       }
@@ -1025,22 +1038,29 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
       }
 
       private void resetTexturesList() {
-        if (this.textures != null) {
-          this.textures = null;
-          EventQueue.invokeLater(new Runnable() {
-              public void run() {
-                fireContentsChanged(this, -1, -1);
-              }
-            });
-        }
+        this.textures = null;
+        EventQueue.invokeLater(new Runnable() {
+            public void run() {
+              fireContentsChanged(this, -1, -1);
+            }
+          });
       }
 
       private void checkTexturesList() {
         if (this.textures == null) {
           this.textures = new ArrayList<CatalogTexture>();
-          this.textures.clear();
+          String libraryIdFilter = this.controller.getLibraryIdFilter();
+          String categoryNameFilter = this.controller.getCategoryNameFilter();
           for (TexturesCategory category : this.catalog.getCategories()) {
+            if (categoryNameFilter != null
+                && !categoryNameFilter.equals(category.getName())) {
+              continue;
+            }
             for (CatalogTexture texture : category.getTextures()) {
+              if (libraryIdFilter != null
+                  && !libraryIdFilter.equals(texture.getLibraryId())) {
+                continue;
+              }
               if (texture.matchesFilter(this.filterText)) {
                 textures.add(texture);
               }

@@ -74,10 +74,12 @@ import com.eteks.sweethome3d.model.CollectionListener;
 import com.eteks.sweethome3d.model.DimensionLine;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.LevelCategory;
 import com.eteks.sweethome3d.model.LevelPlantTakeoff;
+import com.eteks.sweethome3d.model.Library;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Selectable;
@@ -767,8 +769,14 @@ public class SelectionInspectorPane extends JPanel {
     private ColorButton            floorColorButton;
     private JRadioButton           floorColorRadioButton;
     private JRadioButton           floorTextureRadioButton;
+    private JLabel                 floorTextureLibraryLabel;
+    private JComboBox              floorTextureLibraryComboBox;
+    private JLabel                 floorTextureCategoryLabel;
+    private JComboBox              floorTextureCategoryComboBox;
+    private JLabel                 floorTextureLabel;
     private JComponent             floorTextureComponent;
     private boolean                floorPaintControlsAvailable;
+    private boolean                updatingFloorTextureFilters;
     private JLabel                 floorOpacityLabel;
     private NullableSpinner          floorOpacitySpinner;
     private NullableSpinner.NullableSpinnerNumberModel floorOpacitySpinnerModel;
@@ -917,6 +925,7 @@ public class SelectionInspectorPane extends JPanel {
               roomController.setFloorPaint(RoomController.RoomPaint.TEXTURED);
               applyRoomChanges();
               updateFloorPaintControlsVisibility();
+              updateFloorTextureFilterControls(true);
             }
           });
         ButtonGroup floorPaintButtonGroup = new ButtonGroup();
@@ -931,6 +940,47 @@ public class SelectionInspectorPane extends JPanel {
                   RoomPanel.class, "floorTextureRadioButton.mnemonic")).getKeyCode());
         }
         this.floorTextureComponent = (JComponent)this.roomController.getFloorTextureController().getView();
+        this.floorTextureLibraryLabel = new JLabel(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "floorTextureLibraryLabel.text"));
+        this.floorTextureLibraryComboBox = new JComboBox();
+        this.floorTextureLibraryComboBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList list, Object value, int index,
+                boolean isSelected, boolean cellHasFocus) {
+              super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+              if (value instanceof Library) {
+                Library library = (Library)value;
+                setText(library.getName() != null ? library.getName() : library.getId());
+              }
+              return this;
+            }
+          });
+        this.floorTextureLibraryComboBox.addItemListener(new ItemListener() {
+            public void itemStateChanged(ItemEvent ev) {
+              if (updatingFromController || updatingFloorTextureFilters
+                  || ev.getStateChange() != ItemEvent.SELECTED) {
+                return;
+              }
+              updateFloorTextureCategoryComboBox(false);
+              applyFloorTextureFiltersFromControls();
+            }
+          });
+        this.floorTextureCategoryLabel = new JLabel(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "floorTextureCategoryLabel.text"));
+        this.floorTextureCategoryComboBox = new JComboBox();
+        this.floorTextureCategoryComboBox.addItemListener(new ItemListener() {
+            public void itemStateChanged(ItemEvent ev) {
+              if (updatingFromController || updatingFloorTextureFilters
+                  || ev.getStateChange() != ItemEvent.SELECTED) {
+                return;
+              }
+              applyFloorTextureFiltersFromControls();
+            }
+          });
+        this.floorTextureLabel = new JLabel(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "floorTextureLabel.text"));
+        configureInspectorFieldLabel(this.preferences, SelectionInspectorPane.class,
+            "floorTextureLabel.mnemonic", this.floorTextureLabel, this.floorTextureComponent);
         this.roomController.addPropertyChangeListener(RoomController.Property.FLOOR_PAINT,
             new PropertyChangeListener() {
               public void propertyChange(PropertyChangeEvent ev) {
@@ -1100,6 +1150,21 @@ public class SelectionInspectorPane extends JPanel {
             1, floorRow++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
         floorPanel.add(this.floorTextureRadioButton, new GridBagConstraints(
+            0, floorRow++, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 8, standardGap, 10), 0, 0));
+        floorPanel.add(this.floorTextureLibraryLabel, new GridBagConstraints(
+            0, floorRow, 1, 1, 0, 0, labelAlignment,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+        floorPanel.add(this.floorTextureLibraryComboBox, new GridBagConstraints(
+            1, floorRow++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+        floorPanel.add(this.floorTextureCategoryLabel, new GridBagConstraints(
+            0, floorRow, 1, 1, 0, 0, labelAlignment,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+        floorPanel.add(this.floorTextureCategoryComboBox, new GridBagConstraints(
+            1, floorRow++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+        floorPanel.add(this.floorTextureLabel, new GridBagConstraints(
             0, floorRow, 1, 1, 0, 0, labelAlignment,
             GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
         floorPanel.add(this.floorTextureComponent, new GridBagConstraints(
@@ -1277,6 +1342,7 @@ public class SelectionInspectorPane extends JPanel {
         this.floorColorButton.setColor(this.roomController.getFloorColor());
         updateFloorPaintRadioButtons();
         updateFloorPaintControlsVisibility();
+        updateFloorTextureFilterControls(true);
 
         Float floorOpacity = this.roomController.getFloorOpacity();
         this.floorOpacitySpinnerModel.setNullable(floorOpacity == null);
@@ -1363,8 +1429,16 @@ public class SelectionInspectorPane extends JPanel {
         this.floorTextureRadioButton.setEnabled(enabled);
         this.floorColorButton.setVisible(colored || mixed);
         this.floorColorButton.setEnabled(enabled && (colored || mixed));
-        this.floorTextureComponent.setVisible(textured || mixed);
-        this.floorTextureComponent.setEnabled(enabled && (textured || mixed));
+        boolean showTextureControls = textured || mixed;
+        this.floorTextureLibraryLabel.setVisible(showTextureControls);
+        this.floorTextureLibraryComboBox.setVisible(showTextureControls);
+        this.floorTextureCategoryLabel.setVisible(showTextureControls);
+        this.floorTextureCategoryComboBox.setVisible(showTextureControls);
+        this.floorTextureLabel.setVisible(showTextureControls);
+        this.floorTextureComponent.setVisible(showTextureControls);
+        this.floorTextureLibraryComboBox.setEnabled(enabled && showTextureControls);
+        this.floorTextureCategoryComboBox.setEnabled(enabled && showTextureControls);
+        this.floorTextureComponent.setEnabled(enabled && showTextureControls);
       } else {
         this.floorColorButton.setEnabled(enabled);
       }
@@ -1376,6 +1450,107 @@ public class SelectionInspectorPane extends JPanel {
       boolean enabled = floorVisible == null || floorVisible;
       this.floorOpacitySpinner.setEnabled(enabled);
       this.floorOpacityLabel.setEnabled(enabled);
+    }
+
+    private LevelCategory getSelectedRoomsLevelCategory() {
+      List<Room> rooms = Home.getRoomsSubList(this.home.getSelectedItems());
+      if (rooms.isEmpty()) {
+        return LevelCategory.GENERAL;
+      }
+      Level level = rooms.get(0).getLevel();
+      LevelCategory category = level != null ? level.getCategory() : LevelCategory.GENERAL;
+      for (int i = 1; i < rooms.size(); i++) {
+        Level otherLevel = rooms.get(i).getLevel();
+        LevelCategory otherCategory = otherLevel != null
+            ? otherLevel.getCategory()
+            : LevelCategory.GENERAL;
+        if (category != otherCategory) {
+          return LevelCategory.GENERAL;
+        }
+      }
+      return category != null ? category : LevelCategory.GENERAL;
+    }
+
+    private void updateFloorTextureFilterControls(boolean resetDefaults) {
+      if (!this.floorPaintControlsAvailable) {
+        return;
+      }
+      this.updatingFloorTextureFilters = true;
+      try {
+        List<Library> libraries = AlpTextureCatalogSupport.getTextureLibraries(this.preferences);
+        Library selectedLibrary = null;
+        String selectedCategoryName = null;
+        if (resetDefaults) {
+          HomeTexture floorTexture = this.roomController.getFloorTextureController().getTexture();
+          LevelCategory levelCategory = getSelectedRoomsLevelCategory();
+          selectedLibrary = AlpTextureCatalogSupport.resolveDefaultLibrary(
+              this.preferences, floorTexture, levelCategory);
+          if (selectedLibrary != null) {
+            selectedCategoryName = AlpTextureCatalogSupport.resolveDefaultCategoryName(
+                this.preferences, floorTexture, levelCategory, selectedLibrary.getId());
+          }
+        } else {
+          Object currentLibrary = this.floorTextureLibraryComboBox.getSelectedItem();
+          if (currentLibrary instanceof Library) {
+            selectedLibrary = (Library)currentLibrary;
+          }
+          selectedCategoryName = AlpTextureCatalogSupport.getCategoryNameForSelection(
+              this.preferences, this.floorTextureCategoryComboBox.getSelectedItem());
+        }
+
+        this.floorTextureLibraryComboBox.setModel(new DefaultComboBoxModel(
+            libraries.toArray(new Library [libraries.size()])));
+        boolean singleLibrary = libraries.size() == 1;
+        this.floorTextureLibraryComboBox.setEnabled(!singleLibrary);
+        if (selectedLibrary != null) {
+          this.floorTextureLibraryComboBox.setSelectedItem(selectedLibrary);
+        } else if (!libraries.isEmpty()) {
+          this.floorTextureLibraryComboBox.setSelectedIndex(0);
+          selectedLibrary = libraries.get(0);
+        }
+
+        updateFloorTextureCategoryComboBox(true);
+        if (selectedCategoryName != null) {
+          this.floorTextureCategoryComboBox.setSelectedItem(selectedCategoryName);
+        } else {
+          this.floorTextureCategoryComboBox.setSelectedIndex(0);
+        }
+        applyFloorTextureFiltersFromControls();
+      } finally {
+        this.updatingFloorTextureFilters = false;
+      }
+    }
+
+    private void updateFloorTextureCategoryComboBox(boolean preserveSelection) {
+      Library library = (Library)this.floorTextureLibraryComboBox.getSelectedItem();
+      String previousCategoryName = preserveSelection
+          ? AlpTextureCatalogSupport.getCategoryNameForSelection(
+              this.preferences, this.floorTextureCategoryComboBox.getSelectedItem())
+          : null;
+      List<String> categoryNames = library != null
+          ? AlpTextureCatalogSupport.getCategoryNamesForLibrary(this.preferences, library.getId())
+          : new ArrayList<String>();
+      String allCategoriesLabel = AlpTextureCatalogSupport.getAllCategoriesLabel(this.preferences);
+      List<String> categoryItems = new ArrayList<String>();
+      categoryItems.add(allCategoriesLabel);
+      categoryItems.addAll(categoryNames);
+      this.floorTextureCategoryComboBox.setModel(new DefaultComboBoxModel(
+          categoryItems.toArray(new String [categoryItems.size()])));
+      if (previousCategoryName != null && categoryNames.contains(previousCategoryName)) {
+        this.floorTextureCategoryComboBox.setSelectedItem(previousCategoryName);
+      } else {
+        this.floorTextureCategoryComboBox.setSelectedIndex(0);
+      }
+    }
+
+    private void applyFloorTextureFiltersFromControls() {
+      Library library = (Library)this.floorTextureLibraryComboBox.getSelectedItem();
+      String libraryId = library != null ? library.getId() : null;
+      String categoryName = AlpTextureCatalogSupport.getCategoryNameForSelection(
+          this.preferences, this.floorTextureCategoryComboBox.getSelectedItem());
+      AlpTextureCatalogSupport.applyTextureFilters(
+          this.roomController.getFloorTextureController(), libraryId, categoryName);
+      AlpTextureCatalogSupport.rememberSessionSelection(libraryId, categoryName);
     }
 
     void commitPendingEdits() {

@@ -34,7 +34,7 @@ import com.eteks.sweethome3d.model.UserPreferences;
  * @author Emmanuel Puybaret
  */
 public class TextureChoiceController implements Controller {
-  public enum Property {TEXTURE}
+  public enum Property {TEXTURE, LIBRARY_ID_FILTER, CATEGORY_NAME_FILTER}
 
   private static final int MAX_RECENT_TEXTURES = 15;
 
@@ -48,6 +48,8 @@ public class TextureChoiceController implements Controller {
   private TextureChoiceView           textureChoiceView;
 
   private HomeTexture           texture;
+  private String                libraryIdFilter;
+  private String                categoryNameFilter;
 
 
   public TextureChoiceController(String title,
@@ -122,6 +124,49 @@ public class TextureChoiceController implements Controller {
    */
   public HomeTexture getTexture() {
     return this.texture;
+  }
+
+  /**
+   * Sets the library id used to filter textures in the choice dialog.
+   */
+  public void setLibraryIdFilter(String libraryIdFilter) {
+    if (this.libraryIdFilter != libraryIdFilter
+        && (this.libraryIdFilter == null
+            || !this.libraryIdFilter.equals(libraryIdFilter))) {
+      String oldLibraryIdFilter = this.libraryIdFilter;
+      this.libraryIdFilter = libraryIdFilter;
+      this.propertyChangeSupport.firePropertyChange(Property.LIBRARY_ID_FILTER.name(),
+          oldLibraryIdFilter, libraryIdFilter);
+    }
+  }
+
+  /**
+   * Returns the library id used to filter textures in the choice dialog.
+   */
+  public String getLibraryIdFilter() {
+    return this.libraryIdFilter;
+  }
+
+  /**
+   * Sets the category name used to filter textures in the choice dialog.
+   * A <code>null</code> value means all categories.
+   */
+  public void setCategoryNameFilter(String categoryNameFilter) {
+    if (this.categoryNameFilter != categoryNameFilter
+        && (this.categoryNameFilter == null
+            || !this.categoryNameFilter.equals(categoryNameFilter))) {
+      String oldCategoryNameFilter = this.categoryNameFilter;
+      this.categoryNameFilter = categoryNameFilter;
+      this.propertyChangeSupport.firePropertyChange(Property.CATEGORY_NAME_FILTER.name(),
+          oldCategoryNameFilter, categoryNameFilter);
+    }
+  }
+
+  /**
+   * Returns the category name used to filter textures in the choice dialog.
+   */
+  public String getCategoryNameFilter() {
+    return this.categoryNameFilter;
   }
 
   /**

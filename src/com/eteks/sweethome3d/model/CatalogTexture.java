@@ -43,7 +43,14 @@ public class CatalogTexture implements TextureImage, CatalogItem, Comparable<Cat
   private final boolean         modifiable;
 
   private TexturesCategory      category;
+  private String                libraryId;
   private byte []               filterCollationKey;
+
+  /** Library id for built-in Sweet Home 3D textures. */
+  public static final String DEFAULT_LIBRARY_ID = "SweetHome3D#DefaultTextures";
+
+  /** Library id for user-imported textures stored in preferences. */
+  public static final String USER_IMPORTED_LIBRARY_ID = "SweetHome3D#ImportedTextures";
 
   private static final Collator COMPARATOR;
   private static final Map<String, byte [][]> recentFilters;
@@ -190,6 +197,20 @@ public class CatalogTexture implements TextureImage, CatalogItem, Comparable<Cat
    */
   void setCategory(TexturesCategory category) {
     this.category = category;
+  }
+
+  /**
+   * Returns the id of the library this texture was loaded from, or <code>null</code>.
+   */
+  public String getLibraryId() {
+    return this.libraryId;
+  }
+
+  /**
+   * Sets the id of the library this texture was loaded from.
+   */
+  public void setLibraryId(String libraryId) {
+    this.libraryId = libraryId;
   }
 
   /**

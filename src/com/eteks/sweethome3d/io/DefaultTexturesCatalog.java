@@ -117,7 +117,10 @@ public class DefaultTexturesCatalog extends TexturesCatalog {
 
   private static final String ADDITIONAL_TEXTURES_CATALOG_FAMILY  = "AdditionalTexturesCatalog";
 
+  private static final String DEFAULT_LIBRARY_NAME = "Default textures";
+
   private List<Library> libraries = new ArrayList<Library>();
+  private final List<String> registeredLibraryIds = new ArrayList<String>();
 
   /**
    * Creates a default textures catalog read from resources.
@@ -191,9 +194,14 @@ public class DefaultTexturesCatalog extends TexturesCatalog {
     for (URL pluginTexturesCatalogUrl : pluginTexturesCatalogUrls) {
       try {
         ResourceBundle resource = ResourceBundleTools.getBundle(pluginTexturesCatalogUrl, PLUGIN_TEXTURES_CATALOG_FAMILY);
-        this.libraries.add(0, new DefaultLibrary(pluginTexturesCatalogUrl.toExternalForm(),
-            UserPreferences.TEXTURES_LIBRARY_TYPE, resource));
-        readTextures(resource, pluginTexturesCatalogUrl, texturesResourcesUrlBase, identifiedTextures);
+        DefaultLibrary library = new DefaultLibrary(pluginTexturesCatalogUrl.toExternalForm(),
+            UserPreferences.TEXTURES_LIBRARY_TYPE, resource);
+        this.libraries.add(0, library);
+        String libraryId = library.getId() != null
+            ? library.getId()
+            : library.getLocation();
+        readTextures(resource, pluginTexturesCatalogUrl, texturesResourcesUrlBase, identifiedTextures,
+            libraryId);
       } catch (MissingResourceException ex) {
         // Ignore malformed textures catalog
       }
@@ -235,9 +243,14 @@ public class DefaultTexturesCatalog extends TexturesCatalog {
       }
 
       ResourceBundle resourceBundle = ResourceBundleTools.getBundle(pluginTexturesCatalogUrl, PLUGIN_TEXTURES_CATALOG_FAMILY);
-      this.libraries.add(0, new DefaultLibrary(pluginTexturesCatalogFile.getCanonicalPath(),
-          UserPreferences.TEXTURES_LIBRARY_TYPE, resourceBundle));
-      readTextures(resourceBundle, pluginTexturesCatalogUrl, null, identifiedTextures);
+      DefaultLibrary library = new DefaultLibrary(pluginTexturesCatalogFile.getCanonicalPath(),
+          UserPreferences.TEXTURES_LIBRARY_TYPE, resourceBundle);
+      this.libraries.add(0, library);
+      String libraryId = library.getId() != null
+          ? library.getId()
+          : library.getLocation();
+      readTextures(resourceBundle, pluginTexturesCatalogUrl, null, identifiedTextures,
+          libraryId);
     } catch (MissingResourceException ex) {
       // Ignore malformed textures catalog
     } catch (IOException ex) {
@@ -294,7 +307,25 @@ public class DefaultTexturesCatalog extends TexturesCatalog {
         return;
       }
     }
-    readTextures(resource, null, null, identifiedTextures);
+    String libraryId = ResourceBundleTools.getOptionalString(resource, "id",
+        CatalogTexture.DEFAULT_LIBRARY_ID);
+    String libraryName = ResourceBundleTools.getOptionalString(resource, "name", DEFAULT_LIBRARY_NAME);
+    registerLibrary(texturesCatalogFamily, libraryId, libraryName, resource);
+    readTextures(resource, null, null, identifiedTextures, libraryId);
+  }
+
+  private void registerLibrary(String location, String libraryId, String libraryName,
+                               ResourceBundle resource) {
+    if (libraryId == null || this.registeredLibraryIds.contains(libraryId)) {
+      return;
+    }
+    this.registeredLibraryIds.add(libraryId);
+    String description = ResourceBundleTools.getOptionalString(resource, "description", null);
+    String version = ResourceBundleTools.getOptionalString(resource, "version", null);
+    String license = ResourceBundleTools.getOptionalString(resource, "license", null);
+    String provider = ResourceBundleTools.getOptionalString(resource, "provider", null);
+    this.libraries.add(new DefaultLibrary(location, UserPreferences.TEXTURES_LIBRARY_TYPE,
+        libraryId, libraryName, description, version, license, provider));
   }
 
   /**
@@ -305,7 +336,8 @@ public class DefaultTexturesCatalog extends TexturesCatalog {
   private void readTextures(ResourceBundle resource,
                             URL texturesCatalogUrl,
                             URL texturesResourcesUrlBase,
-                            List<String> identifiedTextures) {
+                            List<String> identifiedTextures,
+                            String libraryId) {
     int index = 0;
     while (true) {
       // Ignore texture with a key ignored# set at true
@@ -336,6 +368,7 @@ public class DefaultTexturesCatalog extends TexturesCatalog {
                identifiedTextures.add(texture.getId());
              }
            }
+          texture.setLibraryId(libraryId);
           TexturesCategory textureCategory = readTexturesCategory(resource, index);
           add(textureCategory, texture);
         }

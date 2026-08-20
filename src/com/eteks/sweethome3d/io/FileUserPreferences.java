@@ -104,6 +104,7 @@ public class FileUserPreferences extends UserPreferences {
   private static final String FURNITURE_VIEWED_FROM_TOP                 = "furnitureViewedFromTop";
   private static final String FURNITURE_MODEL_ICON_SIZE                 = "furnitureModelIconSize";
   private static final String ROOM_FLOOR_COLORED_OR_TEXTURED            = "roomFloorColoredOrTextured";
+  private static final String DEFAULT_TEXTURES_LIBRARY_ID               = "defaultTexturesLibraryId";
   private static final String WALL_PATTERN                              = "wallPattern";
   private static final String NEW_WALL_PATTERN                          = "newWallPattern";
   private static final String NEW_WALL_THICKNESS                        = "newWallThickness";
@@ -324,6 +325,8 @@ public class FileUserPreferences extends UserPreferences {
     setFurnitureModelIconSize(preferences.getInt(FURNITURE_MODEL_ICON_SIZE, defaultPreferences.getFurnitureModelIconSize()));
     setFloorColoredOrTextured(preferences.getBoolean(ROOM_FLOOR_COLORED_OR_TEXTURED,
         defaultPreferences.isRoomFloorColoredOrTextured()));
+    setDefaultTexturesLibraryId(preferences.get(DEFAULT_TEXTURES_LIBRARY_ID,
+        defaultPreferences.getDefaultTexturesLibraryId()));
     try {
       setWallPattern(patternsCatalog.getPattern(preferences.get(WALL_PATTERN,
           defaultPreferences.getWallPattern().getName())));
@@ -928,7 +931,9 @@ public class FileUserPreferences extends UserPreferences {
     float width = preferences.getFloat(TEXTURE_WIDTH + index, 0.1f);
     float height = preferences.getFloat(TEXTURE_HEIGHT + index, 0.1f);
     String creator = preferences.get(TEXTURE_CREATOR + index, null);
-    return new CatalogTexture(null, name, image, width, height, creator, true);
+    CatalogTexture texture = new CatalogTexture(null, name, image, width, height, creator, true);
+    texture.setLibraryId(CatalogTexture.USER_IMPORTED_LIBRARY_ID);
+    return texture;
   }
 
   /**
@@ -986,6 +991,10 @@ public class FileUserPreferences extends UserPreferences {
     preferences.putBoolean(FURNITURE_VIEWED_FROM_TOP, isFurnitureViewedFromTop());
     preferences.putInt(FURNITURE_MODEL_ICON_SIZE, getFurnitureModelIconSize());
     preferences.putBoolean(ROOM_FLOOR_COLORED_OR_TEXTURED, isRoomFloorColoredOrTextured());
+    String defaultTexturesLibraryId = getDefaultTexturesLibraryId();
+    if (defaultTexturesLibraryId != null) {
+      preferences.put(DEFAULT_TEXTURES_LIBRARY_ID, defaultTexturesLibraryId);
+    }
     preferences.put(WALL_PATTERN, getWallPattern().getName());
     TextureImage newWallPattern = getNewWallPattern();
     if (newWallPattern != null) {
