@@ -3202,11 +3202,22 @@ public class HomePane extends JRootPane implements HomeView {
     final JComponent inspectorPane = createInspectorPane(home, preferences, controller);
     inspectorPane.setMinimumSize(new Dimension(MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH, 0));
     inspectorPane.setPreferredSize(new Dimension(DEFAULT_PLAN_INSPECTOR_INSPECTOR_WIDTH, 0));
+
+    final ContextDeckPane contextDeckPane = new ContextDeckPane(home, preferences, controller);
+    contextDeckPane.setMinimumSize(new Dimension(0, ContextDeckPane.MIN_CONTEXT_DECK_HEIGHT));
+
+    final JSplitPane inspectorContextPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+        inspectorPane, contextDeckPane);
+    inspectorContextPane.setBorder(null);
+    inspectorContextPane.setMinimumSize(new Dimension(MIN_PLAN_INSPECTOR_INSPECTOR_WIDTH, 0));
+    configureSplitPane(inspectorContextPane, home, ContextDeckPane.DIVIDER_LOCATION_PROPERTY,
+        0.65, false, controller);
+
     planView3DPane.setMinimumSize(new Dimension(MIN_PLAN_INSPECTOR_PLAN_WIDTH, 0));
     boolean leftToRightOrientation = ComponentOrientation.getOrientation(Locale.getDefault()).isLeftToRight();
     final JSplitPane planInspectorPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-        leftToRightOrientation ? planView3DPane : inspectorPane,
-        leftToRightOrientation ? inspectorPane : planView3DPane);
+        leftToRightOrientation ? planView3DPane : inspectorContextPane,
+        leftToRightOrientation ? inspectorContextPane : planView3DPane);
     planInspectorPane.setMinimumSize(new Dimension());
     planInspectorPane.setBorder(null);
     configureSplitPane(planInspectorPane, home, INSPECTOR_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY,
@@ -3218,10 +3229,10 @@ public class HomePane extends JRootPane implements HomeView {
           if (planInspectorPane.getComponentOrientation().isLeftToRight()) {
             planInspectorPane.setRightComponent(null);
             planInspectorPane.setLeftComponent(planView3DPane);
-            planInspectorPane.setRightComponent(inspectorPane);
+            planInspectorPane.setRightComponent(inspectorContextPane);
           } else {
             planInspectorPane.setRightComponent(null);
-            planInspectorPane.setLeftComponent(inspectorPane);
+            planInspectorPane.setLeftComponent(inspectorContextPane);
             planInspectorPane.setRightComponent(planView3DPane);
           }
           if (planInspectorPane.isShowing()) {

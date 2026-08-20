@@ -3104,9 +3104,7 @@ public class SelectionInspectorPane extends JPanel {
     private JCheckBox              viewableCheckBox;
     private JCheckBox              lockedCheckBox;
     private JCheckBox              selectCurrentLayerOnlyCheckBox;
-    private JList                  layersList;
     private boolean                updatingFromController;
-    private boolean                updatingListSelection;
     private boolean                nameFieldUserEdited;
     private String                 nameFieldSyncedValue;
 
@@ -3244,21 +3242,6 @@ public class SelectionInspectorPane extends JPanel {
             }
           });
 
-      this.layersList = new JList();
-      this.layersList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-      this.layersList.setCellRenderer(new LevelListCellRenderer());
-      this.layersList.addListSelectionListener(new ListSelectionListener() {
-          public void valueChanged(ListSelectionEvent ev) {
-            if (updatingFromController || updatingListSelection || ev.getValueIsAdjusting()) {
-              return;
-            }
-            Level level = (Level)layersList.getSelectedValue();
-            if (level != null && level != home.getSelectedLevel()) {
-              commitPendingEdits();
-              homeController.getPlanController().setSelectedLevel(level);
-            }
-          }
-        });
     }
 
     private void layoutFields() {
@@ -3294,28 +3277,8 @@ public class SelectionInspectorPane extends JPanel {
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
 
       fieldsPanel.add(propertiesPanel, new GridBagConstraints(
-          0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, fieldInsets, 0, 0));
-
-      JPanel listPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
-          SelectionInspectorPane.class, "layersListPanel.title"));
-      this.layersList.setFocusable(false);
-      JScrollPane layersScrollPane = new JScrollPane(this.layersList);
-      layersScrollPane.setFocusable(false);
-      int rowHeight = Math.max(this.layersList.getFixedCellHeight(),
-          this.layersList.getFontMetrics(this.layersList.getFont()).getHeight() + AlpInspectorStyles.scale(8));
-      if (this.layersList.getFixedCellHeight() <= 0) {
-        rowHeight = Math.max(rowHeight, AlpInspectorStyles.scale(22));
-        this.layersList.setFixedCellHeight(rowHeight);
-      }
-      layersScrollPane.setPreferredSize(new Dimension(0, rowHeight * 6 + AlpInspectorStyles.scale(4)));
-      listPanel.add(layersScrollPane, new GridBagConstraints(
-          0, 0, 1, 1, 1, 0, GridBagConstraints.CENTER,
-          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
-
-      fieldsPanel.add(listPanel, new GridBagConstraints(
           0, row, 1, 1, 1, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, 0), 0, 0));
+          GridBagConstraints.HORIZONTAL, fieldInsets, 0, 0));
 
       JPanel headerPanel = new JPanel(new GridBagLayout());
       headerPanel.setBorder(AlpInspectorStyles.sectionGapBorder());
@@ -3353,8 +3316,6 @@ public class SelectionInspectorPane extends JPanel {
       } finally {
         this.updatingFromController = false;
       }
-      updateLayersListData();
-      updateLayersListSelection();
     }
 
     void commitPendingEdits() {
@@ -3365,41 +3326,10 @@ public class SelectionInspectorPane extends JPanel {
     }
 
     private void updateSelectionSummary() {
-      Level level = this.home.getSelectedLevel();
-      String title;
-      if (level != null) {
-        String name = level.getName();
-        if (name != null && name.trim().length() > 0) {
-          title = MessageFormat.format(this.preferences.getLocalizedString(
-              SelectionInspectorPane.class, "summarySingleLayerNamed.title"), name.trim());
-        } else {
-          title = this.preferences.getLocalizedString(
-              SelectionInspectorPane.class, "summarySingleLayer.title");
-        }
-      } else {
-        title = this.preferences.getLocalizedString(
-            SelectionInspectorPane.class, "summarySingleLayer.title");
-      }
-      AlpInspectorStyles.applySummaryText(this.summaryLabel, title, null);
-    }
-
-    private void updateLayersListData() {
-      List<Level> levels = this.home.getLevels();
-      this.layersList.setListData(levels.toArray(new Level [levels.size()]));
-    }
-
-    private void updateLayersListSelection() {
-      Level selectedLevel = this.home.getSelectedLevel();
-      this.updatingListSelection = true;
-      try {
-        if (selectedLevel == null) {
-          this.layersList.clearSelection();
-        } else {
-          this.layersList.setSelectedValue(selectedLevel, true);
-        }
-      } finally {
-        this.updatingListSelection = false;
-      }
+      AlpInspectorStyles.applySummaryText(this.summaryLabel,
+          this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summarySingleLayer.title"),
+          null);
     }
 
     private void syncNameFieldFromModel() {
@@ -3469,8 +3399,6 @@ public class SelectionInspectorPane extends JPanel {
       this.nameFieldUserEdited = false;
       syncCheckBoxesFromModel();
       updateSelectionSummary();
-      updateLayersListData();
-      updateLayersListSelection();
     }
 
     /**
@@ -3489,46 +3417,6 @@ public class SelectionInspectorPane extends JPanel {
         this.lockedCheckBox.setSelected(level.isLocked());
       } finally {
         this.updatingFromController = false;
-      }
-    }
-
-    private class LevelListCellRenderer extends DefaultListCellRenderer {
-      @Override
-      public Component getListCellRendererComponent(JList list, Object value,
-                                                    int index, boolean isSelected,
-                                                    boolean cellHasFocus) {
-        JLabel label = (JLabel)super.getListCellRendererComponent(
-            list, value, index, isSelected, cellHasFocus);
-        if (value instanceof Level) {
-          Level level = (Level)value;
-          String name = level.getName();
-          if (name == null || name.trim().length() == 0) {
-            name = "\u2014";
-          }
-          StringBuilder html = new StringBuilder("<html>");
-          html.append(isSelected ? "<b>" : "");
-          html.append(escapeHtml(name.trim()));
-          html.append(isSelected ? "</b>" : "");
-          if (!level.isViewable()) {
-            html.append(" <font color='#888888'>");
-            html.append(escapeHtml(preferences.getLocalizedString(
-                SelectionInspectorPane.class, "layerListHidden.text")));
-            html.append("</font>");
-          }
-          if (level.isLocked()) {
-            html.append(" <font color='#888888'>");
-            html.append(escapeHtml(preferences.getLocalizedString(
-                SelectionInspectorPane.class, "layerListLocked.text")));
-            html.append("</font>");
-          }
-          html.append("</html>");
-          label.setText(html.toString());
-        }
-        return label;
-      }
-
-      private String escapeHtml(String text) {
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
       }
     }
   }
