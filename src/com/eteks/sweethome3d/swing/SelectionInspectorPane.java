@@ -43,6 +43,7 @@ import java.text.MessageFormat;
 import java.awt.image.BufferedImage;
 
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.ButtonModel;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
@@ -54,6 +55,7 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.Icon;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -93,6 +95,7 @@ import com.eteks.sweethome3d.viewcontroller.LabelController;
 import com.eteks.sweethome3d.viewcontroller.LevelController;
 import com.eteks.sweethome3d.viewcontroller.PolylineController;
 import com.eteks.sweethome3d.viewcontroller.RoomController;
+import com.eteks.sweethome3d.viewcontroller.TextureChoiceController;
 import com.eteks.sweethome3d.viewcontroller.WallController;
 
 /**
@@ -762,6 +765,10 @@ public class SelectionInspectorPane extends JPanel {
     private JLabel                 levelValueLabel;
     private NullableCheckBox       areaVisibleCheckBox;
     private ColorButton            floorColorButton;
+    private JRadioButton           floorColorRadioButton;
+    private JRadioButton           floorTextureRadioButton;
+    private JComponent             floorTextureComponent;
+    private boolean                floorPaintControlsAvailable;
     private JLabel                 floorOpacityLabel;
     private NullableSpinner          floorOpacitySpinner;
     private NullableSpinner.NullableSpinnerNumberModel floorOpacitySpinnerModel;
@@ -884,6 +891,67 @@ public class SelectionInspectorPane extends JPanel {
               applyRoomChanges();
             }
           });
+
+      this.floorPaintControlsAvailable = this.roomController.isPropertyEditable(
+          RoomController.Property.FLOOR_PAINT);
+      if (this.floorPaintControlsAvailable) {
+        this.floorColorRadioButton = new JRadioButton(SwingTools.getLocalizedLabelText(
+            this.preferences, RoomPanel.class, "floorColorRadioButton.text"));
+        this.floorColorRadioButton.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+              if (updatingFromController || !floorColorRadioButton.isSelected()) {
+                return;
+              }
+              roomController.setFloorPaint(RoomController.RoomPaint.COLORED);
+              applyRoomChanges();
+              updateFloorPaintControlsVisibility();
+            }
+          });
+        this.floorTextureRadioButton = new JRadioButton(SwingTools.getLocalizedLabelText(
+            this.preferences, RoomPanel.class, "floorTextureRadioButton.text"));
+        this.floorTextureRadioButton.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+              if (updatingFromController || !floorTextureRadioButton.isSelected()) {
+                return;
+              }
+              roomController.setFloorPaint(RoomController.RoomPaint.TEXTURED);
+              applyRoomChanges();
+              updateFloorPaintControlsVisibility();
+            }
+          });
+        ButtonGroup floorPaintButtonGroup = new ButtonGroup();
+        floorPaintButtonGroup.add(this.floorColorRadioButton);
+        floorPaintButtonGroup.add(this.floorTextureRadioButton);
+        if (!OperatingSystem.isMacOSX()) {
+          this.floorColorRadioButton.setMnemonic(KeyStroke.getKeyStroke(
+              this.preferences.getLocalizedString(
+                  RoomPanel.class, "floorColorRadioButton.mnemonic")).getKeyCode());
+          this.floorTextureRadioButton.setMnemonic(KeyStroke.getKeyStroke(
+              this.preferences.getLocalizedString(
+                  RoomPanel.class, "floorTextureRadioButton.mnemonic")).getKeyCode());
+        }
+        this.floorTextureComponent = (JComponent)this.roomController.getFloorTextureController().getView();
+        this.roomController.addPropertyChangeListener(RoomController.Property.FLOOR_PAINT,
+            new PropertyChangeListener() {
+              public void propertyChange(PropertyChangeEvent ev) {
+                if (updatingFromController) {
+                  return;
+                }
+                updateFloorPaintRadioButtons();
+                updateFloorPaintControlsVisibility();
+              }
+            });
+        this.roomController.getFloorTextureController().addPropertyChangeListener(
+            TextureChoiceController.Property.TEXTURE,
+            new PropertyChangeListener() {
+              public void propertyChange(PropertyChangeEvent ev) {
+                if (updatingFromController) {
+                  return;
+                }
+                applyRoomChanges();
+              }
+            });
+      }
 
       this.floorOpacityLabel = new JLabel(SwingTools.getLocalizedLabelText(
           this.preferences, RoomPanel.class, "floorOpacityLabel.text", "%"));
@@ -1023,27 +1091,43 @@ public class SelectionInspectorPane extends JPanel {
 
       JPanel floorPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           RoomPanel.class, "floorPanel.title"));
-      JLabel floorColorLabel = new JLabel(SwingTools.getLocalizedLabelText(
-          this.preferences, RoomPanel.class, "floorColorRadioButton.text"));
-      configureInspectorFieldLabel(this.preferences, RoomPanel.class,
-          "floorColorRadioButton.mnemonic", floorColorLabel, this.floorColorButton);
+      int floorRow = 0;
+      if (this.floorPaintControlsAvailable) {
+        floorPanel.add(this.floorColorRadioButton, new GridBagConstraints(
+            0, floorRow, 1, 1, 0, 0, labelAlignment,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+        floorPanel.add(this.floorColorButton, new GridBagConstraints(
+            1, floorRow++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+        floorPanel.add(this.floorTextureRadioButton, new GridBagConstraints(
+            0, floorRow, 1, 1, 0, 0, labelAlignment,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+        floorPanel.add(this.floorTextureComponent, new GridBagConstraints(
+            1, floorRow++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      } else {
+        JLabel floorColorLabel = new JLabel(SwingTools.getLocalizedLabelText(
+            this.preferences, RoomPanel.class, "floorColorRadioButton.text"));
+        configureInspectorFieldLabel(this.preferences, RoomPanel.class,
+            "floorColorRadioButton.mnemonic", floorColorLabel, this.floorColorButton);
+        floorPanel.add(floorColorLabel, new GridBagConstraints(
+            0, floorRow, 1, 1, 0, 0, labelAlignment,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+        floorPanel.add(this.floorColorButton, new GridBagConstraints(
+            1, floorRow++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      }
       configureInspectorFieldLabel(this.preferences, RoomPanel.class,
           "floorOpacityLabel.mnemonic", this.floorOpacityLabel, this.floorOpacitySpinner);
-      floorPanel.add(floorColorLabel, new GridBagConstraints(
-          0, 0, 1, 1, 0, 0, labelAlignment,
-          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
-      floorPanel.add(this.floorColorButton, new GridBagConstraints(
-          1, 0, 1, 1, 0, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
       floorPanel.add(this.floorOpacityLabel, new GridBagConstraints(
-          0, 1, 1, 1, 0, 0, labelAlignment,
+          0, floorRow, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
       floorPanel.add(this.floorOpacitySpinner, new GridBagConstraints(
-          1, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          1, floorRow++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
       if (this.smoothedCheckBox != null) {
         floorPanel.add(this.smoothedCheckBox, new GridBagConstraints(
-            0, 2, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+            0, floorRow, 2, 1, 1, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
       }
 
@@ -1191,7 +1275,8 @@ public class SelectionInspectorPane extends JPanel {
         this.areaVisibleCheckBox.setValue(this.roomController.getAreaVisible());
 
         this.floorColorButton.setColor(this.roomController.getFloorColor());
-        updateFloorColorEnabled();
+        updateFloorPaintRadioButtons();
+        updateFloorPaintControlsVisibility();
 
         Float floorOpacity = this.roomController.getFloorOpacity();
         this.floorOpacitySpinnerModel.setNullable(floorOpacity == null);
@@ -1252,9 +1337,38 @@ public class SelectionInspectorPane extends JPanel {
           RoomController.Property.NAME, nameChangeListener);
     }
 
-    private void updateFloorColorEnabled() {
+    private void updateFloorPaintRadioButtons() {
+      if (!this.floorPaintControlsAvailable) {
+        return;
+      }
+      RoomController.RoomPaint floorPaint = this.roomController.getFloorPaint();
+      if (floorPaint == RoomController.RoomPaint.COLORED) {
+        this.floorColorRadioButton.setSelected(true);
+      } else if (floorPaint == RoomController.RoomPaint.TEXTURED) {
+        this.floorTextureRadioButton.setSelected(true);
+      } else {
+        SwingTools.deselectAllRadioButtons(this.floorColorRadioButton, this.floorTextureRadioButton);
+      }
+    }
+
+    private void updateFloorPaintControlsVisibility() {
       Boolean floorVisible = this.roomController.getFloorVisible();
-      this.floorColorButton.setEnabled(floorVisible == null || floorVisible);
+      boolean enabled = floorVisible == null || floorVisible;
+      if (this.floorPaintControlsAvailable) {
+        RoomController.RoomPaint floorPaint = this.roomController.getFloorPaint();
+        boolean colored = floorPaint == RoomController.RoomPaint.COLORED;
+        boolean textured = floorPaint == RoomController.RoomPaint.TEXTURED;
+        boolean mixed = floorPaint == null;
+        this.floorColorRadioButton.setEnabled(enabled);
+        this.floorTextureRadioButton.setEnabled(enabled);
+        this.floorColorButton.setVisible(colored || mixed);
+        this.floorColorButton.setEnabled(enabled && (colored || mixed));
+        this.floorTextureComponent.setVisible(textured || mixed);
+        this.floorTextureComponent.setEnabled(enabled && (textured || mixed));
+      } else {
+        this.floorColorButton.setEnabled(enabled);
+      }
+      updateFloorOpacityEnabled();
     }
 
     private void updateFloorOpacityEnabled() {
