@@ -68,8 +68,13 @@ final class AlpLevelRoleControls {
           list, value, index, isSelected, cellHasFocus);
       if (value instanceof Enum && component instanceof JLabel) {
         Enum<?> enumValue = (Enum<?>)value;
-        ((JLabel)component).setText(this.preferences.getLocalizedString(
-            this.enumClass, enumValue.name().toLowerCase() + ".label"));
+        String key = enumValue.name().toLowerCase() + ".label";
+        try {
+          ((JLabel)component).setText(this.preferences.getLocalizedString(
+              this.enumClass, key));
+        } catch (IllegalArgumentException ex) {
+          ((JLabel)component).setText(enumValue.name());
+        }
       }
       return component;
     }
