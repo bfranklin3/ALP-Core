@@ -2675,9 +2675,6 @@ public class HomePane extends JRootPane implements HomeView {
     addActionToToolBar(ActionType.PASTE, toolBar);
     toolBar.addSeparator();
 
-    addActionToToolBar(ActionType.ADD_HOME_FURNITURE, toolBar);
-    toolBar.addSeparator();
-
     previousCount = toolBar.getComponentCount();
     addToggleActionToToolBar(ActionType.SELECT, toolBar);
     addToggleActionToToolBar(ActionType.PAN, toolBar);
@@ -2717,11 +2714,6 @@ public class HomePane extends JRootPane implements HomeView {
         toolBar.add(enableDisableMagnetismButton);
       }
     }
-
-    toolBar.addSeparator();
-    addActionToToolBar(ActionType.CREATE_PHOTO, toolBar);
-    addActionToToolBar(ActionType.CREATE_VIDEO, toolBar);
-    toolBar.addSeparator();
 
     // Add plugin actions buttons
     boolean pluginActionsAdded = false;
