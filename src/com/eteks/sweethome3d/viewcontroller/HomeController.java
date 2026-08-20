@@ -446,6 +446,14 @@ public class HomeController implements Controller {
   }
 
   /**
+   * Creates a level controller for docked layer inspector editing.
+   */
+  public LevelController createLevelController() {
+    return new LevelController(this.home, this.preferences, this.viewFactory,
+        getUndoableEditSupport());
+  }
+
+  /**
    * Creates a polyline controller for docked inspector editing.
    */
   public PolylineController createPolylineController() {

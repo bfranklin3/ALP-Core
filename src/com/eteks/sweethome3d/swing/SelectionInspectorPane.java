@@ -29,6 +29,7 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
+import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.text.DecimalFormat;
@@ -42,23 +43,32 @@ import java.text.MessageFormat;
 import java.awt.image.BufferedImage;
 
 import javax.swing.BorderFactory;
+import javax.swing.ButtonModel;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.Icon;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import com.eteks.sweethome3d.model.CollectionEvent;
+import com.eteks.sweethome3d.model.CollectionListener;
 import com.eteks.sweethome3d.model.DimensionLine;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
@@ -75,8 +85,10 @@ import com.eteks.sweethome3d.model.Wall;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.DimensionLineController;
 import com.eteks.sweethome3d.viewcontroller.HomeController;
+import com.eteks.sweethome3d.viewcontroller.HomeController;
 import com.eteks.sweethome3d.viewcontroller.HomeFurnitureController;
 import com.eteks.sweethome3d.viewcontroller.LabelController;
+import com.eteks.sweethome3d.viewcontroller.LevelController;
 import com.eteks.sweethome3d.viewcontroller.PolylineController;
 import com.eteks.sweethome3d.viewcontroller.RoomController;
 import com.eteks.sweethome3d.viewcontroller.WallController;
@@ -92,8 +104,10 @@ public class SelectionInspectorPane extends JPanel {
   private static final String DIMENSION_CARD = "dimension";
   private static final String WALL_CARD = "wall";
   private static final String FURNITURE_CARD = "furniture";
+  private static final String LEVEL_CARD = "level";
 
   private final Home              home;
+  private final HomeController    homeController;
   private final UserPreferences   preferences;
   private final CardLayout        cardLayout;
   private final JPanel            cardPanel;
@@ -104,6 +118,7 @@ public class SelectionInspectorPane extends JPanel {
   private final DimensionLineInspectorPanel dimensionLineInspectorPanel;
   private final WallInspectorPanel wallInspectorPanel;
   private final FurnitureInspectorPanel furnitureInspectorPanel;
+  private final LevelInspectorPanel levelInspectorPanel;
   private final List<Room>        monitoredRooms;
   private final List<Polyline>    monitoredPolylines;
   private final List<Label>       monitoredLabels;
@@ -116,6 +131,7 @@ public class SelectionInspectorPane extends JPanel {
   private boolean                 showingDimensionLineInspector;
   private boolean                 showingWallInspector;
   private boolean                 showingFurnitureInspector;
+  private boolean                 showingLevelInspector;
   private boolean                 suppressSelectionListener;
   private final PropertyChangeListener roomPropertyListener;
   private final PropertyChangeListener polylinePropertyListener;
@@ -129,6 +145,7 @@ public class SelectionInspectorPane extends JPanel {
                                 HomeController controller) {
     super(new BorderLayout());
     this.home = home;
+    this.homeController = controller;
     this.preferences = preferences;
     this.cardLayout = new CardLayout();
     this.cardPanel = new JPanel(this.cardLayout);
@@ -141,6 +158,7 @@ public class SelectionInspectorPane extends JPanel {
     this.dimensionLineInspectorPanel = new DimensionLineInspectorPanel(home, preferences, controller);
     this.wallInspectorPanel = new WallInspectorPanel(home, preferences, controller);
     this.furnitureInspectorPanel = new FurnitureInspectorPanel(home, preferences, controller);
+    this.levelInspectorPanel = new LevelInspectorPanel(home, preferences, controller);
     this.monitoredRooms = new ArrayList<Room>();
     this.monitoredPolylines = new ArrayList<Polyline>();
     this.monitoredLabels = new ArrayList<Label>();
@@ -239,6 +257,7 @@ public class SelectionInspectorPane extends JPanel {
     this.cardPanel.add(this.dimensionLineInspectorPanel, DIMENSION_CARD);
     this.cardPanel.add(this.wallInspectorPanel, WALL_CARD);
     this.cardPanel.add(this.furnitureInspectorPanel, FURNITURE_CARD);
+    this.cardPanel.add(this.levelInspectorPanel, LEVEL_CARD);
     add(this.cardPanel, BorderLayout.NORTH);
     applyInspectorWorkspaceStyle();
     setMinimumSize(new Dimension(Math.max(1, (int)(200 * SwingTools.getResolutionScale())), 0));
@@ -257,7 +276,27 @@ public class SelectionInspectorPane extends JPanel {
               new ArrayList<Label>(monitoredLabels));
           furnitureInspectorPanel.commitPendingEditsForFurniture(
               new ArrayList<HomePieceOfFurniture>(monitoredFurniture));
+          levelInspectorPanel.commitPendingEdits();
           updateForSelection();
+        }
+      });
+    home.addPropertyChangeListener(Home.Property.SELECTED_LEVEL, new PropertyChangeListener() {
+        public void propertyChange(PropertyChangeEvent ev) {
+          if (home.getSelectedItems().isEmpty()) {
+            levelInspectorPanel.commitPendingEdits();
+            showLevelInspector();
+          }
+        }
+      });
+    home.addLevelsListener(new CollectionListener<Level>() {
+        public void collectionChanged(CollectionEvent<Level> ev) {
+          if (showingLevelInspector) {
+            EventQueue.invokeLater(new Runnable() {
+                public void run() {
+                  levelInspectorPanel.refresh();
+                }
+              });
+          }
         }
       });
     updateForSelection();
@@ -273,12 +312,17 @@ public class SelectionInspectorPane extends JPanel {
     AlpCatalogStyles.applyWorkspacePanel(this.dimensionLineInspectorPanel);
     AlpCatalogStyles.applyWorkspacePanel(this.wallInspectorPanel);
     AlpCatalogStyles.applyWorkspacePanel(this.furnitureInspectorPanel);
+    AlpCatalogStyles.applyWorkspacePanel(this.levelInspectorPanel);
   }
 
   private void updateForSelection() {
     List<Selectable> selectedItems = this.home.getSelectedItems();
     if (selectedItems.isEmpty()) {
-      showEmpty("emptySelection.message");
+      if (this.home.getSelectedLevel() != null) {
+        showLevelInspector();
+      } else {
+        showEmpty("emptySelection.message");
+      }
       return;
     }
 
@@ -302,6 +346,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = false;
+      this.showingLevelInspector = false;
       updateInspectorPanelsEnabled();
       this.roomInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, ROOM_CARD);
@@ -328,6 +373,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = false;
+      this.showingLevelInspector = false;
       updateInspectorPanelsEnabled();
       this.polylineInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, POLYLINE_CARD);
@@ -354,6 +400,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = false;
+      this.showingLevelInspector = false;
       updateInspectorPanelsEnabled();
       this.labelInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, LABEL_CARD);
@@ -380,6 +427,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = true;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = false;
+      this.showingLevelInspector = false;
       updateInspectorPanelsEnabled();
       this.dimensionLineInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, DIMENSION_CARD);
@@ -406,6 +454,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = true;
       this.showingFurnitureInspector = false;
+      this.showingLevelInspector = false;
       updateInspectorPanelsEnabled();
       this.wallInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, WALL_CARD);
@@ -432,6 +481,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingDimensionLineInspector = false;
       this.showingWallInspector = false;
       this.showingFurnitureInspector = true;
+      this.showingLevelInspector = false;
       updateInspectorPanelsEnabled();
       this.furnitureInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, FURNITURE_CARD);
@@ -448,6 +498,7 @@ public class SelectionInspectorPane extends JPanel {
     this.showingDimensionLineInspector = false;
     this.showingWallInspector = false;
     this.showingFurnitureInspector = false;
+    this.showingLevelInspector = false;
     updateMonitoredRooms(null);
     updateMonitoredPolylines(null);
     updateMonitoredLabels(null);
@@ -461,6 +512,28 @@ public class SelectionInspectorPane extends JPanel {
   }
 
   /**
+   * Shows the docked layer inspector for the active plan tab (SPIKE-24).
+   */
+  private void showLevelInspector() {
+    this.showingRoomInspector = false;
+    this.showingPolylineInspector = false;
+    this.showingLabelInspector = false;
+    this.showingDimensionLineInspector = false;
+    this.showingWallInspector = false;
+    this.showingFurnitureInspector = false;
+    this.showingLevelInspector = true;
+    updateMonitoredRooms(null);
+    updateMonitoredPolylines(null);
+    updateMonitoredLabels(null);
+    updateMonitoredDimensionLines(null);
+    updateMonitoredWalls(null);
+    updateMonitoredFurniture(null);
+    updateInspectorPanelsEnabled();
+    this.levelInspectorPanel.refresh();
+    this.cardLayout.show(this.cardPanel, LEVEL_CARD);
+  }
+
+  /**
    * Enables only the active inspector card so tab order skips hidden panels.
    */
   private void updateInspectorPanelsEnabled() {
@@ -470,6 +543,7 @@ public class SelectionInspectorPane extends JPanel {
     setInspectorCardEnabled(this.dimensionLineInspectorPanel, this.showingDimensionLineInspector);
     setInspectorCardEnabled(this.wallInspectorPanel, this.showingWallInspector);
     setInspectorCardEnabled(this.furnitureInspectorPanel, this.showingFurnitureInspector);
+    setInspectorCardEnabled(this.levelInspectorPanel, this.showingLevelInspector);
   }
 
   /**
@@ -503,6 +577,64 @@ public class SelectionInspectorPane extends JPanel {
           preferences.getLocalizedString(resourceClass, mnemonicKey)).getKeyCode());
     }
     label.setLabelFor(field);
+  }
+
+  /**
+   * Inspector checkboxes should toggle on the first click even when plan view
+   * still owns keyboard focus (macOS otherwise needs click-to-focus, then click-to-toggle).
+   */
+  private static JCheckBox createImmediateClickCheckBox(String text) {
+    return new ImmediateClickCheckBox(text);
+  }
+
+  /**
+   * Check box that toggles from mouse release without taking keyboard focus.
+   */
+  private static class ImmediateClickCheckBox extends JCheckBox {
+    private boolean clickArmed;
+
+    ImmediateClickCheckBox(String text) {
+      super(text);
+      setFocusable(false);
+      setRequestFocusEnabled(false);
+    }
+
+    @Override
+    protected void processMouseEvent(MouseEvent e) {
+      if (!isEnabled()) {
+        super.processMouseEvent(e);
+        return;
+      }
+      switch (e.getID()) {
+        case MouseEvent.MOUSE_PRESSED:
+          if (SwingUtilities.isLeftMouseButton(e)) {
+            this.clickArmed = true;
+            ButtonModel model = getModel();
+            model.setArmed(true);
+            model.setPressed(true);
+          }
+          break;
+        case MouseEvent.MOUSE_RELEASED:
+          if (SwingUtilities.isLeftMouseButton(e) && this.clickArmed && contains(e.getPoint())) {
+            ButtonModel model = getModel();
+            model.setArmed(false);
+            model.setPressed(false);
+            model.setSelected(!model.isSelected());
+            fireActionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "click"));
+          } else {
+            getModel().setArmed(false);
+            getModel().setPressed(false);
+          }
+          this.clickArmed = false;
+          break;
+        case MouseEvent.MOUSE_EXITED:
+          // Keep clickArmed until release; a overlapping sibling can spuriously exit.
+          break;
+        default:
+          super.processMouseEvent(e);
+          break;
+      }
+    }
   }
 
   private void updateMonitoredRooms(List<Room> rooms) {
@@ -2955,6 +3087,413 @@ public class SelectionInspectorPane extends JPanel {
 
     private void markNameFieldSynced() {
       this.nameFieldUserEdited = false;
+    }
+  }
+
+  /**
+   * Layer inspector when plan selection is empty (SPIKE-24).
+   */
+  private class LevelInspectorPanel extends JPanel {
+    private final Home             home;
+    private final HomeController   homeController;
+    private final LevelController  levelController;
+    private final UserPreferences  preferences;
+    private JLabel                 summaryLabel;
+    private JButton                openFullEditorButton;
+    private JTextField             nameTextField;
+    private JCheckBox              viewableCheckBox;
+    private JCheckBox              lockedCheckBox;
+    private JList                  layersList;
+    private boolean                updatingFromController;
+    private boolean                updatingListSelection;
+    private boolean                nameFieldUserEdited;
+    private String                 nameFieldSyncedValue;
+
+    LevelInspectorPanel(Home home,
+                        UserPreferences preferences,
+                        HomeController controller) {
+      super(new BorderLayout());
+      this.home = home;
+      this.homeController = controller;
+      this.preferences = preferences;
+      this.levelController = controller.createLevelController();
+      createHeader();
+      createFields();
+      layoutFields();
+    }
+
+    private void createHeader() {
+      this.summaryLabel = new JLabel();
+      this.openFullEditorButton = new JButton(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "openFullLevelEditorButton.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.openFullEditorButton.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "openFullLevelEditorButton.mnemonic")).getKeyCode());
+      }
+      this.openFullEditorButton.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            commitPendingEdits();
+            homeController.getPlanController().modifySelectedLevel();
+            refresh();
+          }
+        });
+    }
+
+    private void createFields() {
+      this.nameTextField = new AutoCompleteTextField(
+          "", 15, this.preferences.getAutoCompletionStrings("LevelName"));
+      if (!OperatingSystem.isMacOSXLeopardOrSuperior()) {
+        SwingTools.addAutoSelectionOnFocusGain(this.nameTextField);
+      }
+      final PropertyChangeListener nameChangeListener = new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            syncNameFieldFromModel();
+          }
+        };
+      this.levelController.addPropertyChangeListener(
+          LevelController.Property.NAME, nameChangeListener);
+      this.nameTextField.getDocument().addDocumentListener(new DocumentListener() {
+          public void changedUpdate(DocumentEvent ev) {
+            updateControllerNameFromField(nameChangeListener);
+          }
+
+          public void insertUpdate(DocumentEvent ev) {
+            changedUpdate(ev);
+          }
+
+          public void removeUpdate(DocumentEvent ev) {
+            changedUpdate(ev);
+          }
+        });
+      this.nameTextField.addFocusListener(new FocusAdapter() {
+          @Override
+          public void focusLost(FocusEvent ev) {
+            commitPendingEdits();
+          }
+        });
+      this.nameTextField.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            commitPendingEdits();
+          }
+        });
+
+      this.viewableCheckBox = createImmediateClickCheckBox(SwingTools.getLocalizedLabelText(
+          this.preferences, LevelPanel.class, "viewableCheckBox.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.viewableCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                LevelPanel.class, "viewableCheckBox.mnemonic")).getKeyCode());
+      }
+      this.viewableCheckBox.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            levelController.setViewable(viewableCheckBox.isSelected());
+            applyLevelChanges();
+          }
+        });
+
+      this.lockedCheckBox = createImmediateClickCheckBox(SwingTools.getLocalizedLabelText(
+          this.preferences, LevelPanel.class, "lockedCheckBox.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.lockedCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                LevelPanel.class, "lockedCheckBox.mnemonic")).getKeyCode());
+      }
+      this.lockedCheckBox.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            levelController.setLocked(lockedCheckBox.isSelected());
+            applyLevelChanges();
+          }
+        });
+
+      this.layersList = new JList();
+      this.layersList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+      this.layersList.setCellRenderer(new LevelListCellRenderer());
+      this.layersList.addListSelectionListener(new ListSelectionListener() {
+          public void valueChanged(ListSelectionEvent ev) {
+            if (updatingFromController || updatingListSelection || ev.getValueIsAdjusting()) {
+              return;
+            }
+            Level level = (Level)layersList.getSelectedValue();
+            if (level != null && level != home.getSelectedLevel()) {
+              commitPendingEdits();
+              homeController.getPlanController().setSelectedLevel(level);
+            }
+          }
+        });
+    }
+
+    private void layoutFields() {
+      int labelAlignment = OperatingSystem.isMacOSX()
+          ? GridBagConstraints.LINE_END
+          : GridBagConstraints.LINE_START;
+      int standardGap = Math.round(5 * SwingTools.getResolutionScale());
+      Insets fieldInsets = new Insets(0, 0, standardGap, 0);
+
+      JPanel fieldsPanel = new JPanel(new GridBagLayout());
+      int row = 0;
+
+      JPanel propertiesPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "layerPropertiesPanel.title"));
+      JLabel nameLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, LevelPanel.class, "nameLabel.text"));
+      configureInspectorFieldLabel(this.preferences, LevelPanel.class,
+          "nameLabel.mnemonic", nameLabel, this.nameTextField);
+      propertiesPanel.add(nameLabel, new GridBagConstraints(
+          0, 0, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      propertiesPanel.add(this.nameTextField, new GridBagConstraints(
+          1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+      propertiesPanel.add(this.viewableCheckBox, new GridBagConstraints(
+          0, 1, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      propertiesPanel.add(this.lockedCheckBox, new GridBagConstraints(
+          0, 2, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+
+      fieldsPanel.add(propertiesPanel, new GridBagConstraints(
+          0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, fieldInsets, 0, 0));
+
+      JPanel listPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "layersListPanel.title"));
+      this.layersList.setFocusable(false);
+      JScrollPane layersScrollPane = new JScrollPane(this.layersList);
+      layersScrollPane.setFocusable(false);
+      int rowHeight = Math.max(this.layersList.getFixedCellHeight(),
+          this.layersList.getFontMetrics(this.layersList.getFont()).getHeight() + AlpInspectorStyles.scale(8));
+      if (this.layersList.getFixedCellHeight() <= 0) {
+        rowHeight = Math.max(rowHeight, AlpInspectorStyles.scale(22));
+        this.layersList.setFixedCellHeight(rowHeight);
+      }
+      layersScrollPane.setPreferredSize(new Dimension(0, rowHeight * 6 + AlpInspectorStyles.scale(4)));
+      listPanel.add(layersScrollPane, new GridBagConstraints(
+          0, 0, 1, 1, 1, 0, GridBagConstraints.CENTER,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+
+      fieldsPanel.add(listPanel, new GridBagConstraints(
+          0, row, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, 0), 0, 0));
+
+      JPanel headerPanel = new JPanel(new GridBagLayout());
+      headerPanel.setBorder(AlpInspectorStyles.sectionGapBorder());
+      headerPanel.add(this.summaryLabel, new GridBagConstraints(
+          0, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, AlpInspectorStyles.scale(6), 0), 0, 0));
+      headerPanel.add(this.openFullEditorButton, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
+
+      JPanel contentPanel = new JPanel(new BorderLayout());
+      contentPanel.setBorder(BorderFactory.createEmptyBorder(
+          AlpInspectorStyles.panelInsets().top,
+          AlpInspectorStyles.panelInsets().left,
+          AlpInspectorStyles.panelInsets().bottom,
+          AlpInspectorStyles.panelInsets().right));
+      contentPanel.add(headerPanel, BorderLayout.NORTH);
+      contentPanel.add(fieldsPanel, BorderLayout.CENTER);
+      add(contentPanel, BorderLayout.NORTH);
+    }
+
+    void refresh() {
+      updateSelectionSummary();
+      this.levelController.refreshProperties();
+      this.updatingFromController = true;
+      try {
+        String name = this.levelController.getName();
+        this.nameTextField.setText(name != null ? name : "");
+        this.nameFieldSyncedValue = name != null ? name : "";
+        this.nameFieldUserEdited = false;
+        Boolean viewable = this.levelController.getViewable();
+        this.viewableCheckBox.setSelected(viewable == null || viewable);
+        this.lockedCheckBox.setSelected(Boolean.TRUE.equals(this.levelController.getLocked()));
+      } finally {
+        this.updatingFromController = false;
+      }
+      updateLayersListData();
+      updateLayersListSelection();
+    }
+
+    void commitPendingEdits() {
+      if (isNameCommitNeeded()) {
+        syncControllerNameForModify();
+        applyLevelChanges();
+      }
+    }
+
+    private void updateSelectionSummary() {
+      Level level = this.home.getSelectedLevel();
+      String title;
+      if (level != null) {
+        String name = level.getName();
+        if (name != null && name.trim().length() > 0) {
+          title = MessageFormat.format(this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summarySingleLayerNamed.title"), name.trim());
+        } else {
+          title = this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summarySingleLayer.title");
+        }
+      } else {
+        title = this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "summarySingleLayer.title");
+      }
+      AlpInspectorStyles.applySummaryText(this.summaryLabel, title, null);
+    }
+
+    private void updateLayersListData() {
+      List<Level> levels = this.home.getLevels();
+      this.layersList.setListData(levels.toArray(new Level [levels.size()]));
+    }
+
+    private void updateLayersListSelection() {
+      Level selectedLevel = this.home.getSelectedLevel();
+      this.updatingListSelection = true;
+      try {
+        if (selectedLevel == null) {
+          this.layersList.clearSelection();
+        } else {
+          this.layersList.setSelectedValue(selectedLevel, true);
+        }
+      } finally {
+        this.updatingListSelection = false;
+      }
+    }
+
+    private void syncNameFieldFromModel() {
+      if (this.updatingFromController || this.nameFieldUserEdited) {
+        return;
+      }
+      String displayName = this.levelController.getName();
+      if (displayName == null) {
+        displayName = "";
+      }
+      this.updatingFromController = true;
+      try {
+        this.nameTextField.setText(displayName);
+        this.nameFieldSyncedValue = displayName;
+      } finally {
+        this.updatingFromController = false;
+      }
+    }
+
+    private void updateControllerNameFromField(PropertyChangeListener nameChangeListener) {
+      if (this.updatingFromController) {
+        return;
+      }
+      this.nameFieldUserEdited = true;
+      this.levelController.removePropertyChangeListener(
+          LevelController.Property.NAME, nameChangeListener);
+      String name = this.nameTextField.getText();
+      if (name == null || name.trim().length() == 0) {
+        this.levelController.setName("");
+      } else {
+        this.levelController.setName(name);
+      }
+      this.levelController.addPropertyChangeListener(
+          LevelController.Property.NAME, nameChangeListener);
+    }
+
+    private boolean isNameCommitNeeded() {
+      if (!this.nameFieldUserEdited) {
+        return false;
+      }
+      String textName = this.nameTextField.getText();
+      if (textName == null) {
+        textName = "";
+      }
+      String modelName = this.levelController.getName();
+      if (modelName == null) {
+        modelName = "";
+      }
+      return !textName.equals(modelName);
+    }
+
+    private void syncControllerNameForModify() {
+      String name = this.nameTextField.getText();
+      if (name == null || name.trim().length() == 0) {
+        this.levelController.setName("");
+      } else {
+        this.levelController.setName(name);
+      }
+    }
+
+    private void applyLevelChanges() {
+      if (this.updatingFromController || this.home.getSelectedLevel() == null) {
+        return;
+      }
+      this.levelController.modifyLevels();
+      this.nameFieldSyncedValue = this.nameTextField.getText();
+      this.nameFieldUserEdited = false;
+      syncCheckBoxesFromModel();
+      updateSelectionSummary();
+      updateLayersListData();
+      updateLayersListSelection();
+    }
+
+    /**
+     * modifyLevels() fires a selection change before it applies the locked value,
+     * so any refresh triggered mid-modification reads a stale level. Re-read the
+     * level once the modification finished.
+     */
+    private void syncCheckBoxesFromModel() {
+      Level level = this.home.getSelectedLevel();
+      if (level == null) {
+        return;
+      }
+      this.updatingFromController = true;
+      try {
+        this.viewableCheckBox.setSelected(level.isViewable());
+        this.lockedCheckBox.setSelected(level.isLocked());
+      } finally {
+        this.updatingFromController = false;
+      }
+    }
+
+    private class LevelListCellRenderer extends DefaultListCellRenderer {
+      @Override
+      public Component getListCellRendererComponent(JList list, Object value,
+                                                    int index, boolean isSelected,
+                                                    boolean cellHasFocus) {
+        JLabel label = (JLabel)super.getListCellRendererComponent(
+            list, value, index, isSelected, cellHasFocus);
+        if (value instanceof Level) {
+          Level level = (Level)value;
+          String name = level.getName();
+          if (name == null || name.trim().length() == 0) {
+            name = "\u2014";
+          }
+          StringBuilder html = new StringBuilder("<html>");
+          html.append(isSelected ? "<b>" : "");
+          html.append(escapeHtml(name.trim()));
+          html.append(isSelected ? "</b>" : "");
+          if (!level.isViewable()) {
+            html.append(" <font color='#888888'>");
+            html.append(escapeHtml(preferences.getLocalizedString(
+                SelectionInspectorPane.class, "layerListHidden.text")));
+            html.append("</font>");
+          }
+          if (level.isLocked()) {
+            html.append(" <font color='#888888'>");
+            html.append(escapeHtml(preferences.getLocalizedString(
+                SelectionInspectorPane.class, "layerListLocked.text")));
+            html.append("</font>");
+          }
+          html.append("</html>");
+          label.setText(html.toString());
+        }
+        return label;
+      }
+
+      private String escapeHtml(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+      }
     }
   }
 }

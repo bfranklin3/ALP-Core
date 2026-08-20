@@ -112,6 +112,13 @@ public class LevelController implements Controller {
   }
 
   /**
+   * Refreshes edited properties from the home selected level (for docked inspector).
+   */
+  public void refreshProperties() {
+    updateProperties();
+  }
+
+  /**
    * Updates edited properties from selected level in the home edited by this controller.
    */
   protected void updateProperties() {
