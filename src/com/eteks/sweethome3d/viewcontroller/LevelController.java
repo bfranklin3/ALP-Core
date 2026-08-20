@@ -413,10 +413,17 @@ public class LevelController implements Controller {
     if (category != this.category) {
       LevelCategory oldCategory = this.category;
       this.category = category;
-      this.propertyChangeSupport.firePropertyChange(Property.CATEGORY.name(), oldCategory, category);
       if (this.selectedLevelIndex != null) {
         this.levels [this.selectedLevelIndex].setCategory(category);
         this.plantTakeoff = this.levels [this.selectedLevelIndex].getPlantTakeoff();
+      } else if (category != LevelCategory.PLANTING) {
+        this.plantTakeoff = LevelPlantTakeoff.EXCLUDE;
+      } else if (this.plantTakeoff == null
+          || this.plantTakeoff == LevelPlantTakeoff.EXCLUDE) {
+        this.plantTakeoff = LevelPlantTakeoff.PROPOSED;
+      }
+      this.propertyChangeSupport.firePropertyChange(Property.CATEGORY.name(), oldCategory, category);
+      if (this.selectedLevelIndex != null) {
         this.propertyChangeSupport.firePropertyChange(Property.PLANT_TAKEOFF.name(),
             null, this.plantTakeoff);
         this.propertyChangeSupport.firePropertyChange(Property.LEVELS.name(), null, this.levels);
@@ -435,6 +442,9 @@ public class LevelController implements Controller {
    * Sets the edited plant takeoff mode.
    */
   public void setPlantTakeoff(LevelPlantTakeoff plantTakeoff) {
+    if (this.category != LevelCategory.PLANTING) {
+      return;
+    }
     if (plantTakeoff == null) {
       plantTakeoff = LevelPlantTakeoff.EXCLUDE;
     }
@@ -509,6 +519,9 @@ public class LevelController implements Controller {
       Integer elevationIndex = getElevationIndex();
       LevelCategory category = getCategory();
       LevelPlantTakeoff plantTakeoff = getPlantTakeoff();
+      if (category != LevelCategory.PLANTING) {
+        plantTakeoff = LevelPlantTakeoff.EXCLUDE;
+      }
 
       ModifiedLevel modifiedLevel = new ModifiedLevel(selectedLevel);
       // Apply modification
@@ -641,7 +654,8 @@ public class LevelController implements Controller {
     if (category != null) {
       level.setCategory(category);
     }
-    if (plantTakeoff != null) {
+    if (plantTakeoff != null
+        && level.getCategory() == LevelCategory.PLANTING) {
       level.setPlantTakeoff(plantTakeoff);
     }
   }

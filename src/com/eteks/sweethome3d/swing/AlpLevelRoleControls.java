@@ -49,6 +49,11 @@ final class AlpLevelRoleControls {
     plantTakeoffLabel.setVisible(planting);
     plantTakeoffComboBox.setVisible(planting);
     plantTakeoffComboBox.setEnabled(planting);
+    java.awt.Container parent = plantTakeoffLabel.getParent();
+    if (parent != null) {
+      parent.revalidate();
+      parent.repaint();
+    }
   }
 
   private static final class EnumComboBoxRenderer<T extends Enum<T>> extends javax.swing.DefaultListCellRenderer {

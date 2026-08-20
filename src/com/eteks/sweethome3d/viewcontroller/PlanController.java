@@ -66,6 +66,8 @@ import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.LengthUnit;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.LevelCategory;
+import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.ObserverCamera;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
@@ -4021,6 +4023,8 @@ public class PlanController extends FurnitureController implements Controller {
    */
   protected Level createLevel(String name, float elevation, float floorThickness, float height) {
     Level newLevel = new Level(name, elevation, floorThickness, height);
+    newLevel.setCategory(LevelCategory.GENERAL);
+    newLevel.setPlantTakeoff(LevelPlantTakeoff.EXCLUDE);
     this.home.addLevel(newLevel);
     return newLevel;
   }

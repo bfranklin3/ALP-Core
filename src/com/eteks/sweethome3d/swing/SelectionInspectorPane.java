@@ -3261,6 +3261,21 @@ public class SelectionInspectorPane extends JPanel {
             }
           }
         });
+      this.levelController.addPropertyChangeListener(LevelController.Property.CATEGORY,
+          new PropertyChangeListener() {
+              public void propertyChange(PropertyChangeEvent ev) {
+                if (updatingFromController) {
+                  return;
+                }
+                updatingFromController = true;
+                try {
+                  categoryComboBox.setSelectedItem(levelController.getCategory());
+                  updatePlantTakeoffVisibility();
+                } finally {
+                  updatingFromController = false;
+                }
+              }
+            });
 
       this.plantTakeoffLabel = AlpLevelRoleControls.createPlantTakeoffLabel(this.preferences);
       this.plantTakeoffComboBox = AlpLevelRoleControls.createPlantTakeoffComboBox(this.preferences);
@@ -3276,6 +3291,20 @@ public class SelectionInspectorPane extends JPanel {
             }
           }
         });
+      this.levelController.addPropertyChangeListener(LevelController.Property.PLANT_TAKEOFF,
+          new PropertyChangeListener() {
+              public void propertyChange(PropertyChangeEvent ev) {
+                if (updatingFromController) {
+                  return;
+                }
+                updatingFromController = true;
+                try {
+                  plantTakeoffComboBox.setSelectedItem(levelController.getPlantTakeoff());
+                } finally {
+                  updatingFromController = false;
+                }
+              }
+            });
 
     }
 
@@ -3370,7 +3399,10 @@ public class SelectionInspectorPane extends JPanel {
     }
 
     void commitPendingEdits() {
-      if (isNameCommitNeeded()) {
+      if (this.home.getSelectedLevel() == null) {
+        return;
+      }
+      if (this.nameFieldUserEdited && isNameCommitNeeded()) {
         syncControllerNameForModify();
         applyLevelChanges();
       }
@@ -3425,11 +3457,9 @@ public class SelectionInspectorPane extends JPanel {
       if (textName == null) {
         textName = "";
       }
-      String modelName = this.levelController.getName();
-      if (modelName == null) {
-        modelName = "";
-      }
-      return !textName.equals(modelName);
+      Level level = this.home.getSelectedLevel();
+      String persistedName = level != null && level.getName() != null ? level.getName() : "";
+      return !textName.equals(persistedName);
     }
 
     private void syncControllerNameForModify() {
@@ -3444,6 +3474,9 @@ public class SelectionInspectorPane extends JPanel {
     private void applyLevelChanges() {
       if (this.updatingFromController || this.home.getSelectedLevel() == null) {
         return;
+      }
+      if (this.nameFieldUserEdited) {
+        syncControllerNameForModify();
       }
       this.levelController.modifyLevels();
       this.nameFieldSyncedValue = this.nameTextField.getText();
@@ -3476,6 +3509,10 @@ public class SelectionInspectorPane extends JPanel {
 
     private void updatePlantTakeoffVisibility() {
       LevelCategory category = (LevelCategory)this.categoryComboBox.getSelectedItem();
+      if (category == null) {
+        Level level = this.home.getSelectedLevel();
+        category = level != null ? level.getCategory() : this.levelController.getCategory();
+      }
       if (category == null) {
         category = LevelCategory.GENERAL;
       }
