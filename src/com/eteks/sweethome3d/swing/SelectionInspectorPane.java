@@ -88,6 +88,7 @@ import com.eteks.sweethome3d.model.SelectionListener;
 import com.eteks.sweethome3d.model.TextureImage;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.model.Wall;
+import com.eteks.sweethome3d.tools.AlpColorSupport;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.DimensionLineController;
 import com.eteks.sweethome3d.viewcontroller.HomeController;
@@ -886,6 +887,7 @@ public class SelectionInspectorPane extends JPanel {
         });
 
       this.floorColorButton = new ColorButton(this.preferences);
+      this.floorColorButton.setNullColorAllowed(true);
       this.floorColorButton.setColorDialogTitle(this.preferences.getLocalizedString(
           RoomPanel.class, "floorColorDialog.title"));
       this.floorColorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
@@ -895,8 +897,14 @@ public class SelectionInspectorPane extends JPanel {
                 return;
               }
               roomController.setFloorColor(floorColorButton.getColor());
-              roomController.setFloorPaint(RoomController.RoomPaint.COLORED);
               applyRoomChanges();
+              updateFloorOpacityEnabled();
+            }
+          });
+      this.roomController.addPropertyChangeListener(RoomController.Property.FLOOR_COLOR,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              updateFloorOpacityEnabled();
             }
           });
 
@@ -1448,8 +1456,17 @@ public class SelectionInspectorPane extends JPanel {
     private void updateFloorOpacityEnabled() {
       Boolean floorVisible = this.roomController.getFloorVisible();
       boolean enabled = floorVisible == null || floorVisible;
-      this.floorOpacitySpinner.setEnabled(enabled);
-      this.floorOpacityLabel.setEnabled(enabled);
+      boolean transparentFill = isTransparentFloorFill();
+      boolean opacityEnabled = enabled && !transparentFill;
+      this.floorOpacitySpinner.setEnabled(opacityEnabled);
+      this.floorOpacityLabel.setEnabled(opacityEnabled);
+    }
+
+    private boolean isTransparentFloorFill() {
+      if (AlpColorSupport.isTransparentColor(this.roomController.getFloorColor())) {
+        return true;
+      }
+      return AlpColorSupport.isTransparentColor(this.floorColorButton.getColor());
     }
 
     private LevelCategory getSelectedRoomsLevelCategory() {

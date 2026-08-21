@@ -206,6 +206,7 @@ import com.eteks.sweethome3d.model.TextStyle;
 import com.eteks.sweethome3d.model.TextureImage;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.model.Wall;
+import com.eteks.sweethome3d.tools.AlpColorSupport;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.Object3DFactory;
 import com.eteks.sweethome3d.viewcontroller.PlanController;
@@ -3243,7 +3244,9 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           || selectedRoom) {
         g2D.setPaint(defaultFillPaint);
         float textureAngle = 0;
-        if (!isDraftMode(paintMode)
+        boolean fillRoomInterior = !AlpColorSupport.isTransparentColor(room.getFloorColor());
+        if (fillRoomInterior
+            && !isDraftMode(paintMode)
             && this.preferences.isRoomFloorColoredOrTextured()
             && room.isFloorVisible()) {
           // Use room floor color or texture image
@@ -3324,20 +3327,31 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           }
         }
 
-        Composite oldComposite = setTransparency(g2D, room.getFloorOpacity());
-        // Rotate graphics to rotate texture with requested angle
-        // and draw shape rotated with the opposite angle
-        g2D.rotate(textureAngle, 0, 0);
-        AffineTransform rotation = textureAngle != 0
-            ? AffineTransform.getRotateInstance(-textureAngle, 0, 0)
-            : null;
-        Shape roomShape = getRoomShape(room, rotation);
-        fillShape(g2D, roomShape, paintMode);
-        g2D.setComposite(oldComposite);
+        if (fillRoomInterior) {
+          Composite oldComposite = setTransparency(g2D, room.getFloorOpacity());
+          // Rotate graphics to rotate texture with requested angle
+          // and draw shape rotated with the opposite angle
+          g2D.rotate(textureAngle, 0, 0);
+          AffineTransform rotation = textureAngle != 0
+              ? AffineTransform.getRotateInstance(-textureAngle, 0, 0)
+              : null;
+          Shape roomShape = getRoomShape(room, rotation);
+          fillShape(g2D, roomShape, paintMode);
+          g2D.setComposite(oldComposite);
 
-        setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
-        g2D.draw(roomShape);
-        g2D.rotate(-textureAngle, 0, 0);
+          setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
+          g2D.draw(roomShape);
+          g2D.rotate(-textureAngle, 0, 0);
+        } else {
+          g2D.rotate(textureAngle, 0, 0);
+          AffineTransform rotation = textureAngle != 0
+              ? AffineTransform.getRotateInstance(-textureAngle, 0, 0)
+              : null;
+          Shape roomShape = getRoomShape(room, rotation);
+          setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
+          g2D.draw(roomShape);
+          g2D.rotate(-textureAngle, 0, 0);
+        }
       }
     }
   }

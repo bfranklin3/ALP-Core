@@ -46,6 +46,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
 import com.eteks.sweethome3d.model.UserPreferences;
+import com.eteks.sweethome3d.tools.AlpColorSupport;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.BaseboardChoiceController;
 import com.eteks.sweethome3d.viewcontroller.DialogView;
@@ -233,6 +234,7 @@ public class RoomPanel extends JPanel implements DialogView {
           });
 
       this.floorColorButton = new ColorButton(preferences);
+      this.floorColorButton.setNullColorAllowed(true);
       this.floorColorButton.setColor(controller.getFloorColor());
       this.floorColorButton.setColorDialogTitle(preferences.getLocalizedString(
           RoomPanel.class, "floorColorDialog.title"));
@@ -241,12 +243,14 @@ public class RoomPanel extends JPanel implements DialogView {
             public void propertyChange(PropertyChangeEvent ev) {
               controller.setFloorColor(floorColorButton.getColor());
               controller.setFloorPaint(RoomController.RoomPaint.COLORED);
+              updateFloorOpacityEnabled(controller);
             }
           });
       controller.addPropertyChangeListener(RoomController.Property.FLOOR_COLOR,
           new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
               floorColorButton.setColor(controller.getFloorColor());
+              updateFloorOpacityEnabled(controller);
             }
           });
 
@@ -654,8 +658,12 @@ public class RoomPanel extends JPanel implements DialogView {
   private void updateFloorOpacityEnabled(RoomController controller) {
     if (this.floorOpacitySpinner != null) {
       Boolean floorVisible = controller.getFloorVisible();
-      this.floorOpacitySpinner.setEnabled(floorVisible == null || floorVisible);
-      this.floorOpacityLabel.setEnabled(floorVisible == null || floorVisible);
+      boolean enabled = floorVisible == null || floorVisible;
+      boolean transparentFill = AlpColorSupport.isTransparentColor(controller.getFloorColor())
+          || (this.floorColorButton != null
+              && AlpColorSupport.isTransparentColor(this.floorColorButton.getColor()));
+      this.floorOpacitySpinner.setEnabled(enabled && !transparentFill);
+      this.floorOpacityLabel.setEnabled(enabled && !transparentFill);
     }
   }
 

@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -95,6 +96,7 @@ import javax.swing.event.PopupMenuListener;
 import javax.swing.text.JTextComponent;
 
 import com.eteks.sweethome3d.model.UserPreferences;
+import com.eteks.sweethome3d.tools.AlpColorSupport;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 
 /**
@@ -110,6 +112,7 @@ public class ColorButton extends JButton {
 
   private Integer color;
   private String  colorDialogTitle;
+  private boolean nullColorAllowed;
 
   /**
    * Creates a color button.
@@ -136,13 +139,18 @@ public class ColorButton extends JButton {
       }
 
       public void paintIcon(Component c, Graphics g, int x, int y) {
-        if (color != null) {
+        int innerX = x + 2;
+        int innerY = y + 2;
+        int innerWidth = iconWidth - 4;
+        int innerHeight = iconHeight - 4;
+        if (AlpColorSupport.isTransparentColor(color)) {
+          AlpColorSupport.paintTransparentColorIcon(g, innerX, innerY, innerWidth, innerHeight);
+        } else if (color != null) {
           g.setColor(new Color(color));
-          g.fillRect(x + 2, y + 2, iconWidth - 4,
-              iconHeight - 4);
+          g.fillRect(innerX, innerY, innerWidth, innerHeight);
+          g.setColor(getForeground());
+          g.drawRect(innerX, innerY, innerWidth - 1, innerHeight - 1);
         }
-        g.setColor(getForeground());
-        g.drawRect(x + 2, y + 2, iconWidth - 5, iconHeight - 5);
       }
     });
 
@@ -157,36 +165,49 @@ public class ColorButton extends JButton {
         }
 
         // Update edited color in furniture color chooser
-        colorChooser.setColor(color != null
-            ? new Color(color)
-            : getBackground());
+        colorChooser.setColor(AlpColorSupport.isTransparentColor(color)
+            ? new Color(0, true)
+            : color != null
+                ? new Color(color)
+                : getBackground());
         JDialog colorDialog = JColorChooser.createDialog(getParent(),
             colorDialogTitle, true, colorChooser,
             new ActionListener () {
               public void actionPerformed(ActionEvent e) {
                 // Change button color when user click on ok button
-                Integer color = colorChooser.getColor().getRGB();
-                setColor(color);
-                List<Integer> recentColors = new ArrayList<Integer>(preferences.getRecentColors());
-                int colorIndex = recentColors.indexOf(color);
-                if (colorIndex != 0) {
-                  // Move color at the beginning of the list and ensure it doesn't contain more than 20 colors
-                  if (colorIndex > 0) {
-                    recentColors.remove(colorIndex);
-                  } else {
-                    while (recentColors.size() > RecentColorsPanel.MAX_COLORS) {
-                      recentColors.remove(recentColors.size() - 1);
+                AbstractColorChooserPanel colorChooserPanel = colorChooser.getChooserPanels() [0];
+                boolean noneSelected = colorChooserPanel instanceof PalettesColorChooserPanel
+                    && ((PalettesColorChooserPanel)colorChooserPanel).isNoneColorSelected();
+                Integer chosenColor = colorChooser.getColor().getRGB();
+                if (nullColorAllowed
+                    && (noneSelected || AlpColorSupport.isTransparentRgb(chosenColor))) {
+                  setColor(AlpColorSupport.TRANSPARENT_COLOR);
+                } else {
+                  setColor(chosenColor);
+                  List<Integer> recentColors = new ArrayList<Integer>(preferences.getRecentColors());
+                  int colorIndex = recentColors.indexOf(chosenColor);
+                  if (colorIndex != 0) {
+                    // Move color at the beginning of the list and ensure it doesn't contain more than 20 colors
+                    if (colorIndex > 0) {
+                      recentColors.remove(colorIndex);
+                    } else {
+                      while (recentColors.size() > RecentColorsPanel.MAX_COLORS) {
+                        recentColors.remove(recentColors.size() - 1);
+                      }
                     }
+                    recentColors.add(0, chosenColor);
+                    preferences.setRecentColors(recentColors);
                   }
-                  recentColors.add(0, color);
-                  preferences.setRecentColors(recentColors);
                 }
               }
             }, null);
         if (preferences != null) {
           AbstractColorChooserPanel colorChooserPanel = colorChooser.getChooserPanels() [0];
           if (colorChooserPanel instanceof PalettesColorChooserPanel) {
-            ((PalettesColorChooserPanel)colorChooserPanel).setInitialColor(colorChooser.getColor());
+            PalettesColorChooserPanel palettesPanel = (PalettesColorChooserPanel)colorChooserPanel;
+            palettesPanel.setNullColorAllowed(nullColorAllowed);
+            palettesPanel.setNoneColorSelected(AlpColorSupport.isTransparentColor(color));
+            palettesPanel.setInitialColor(colorChooser.getColor());
             colorChooser.getPreviewPanel().getParent().setVisible(!preferences.getRecentColors().isEmpty());
             colorDialog.pack();
           }
@@ -294,13 +315,26 @@ public class ColorButton extends JButton {
    * @param color RGB code of the color or <code>null</code>.
    */
   public void setColor(Integer color) {
-    if (color != this.color
-        || (color != null && !color.equals(this.color))) {
+    if (!Objects.equals(color, this.color)) {
       Integer oldColor = this.color;
       this.color = color;
       firePropertyChange(COLOR_PROPERTY, oldColor, color);
       repaint();
     }
+  }
+
+  /**
+   * Sets whether the color dialog offers a None (transparent) swatch.
+   */
+  public void setNullColorAllowed(boolean nullColorAllowed) {
+    this.nullColorAllowed = nullColorAllowed;
+  }
+
+  /**
+   * Returns whether the color dialog offers a None (transparent) swatch.
+   */
+  public boolean isNullColorAllowed() {
+    return this.nullColorAllowed;
   }
 
   /**
@@ -330,6 +364,11 @@ public class ColorButton extends JButton {
     private final UserPreferences preferences;
     private GrayColorChart        grayColorChart;
     private ColorChart            colorChart;
+    private JComponent            noneColorSwatch;
+    private JLabel                noneColorLabel;
+    private boolean               nullColorAllowed;
+    private boolean               noneColorSelected;
+    private boolean               selectingNoneColor;
     private JComponent            colorComponent;
     private JFormattedTextField   rgbTextField;
     private PaletteComboBox       ralComboBox;
@@ -346,12 +385,45 @@ public class ColorButton extends JButton {
       if (this.colorComponent != null) {
         this.colorComponent.repaint();
       }
+      if (this.noneColorSwatch != null) {
+        this.noneColorSwatch.repaint();
+      }
+    }
+
+    public void setNullColorAllowed(boolean nullColorAllowed) {
+      this.nullColorAllowed = nullColorAllowed;
+      if (this.noneColorSwatch != null) {
+        this.noneColorSwatch.setVisible(nullColorAllowed);
+        this.noneColorLabel.setVisible(nullColorAllowed);
+        revalidate();
+        repaint();
+      }
+    }
+
+    public void setNoneColorSelected(boolean noneColorSelected) {
+      this.noneColorSelected = noneColorSelected;
+      if (this.noneColorSwatch != null) {
+        this.noneColorSwatch.repaint();
+      }
+    }
+
+    public boolean isNoneColorSelected() {
+      return this.noneColorSelected;
     }
 
     @Override
     public void updateChooser() {
       Color selectedColor = getColorFromModel();
+      // The chooser model can't carry a transparent color: the RGB text field and the
+      // other chooser tabs normalize alpha back to opaque. So None stays a sticky flag,
+      // cleared as soon as the color changes from anywhere but the None swatch.
+      if (!this.selectingNoneColor) {
+        this.noneColorSelected = false;
+      }
       this.colorComponent.repaint();
+      if (this.noneColorSwatch != null) {
+        this.noneColorSwatch.repaint();
+      }
       if (!selectedColor.equals(this.rgbTextField.getValue())) {
         this.rgbTextField.setValue(selectedColor);
       }
@@ -409,6 +481,55 @@ public class ColorButton extends JButton {
       this.colorChart.addMouseListener(colorChartMouseListener);
       this.colorChart.addMouseMotionListener(colorChartMouseListener);
 
+      final int noneSwatchSize = Math.round(28 * SwingTools.getResolutionScale());
+      this.noneColorSwatch = new JComponent() {
+          @Override
+          protected void paintComponent(Graphics g) {
+            Insets insets = getInsets();
+            int drawnWidth = getWidth() - insets.right - insets.left;
+            int drawnHeight = getHeight() - insets.bottom - insets.top;
+            AlpColorSupport.paintTransparentColorIcon(g, insets.left, insets.top, drawnWidth, drawnHeight);
+            if (noneColorSelected) {
+              g.setColor(Color.BLACK);
+              g.drawRect(insets.left, insets.top, drawnWidth - 1, drawnHeight - 1);
+              g.drawRect(insets.left + 1, insets.top + 1, drawnWidth - 3, drawnHeight - 3);
+            }
+          }
+
+          @Override
+          public Dimension getPreferredSize() {
+            Insets insets = getInsets();
+            return new Dimension(noneSwatchSize + insets.right + insets.left,
+                noneSwatchSize + insets.bottom + insets.top);
+          }
+        };
+      this.noneColorSwatch.setToolTipText(
+          this.preferences.getLocalizedString(ColorButton.class, "noneColorSwatch.text"));
+      this.noneColorSwatch.setVisible(false);
+      MouseInputAdapter noneColorSwatchMouseListener = new MouseInputAdapter() {
+          @Override
+          public void mousePressed(MouseEvent ev) {
+            selectingNoneColor = true;
+            try {
+              noneColorSelected = true;
+              getColorSelectionModel().setSelectedColor(Color.WHITE);
+            } finally {
+              selectingNoneColor = false;
+            }
+            noneColorSwatch.repaint();
+            colorComponent.repaint();
+            if (ev.getClickCount() == 2) {
+              clickOnOk();
+            }
+          }
+        };
+      this.noneColorSwatch.addMouseListener(noneColorSwatchMouseListener);
+
+      JLabel noneColorLabel = new JLabel(
+          this.preferences.getLocalizedString(ColorButton.class, "noneColorSwatch.text"));
+      noneColorLabel.setVisible(false);
+      this.noneColorLabel = noneColorLabel;
+
       JLabel colorLabel = new JLabel(
           this.preferences.getLocalizedString(ColorButton.class, "colorLabel.text"));
       this.colorComponent = new JComponent() {
@@ -423,8 +544,13 @@ public class ColorButton extends JButton {
             g.drawRect(drawnWidth / 2, 0, drawnWidth / 2 - 1, drawnHeight - 1);
             g.setColor(initialColor);
             g.fillRect(1, 1, drawnWidth / 2 - 2, drawnHeight - 2);
-            g.setColor(getColorSelectionModel().getSelectedColor());
-            g.fillRect(drawnWidth / 2 + 1, 1, drawnWidth / 2 - 2, drawnHeight - 2);
+            if (noneColorSelected) {
+              AlpColorSupport.paintTransparentColorIcon(g,
+                  drawnWidth / 2 + 1, 1, drawnWidth / 2 - 2, drawnHeight - 2);
+            } else {
+              g.setColor(getColorSelectionModel().getSelectedColor());
+              g.fillRect(drawnWidth / 2 + 1, 1, drawnWidth / 2 - 2, drawnHeight - 2);
+            }
           }
 
           @Override
@@ -635,41 +761,52 @@ public class ColorButton extends JButton {
       setLayout(new GridBagLayout());
       int labelAlignment = GridBagConstraints.LINE_START;
       int standardGap = Math.round(5 * SwingTools.getResolutionScale());
+      JPanel noneColorPanel = new JPanel(new GridBagLayout());
+      noneColorPanel.setOpaque(false);
+      noneColorPanel.add(this.noneColorSwatch, new GridBagConstraints(
+          0, 0, 1, 1, 0, 0, GridBagConstraints.NORTH,
+          GridBagConstraints.NONE, new Insets(0, 0, 2, 0), 0, 0));
+      noneColorPanel.add(this.noneColorLabel, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, GridBagConstraints.NORTH,
+          GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
+      add(noneColorPanel, new GridBagConstraints(
+          0, 0, 1, 7, 0, 0, GridBagConstraints.NORTH,
+          GridBagConstraints.NONE, new Insets(0, 0, 0, standardGap), 0, 0));
       add(this.grayColorChart, new GridBagConstraints(
-          0, 0, 1, 7, 0, 0, GridBagConstraints.CENTER,
+          1, 0, 1, 7, 0, 0, GridBagConstraints.CENTER,
           GridBagConstraints.BOTH, new Insets(0, 0, 0, standardGap), 0, 0));
       add(this.colorChart, new GridBagConstraints(
-          1, 0, 1, 7, 0, 0, GridBagConstraints.CENTER,
+          2, 0, 1, 7, 0, 0, GridBagConstraints.CENTER,
           GridBagConstraints.BOTH, new Insets(0, 0, 0, 10), 0, 0));
       add(colorLabel, new GridBagConstraints(
-          2, 0, 1, 1, 0, 0, labelAlignment,
+          3, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, new Insets(0, 0, 8, standardGap), 0, 0));
       add(this.colorComponent, new GridBagConstraints(
-          3, 0, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          4, 0, 1, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 8, 0), 0, 0));
       add(pipetteButton, new GridBagConstraints(
-          4, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
+          5, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
           GridBagConstraints.NONE, new Insets(0, standardGap, 8, 0), 0, 0));
       add(rgbLabel, new GridBagConstraints(
-          2, 1, 3, 1, 0, 0, labelAlignment,
+          3, 1, 3, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, new Insets(0, 0, 2, 0), 0, 0));
       add(this.rgbTextField, new GridBagConstraints(
-          2, 2, 3, 1, 0, 0, GridBagConstraints.LINE_START,
+          3, 2, 3, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL,
           OperatingSystem.isMacOSX()
               ? new Insets(0, 1, 5, 1)
               : new Insets(0, 0, standardGap, 0), 0, 0));
       add(ralLabel, new GridBagConstraints(
-          2, 3, 3, 1, 0, 0, labelAlignment,
+          3, 3, 3, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, new Insets(0, 0, 2, 0), 0, 0));
       add(this.ralComboBox, new GridBagConstraints(
-          2, 4, 3, 1, 0, 0, GridBagConstraints.LINE_START,
+          3, 4, 3, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 0), 0, 0));
       add(creativeCommonsLabel, new GridBagConstraints(
-          2, 5, 3, 1, 0, 0, labelAlignment,
+          3, 5, 3, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, new Insets(0, 0, 2, 0), 0, 0));
       add(this.creativeCommonsComboBox, new GridBagConstraints(
-          2, 6, 3, 1, 0, 0, GridBagConstraints.LINE_START,
+          3, 6, 3, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
       getColorSelectionModel().addChangeListener(new ChangeListener() {
