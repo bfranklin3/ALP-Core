@@ -5,7 +5,6 @@
  */
 package com.eteks.sweethome3d.swing;
 
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Insets;
 
@@ -64,7 +63,6 @@ public final class AlpToolBarButton {
     button.setFont(button.getFont().deriveFont(Font.PLAIN, labelSize));
     int margin = AlpCatalogStyles.scale(2);
     button.setMargin(new Insets(margin, margin, margin, margin));
-    button.setMinimumSize(new Dimension(AlpCatalogStyles.scale(48), 0));
     AlpCatalogStyles.applyToolBarButton(button);
   }
 }

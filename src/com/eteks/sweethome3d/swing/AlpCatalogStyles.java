@@ -248,41 +248,48 @@ public final class AlpCatalogStyles {
   /** Applies ALP styling to the plan-adjacent draw strip. */
   public static void applyDrawStrip(JToolBar drawStrip) {
     applyToolBar(drawStrip);
-    int bottomPadding = scale(8);
+    int padding = scale(4);
     drawStrip.setBorder(BorderFactory.createCompoundBorder(
-        BorderFactory.createEmptyBorder(scale(4), scale(4), bottomPadding, scale(4)),
-        BorderFactory.createMatteBorder(0, 0, 1, 0, CHIP_BORDER)));
-    int minHeight = drawStripHeight();
-    drawStrip.setMinimumSize(new Dimension(0, minHeight));
-    Dimension preferredSize = drawStrip.getPreferredSize();
-    drawStrip.setPreferredSize(new Dimension(preferredSize.width,
-        Math.max(preferredSize.height, minHeight)));
+        BorderFactory.createMatteBorder(0, 0, 1, 0, CHIP_BORDER),
+        BorderFactory.createEmptyBorder(padding, padding, padding, padding)));
   }
 
-  /** Ensures draw-strip buttons reserve enough height for icon + label text. */
+  /**
+   * Sizes the draw strip from the buttons it actually contains, so neither the icons
+   * nor the labels below them can be clipped. Call once every button has been added.
+   */
   public static void finalizeDrawStrip(JToolBar drawStrip) {
-    int stripHeight = drawStripHeight();
-    int buttonMinHeight = scale(52);
+    int margin = scale(3);
+    int tallestButton = 0;
     for (Component component : drawStrip.getComponents()) {
       if (component instanceof AbstractButton) {
         AbstractButton button = (AbstractButton)component;
-        int margin = scale(2);
-        button.setMargin(new Insets(margin, margin, margin + scale(3), margin));
-        Dimension preferredSize = button.getPreferredSize();
-        button.setPreferredSize(new Dimension(
-            Math.max(preferredSize.width, scale(48)),
-            Math.max(preferredSize.height, buttonMinHeight)));
+        button.setMargin(new Insets(margin, margin, margin, margin));
+        // Drop any forced size so the icon + label size is measured, not guessed
+        button.setPreferredSize(null);
+        button.setMinimumSize(null);
+        button.setMaximumSize(null);
+        tallestButton = Math.max(tallestButton, button.getPreferredSize().height);
       }
     }
-    Dimension preferredSize = drawStrip.getPreferredSize();
-    drawStrip.setPreferredSize(new Dimension(preferredSize.width,
-        Math.max(preferredSize.height, stripHeight)));
-    drawStrip.setMinimumSize(new Dimension(0, stripHeight));
-  }
-
-  /** Minimum height for the plan-adjacent draw tool strip. */
-  public static int drawStripHeight() {
-    return scale(68);
+    if (tallestButton == 0) {
+      return;
+    }
+    int minButtonWidth = scale(48);
+    for (Component component : drawStrip.getComponents()) {
+      if (component instanceof AbstractButton) {
+        AbstractButton button = (AbstractButton)component;
+        Dimension size = new Dimension(
+            Math.max(button.getPreferredSize().width, minButtonWidth), tallestButton);
+        button.setPreferredSize(size);
+        button.setMinimumSize(size);
+        button.setMaximumSize(size);
+      }
+    }
+    // The tool bar derives its own height from the buttons plus its border insets
+    drawStrip.setPreferredSize(null);
+    drawStrip.setMinimumSize(null);
+    drawStrip.setMaximumSize(null);
   }
 
   /** Preferred height for the layer tab header row. */

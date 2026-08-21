@@ -2828,7 +2828,10 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
    */
   private Composite setTransparency(Graphics2D g2D, float alpha) {
     Composite oldComposite = g2D.getComposite();
-    if (oldComposite instanceof AlphaComposite) {
+    if (alpha >= 1f) {
+      // 100% opacity must be fully opaque regardless of any parent composite
+      g2D.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+    } else if (oldComposite instanceof AlphaComposite) {
       g2D.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
           ((AlphaComposite)oldComposite).getAlpha() * alpha));
     } else {
@@ -3209,15 +3212,22 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       Collections.sort(this.sortedLevelRooms,
           new Comparator<Room>() {
             public int compare(Room room1, Room room2) {
-              if (room1.isFloorVisible() == room2.isFloorVisible()
-                  && room1.isCeilingVisible() == room2.isCeilingVisible()) {
-                return 0; // Keep default order if the room floors and ceilings have the same visibility
-              } else if (!room1.isFloorVisible() && !room1.isCeilingVisible()
-                         || room1.isFloorVisible() && room2.isCeilingVisible()) {
-                return -1;
-              } else {
-                return 1;
+              if (room1.isFloorVisible() != room2.isFloorVisible()
+                  || room1.isCeilingVisible() != room2.isCeilingVisible()) {
+                if (!room1.isFloorVisible() && !room1.isCeilingVisible()
+                    || room1.isFloorVisible() && room2.isCeilingVisible()) {
+                  return -1;
+                } else {
+                  return 1;
+                }
               }
+              // Paint lower layers first so higher layers appear on top when areas overlap
+              int levelIndex1 = room1.getLevel() != null ? room1.getLevel().getElevationIndex() : -1;
+              int levelIndex2 = room2.getLevel() != null ? room2.getLevel().getElevationIndex() : -1;
+              if (levelIndex1 != levelIndex2) {
+                return levelIndex1 - levelIndex2;
+              }
+              return 0;
             }
           });
     }

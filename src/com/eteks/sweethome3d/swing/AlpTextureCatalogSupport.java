@@ -6,7 +6,6 @@
 package com.eteks.sweethome3d.swing;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -28,8 +27,9 @@ final class AlpTextureCatalogSupport {
   /** Expected id for the ALP landscape plan texture library when it is installed. */
   static final String ALP_LANDSCAPE_PLAN_LIBRARY_ID = "ALP#LandscapePlan";
 
-  private static String sessionLibraryId;
-  private static String sessionCategoryName;
+  private static String  sessionLibraryId;
+  private static String  sessionCategoryName;
+  private static boolean sessionSelectionRecorded;
 
   private AlpTextureCatalogSupport() {
   }
@@ -37,10 +37,15 @@ final class AlpTextureCatalogSupport {
   static void rememberSessionSelection(String libraryId, String categoryName) {
     sessionLibraryId = libraryId;
     sessionCategoryName = categoryName;
+    sessionSelectionRecorded = true;
   }
 
   static String getAllCategoriesLabel(UserPreferences preferences) {
     return preferences.getLocalizedString(AlpTextureCatalogSupport.class, "allCategories.text");
+  }
+
+  static String getAllLibrariesLabel(UserPreferences preferences) {
+    return preferences.getLocalizedString(AlpTextureCatalogSupport.class, "allLibraries.text");
   }
 
   static String getUserImportedLibraryName(UserPreferences preferences) {
@@ -63,6 +68,18 @@ final class AlpTextureCatalogSupport {
     return libraries;
   }
 
+  /**
+   * Returns the items of the library selector, starting with an "all libraries" entry
+   * whose id is <code>null</code> so that no library filter is applied.
+   */
+  static List<Library> getTextureLibraryChoices(UserPreferences preferences) {
+    List<Library> choices = new ArrayList<Library>();
+    choices.add(new SimpleLibrary(null, UserPreferences.TEXTURES_LIBRARY_TYPE, null,
+        getAllLibrariesLabel(preferences), null, null, null, null));
+    choices.addAll(getTextureLibraries(preferences));
+    return choices;
+  }
+
   static boolean hasUserImportedTextures(TexturesCatalog catalog) {
     for (TexturesCategory category : catalog.getCategories()) {
       for (CatalogTexture texture : category.getTextures()) {
@@ -74,12 +91,17 @@ final class AlpTextureCatalogSupport {
     return false;
   }
 
+  /**
+   * Returns the categories holding at least one texture of the given library,
+   * or every category of the catalog when <code>libraryId</code> is <code>null</code>.
+   */
   static List<String> getCategoryNamesForLibrary(UserPreferences preferences, String libraryId) {
-    if (libraryId == null) {
-      return Collections.emptyList();
-    }
     Set<String> categoryNames = new LinkedHashSet<String>();
     for (TexturesCategory category : preferences.getTexturesCatalog().getCategories()) {
+      if (libraryId == null) {
+        categoryNames.add(category.getName());
+        continue;
+      }
       for (CatalogTexture texture : category.getTextures()) {
         if (libraryId.equals(texture.getLibraryId())) {
           categoryNames.add(category.getName());
@@ -164,7 +186,11 @@ final class AlpTextureCatalogSupport {
       }
     }
 
-    if (sessionLibraryId != null) {
+    if (sessionSelectionRecorded) {
+      if (sessionLibraryId == null) {
+        // The user explicitly browsed all libraries during this session
+        return null;
+      }
       Library library = findLibraryById(libraries, sessionLibraryId);
       if (library != null) {
         return library;
@@ -186,11 +212,8 @@ final class AlpTextureCatalogSupport {
       }
     }
 
-    if (libraries.size() == 1) {
-      return libraries.get(0);
-    }
-
-    return libraries.get(0);
+    // Fall back to browsing every library rather than an arbitrary one
+    return null;
   }
 
   static String resolveDefaultCategoryName(UserPreferences preferences,
@@ -201,8 +224,7 @@ final class AlpTextureCatalogSupport {
       CatalogTexture catalogTexture = findCatalogTexture(preferences, floorTexture.getCatalogId());
       if (catalogTexture != null
           && catalogTexture.getCategory() != null
-          && libraryId != null
-          && libraryId.equals(catalogTexture.getLibraryId())) {
+          && (libraryId == null || libraryId.equals(catalogTexture.getLibraryId()))) {
         return catalogTexture.getCategory().getName();
       }
     }
@@ -224,7 +246,7 @@ final class AlpTextureCatalogSupport {
   static boolean categoryExistsInLibrary(UserPreferences preferences,
                                          String libraryId,
                                          String categoryName) {
-    if (libraryId == null || categoryName == null) {
+    if (categoryName == null) {
       return false;
     }
     for (String name : getCategoryNamesForLibrary(preferences, libraryId)) {

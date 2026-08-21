@@ -1477,7 +1477,7 @@ public class SelectionInspectorPane extends JPanel {
       }
       this.updatingFloorTextureFilters = true;
       try {
-        List<Library> libraries = AlpTextureCatalogSupport.getTextureLibraries(this.preferences);
+        List<Library> libraries = AlpTextureCatalogSupport.getTextureLibraryChoices(this.preferences);
         Library selectedLibrary = null;
         String selectedCategoryName = null;
         if (resetDefaults) {
@@ -1485,10 +1485,9 @@ public class SelectionInspectorPane extends JPanel {
           LevelCategory levelCategory = getSelectedRoomsLevelCategory();
           selectedLibrary = AlpTextureCatalogSupport.resolveDefaultLibrary(
               this.preferences, floorTexture, levelCategory);
-          if (selectedLibrary != null) {
-            selectedCategoryName = AlpTextureCatalogSupport.resolveDefaultCategoryName(
-                this.preferences, floorTexture, levelCategory, selectedLibrary.getId());
-          }
+          selectedCategoryName = AlpTextureCatalogSupport.resolveDefaultCategoryName(
+              this.preferences, floorTexture, levelCategory,
+              selectedLibrary != null ? selectedLibrary.getId() : null);
         } else {
           Object currentLibrary = this.floorTextureLibraryComboBox.getSelectedItem();
           if (currentLibrary instanceof Library) {
@@ -1500,13 +1499,15 @@ public class SelectionInspectorPane extends JPanel {
 
         this.floorTextureLibraryComboBox.setModel(new DefaultComboBoxModel(
             libraries.toArray(new Library [libraries.size()])));
-        boolean singleLibrary = libraries.size() == 1;
-        this.floorTextureLibraryComboBox.setEnabled(!singleLibrary);
-        if (selectedLibrary != null) {
-          this.floorTextureLibraryComboBox.setSelectedItem(selectedLibrary);
-        } else if (!libraries.isEmpty()) {
+        this.floorTextureLibraryComboBox.setEnabled(libraries.size() > 1);
+        // Match on id because the imported textures entry is rebuilt at each call
+        Library libraryItem = selectedLibrary != null
+            ? AlpTextureCatalogSupport.findLibraryById(libraries, selectedLibrary.getId())
+            : null;
+        if (libraryItem != null) {
+          this.floorTextureLibraryComboBox.setSelectedItem(libraryItem);
+        } else {
           this.floorTextureLibraryComboBox.setSelectedIndex(0);
-          selectedLibrary = libraries.get(0);
         }
 
         updateFloorTextureCategoryComboBox(true);
@@ -1550,7 +1551,10 @@ public class SelectionInspectorPane extends JPanel {
           this.preferences, this.floorTextureCategoryComboBox.getSelectedItem());
       AlpTextureCatalogSupport.applyTextureFilters(
           this.roomController.getFloorTextureController(), libraryId, categoryName);
-      AlpTextureCatalogSupport.rememberSessionSelection(libraryId, categoryName);
+      if (!this.updatingFloorTextureFilters) {
+        // Only a deliberate choice should override the resolved defaults later on
+        AlpTextureCatalogSupport.rememberSessionSelection(libraryId, categoryName);
+      }
     }
 
     void commitPendingEdits() {
