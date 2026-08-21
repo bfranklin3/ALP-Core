@@ -46,7 +46,6 @@ import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Selectable;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.model.Wall;
-import com.eteks.sweethome3d.tools.AlpColorSupport;
 
 /**
  * A MVC controller for room view.
@@ -337,7 +336,7 @@ public class RoomController implements Controller {
         }
       }
 
-      if (AlpColorSupport.isTransparentColor(floorColor) || floorColor != null) {
+      if (floorColor != null) {
         setFloorPaint(RoomPaint.COLORED);
       } else if (floorTexture != null) {
         setFloorPaint(RoomPaint.TEXTURED);
@@ -918,8 +917,7 @@ public class RoomController implements Controller {
       Integer oldFloorColor = this.floorColor;
       this.floorColor = floorColor;
       this.propertyChangeSupport.firePropertyChange(Property.FLOOR_COLOR.name(), oldFloorColor, floorColor);
-    }
-    if (AlpColorSupport.isTransparentColor(floorColor) || floorColor != null) {
+
       setFloorPaint(RoomPaint.COLORED);
     }
   }
@@ -1256,12 +1254,8 @@ public class RoomController implements Controller {
       Boolean areaVisible = getAreaVisible();
       Boolean floorVisible = getFloorVisible();
       RoomPaint floorPaint = getFloorPaint();
-      Integer floorColor = getFloorColor();
-      if (AlpColorSupport.isTransparentColor(floorColor)) {
-        floorPaint = RoomPaint.COLORED;
-      } else if (floorPaint != RoomPaint.COLORED) {
-        floorColor = null;
-      }
+      Integer floorColor = floorPaint == RoomPaint.COLORED
+          ? getFloorColor() : null;
       HomeTexture floorTexture = floorPaint == RoomPaint.TEXTURED
           ? getFloorTextureController().getTexture() : null;
       Float floorShininess = getFloorShininess();

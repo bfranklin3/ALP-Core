@@ -356,6 +356,7 @@ public class SelectionInspectorPane extends JPanel {
       this.showingFurnitureInspector = false;
       this.showingLevelInspector = false;
       updateInspectorPanelsEnabled();
+      this.roomInspectorPanel.clearPendingFloorTextureMode();
       this.roomInspectorPanel.refresh();
       this.cardLayout.show(this.cardPanel, ROOM_CARD);
       return;
@@ -778,6 +779,8 @@ public class SelectionInspectorPane extends JPanel {
     private JComponent             floorTextureComponent;
     private boolean                floorPaintControlsAvailable;
     private boolean                updatingFloorTextureFilters;
+    // Texture mode selected in the UI but not yet applied to the rooms because no texture is chosen
+    private boolean                pendingFloorTextureMode;
     private JLabel                 floorOpacityLabel;
     private NullableSpinner          floorOpacitySpinner;
     private NullableSpinner.NullableSpinnerNumberModel floorOpacitySpinnerModel;
@@ -896,7 +899,9 @@ public class SelectionInspectorPane extends JPanel {
               if (updatingFromController) {
                 return;
               }
+              pendingFloorTextureMode = false;
               roomController.setFloorColor(floorColorButton.getColor());
+              roomController.setFloorPaint(RoomController.RoomPaint.COLORED);
               applyRoomChanges();
               updateFloorOpacityEnabled();
             }
@@ -918,6 +923,7 @@ public class SelectionInspectorPane extends JPanel {
               if (updatingFromController || !floorColorRadioButton.isSelected()) {
                 return;
               }
+              pendingFloorTextureMode = false;
               roomController.setFloorPaint(RoomController.RoomPaint.COLORED);
               applyRoomChanges();
               updateFloorPaintControlsVisibility();
@@ -931,7 +937,14 @@ public class SelectionInspectorPane extends JPanel {
                 return;
               }
               roomController.setFloorPaint(RoomController.RoomPaint.TEXTURED);
-              applyRoomChanges();
+              // Applying textured paint without a texture would clear the rooms fill and reset
+              // them to their default paint, so wait until a texture is actually chosen
+              if (roomController.getFloorTextureController().getTexture() != null) {
+                pendingFloorTextureMode = false;
+                applyRoomChanges();
+              } else {
+                pendingFloorTextureMode = true;
+              }
               updateFloorPaintControlsVisibility();
               updateFloorTextureFilterControls(true);
             }
@@ -1005,6 +1018,10 @@ public class SelectionInspectorPane extends JPanel {
               public void propertyChange(PropertyChangeEvent ev) {
                 if (updatingFromController) {
                   return;
+                }
+                if (pendingFloorTextureMode) {
+                  pendingFloorTextureMode = false;
+                  roomController.setFloorPaint(RoomController.RoomPaint.TEXTURED);
                 }
                 applyRoomChanges();
               }
@@ -1412,12 +1429,18 @@ public class SelectionInspectorPane extends JPanel {
           RoomController.Property.NAME, nameChangeListener);
     }
 
+    void clearPendingFloorTextureMode() {
+      this.pendingFloorTextureMode = false;
+    }
+
     private void updateFloorPaintRadioButtons() {
       if (!this.floorPaintControlsAvailable) {
         return;
       }
       RoomController.RoomPaint floorPaint = this.roomController.getFloorPaint();
-      if (floorPaint == RoomController.RoomPaint.COLORED) {
+      if (this.pendingFloorTextureMode) {
+        this.floorTextureRadioButton.setSelected(true);
+      } else if (floorPaint == RoomController.RoomPaint.COLORED) {
         this.floorColorRadioButton.setSelected(true);
       } else if (floorPaint == RoomController.RoomPaint.TEXTURED) {
         this.floorTextureRadioButton.setSelected(true);
@@ -1431,9 +1454,9 @@ public class SelectionInspectorPane extends JPanel {
       boolean enabled = floorVisible == null || floorVisible;
       if (this.floorPaintControlsAvailable) {
         RoomController.RoomPaint floorPaint = this.roomController.getFloorPaint();
-        boolean colored = floorPaint == RoomController.RoomPaint.COLORED;
-        boolean textured = floorPaint == RoomController.RoomPaint.TEXTURED;
-        boolean mixed = floorPaint == null;
+        boolean colored = !this.pendingFloorTextureMode && floorPaint == RoomController.RoomPaint.COLORED;
+        boolean textured = this.pendingFloorTextureMode || floorPaint == RoomController.RoomPaint.TEXTURED;
+        boolean mixed = !this.pendingFloorTextureMode && floorPaint == null;
         this.floorColorRadioButton.setEnabled(enabled);
         this.floorTextureRadioButton.setEnabled(enabled);
         this.floorColorButton.setVisible(colored || mixed);
@@ -1464,6 +1487,10 @@ public class SelectionInspectorPane extends JPanel {
     }
 
     private boolean isTransparentFloorFill() {
+      if (this.pendingFloorTextureMode
+          || this.roomController.getFloorPaint() == RoomController.RoomPaint.TEXTURED) {
+        return false;
+      }
       if (AlpColorSupport.isTransparentColor(this.roomController.getFloorColor())) {
         return true;
       }

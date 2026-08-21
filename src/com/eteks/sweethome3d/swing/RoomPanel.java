@@ -659,9 +659,10 @@ public class RoomPanel extends JPanel implements DialogView {
     if (this.floorOpacitySpinner != null) {
       Boolean floorVisible = controller.getFloorVisible();
       boolean enabled = floorVisible == null || floorVisible;
-      boolean transparentFill = AlpColorSupport.isTransparentColor(controller.getFloorColor())
-          || (this.floorColorButton != null
-              && AlpColorSupport.isTransparentColor(this.floorColorButton.getColor()));
+      boolean transparentFill = controller.getFloorPaint() != RoomController.RoomPaint.TEXTURED
+          && (AlpColorSupport.isTransparentColor(controller.getFloorColor())
+              || (this.floorColorButton != null
+                  && AlpColorSupport.isTransparentColor(this.floorColorButton.getColor())));
       this.floorOpacitySpinner.setEnabled(enabled && !transparentFill);
       this.floorOpacityLabel.setEnabled(enabled && !transparentFill);
     }
