@@ -55,7 +55,7 @@ public class RoomController implements Controller {
   /**
    * The properties that may be edited by the view associated to this controller.
    */
-  public enum Property {NAME, AREA_VISIBLE, FLOOR_VISIBLE, FLOOR_COLOR, FLOOR_PAINT, FLOOR_SHININESS, FLOOR_OPACITY, SMOOTHED,
+  public enum Property {NAME, NAME_VISIBLE, AREA_VISIBLE, FLOOR_VISIBLE, FLOOR_COLOR, FLOOR_PAINT, FLOOR_SHININESS, FLOOR_OPACITY, SMOOTHED,
       OUTLINE_THICKNESS, OUTLINE_DASH_STYLE, OUTLINE_COLOR,
       CEILING_VISIBLE, CEILING_COLOR, CEILING_PAINT, CEILING_SHININESS, CEILING_FLAT,
       SPLIT_SURROUNDING_WALLS, WALL_SIDES_COLOR, WALL_SIDES_PAINT, WALL_SIDES_SHININESS, WALL_SIDES_BASEBOARD}
@@ -78,6 +78,7 @@ public class RoomController implements Controller {
   private DialogView                  roomView;
 
   private String    name;
+  private Boolean   nameVisible;
   private Boolean   areaVisible;
   private Boolean   floorVisible;
   private Integer   floorColor;
@@ -253,6 +254,7 @@ public class RoomController implements Controller {
     List<Room> selectedRooms = Home.getRoomsSubList(this.home.getSelectedItems());
     if (selectedRooms.isEmpty()) {
       setAreaVisible(null); // Nothing to edit
+      setNameVisible(null);
       setFloorColor(null);
       getFloorTextureController().setTexture(null);
       setFloorPaint(null);
@@ -281,6 +283,15 @@ public class RoomController implements Controller {
         }
       }
       setName(name);
+
+      Boolean nameVisible = firstRoom.isNameVisible();
+      for (int i = 1; i < selectedRooms.size(); i++) {
+        if (nameVisible != selectedRooms.get(i).isNameVisible()) {
+          nameVisible = null;
+          break;
+        }
+      }
+      setNameVisible(nameVisible);
 
       // Search the common areaVisible value among rooms
       Boolean areaVisible = firstRoom.isAreaVisible();
@@ -874,6 +885,24 @@ public class RoomController implements Controller {
   }
 
   /**
+   * Sets whether room name is visible on plan or not.
+   */
+  public void setNameVisible(Boolean nameVisible) {
+    if (nameVisible != this.nameVisible) {
+      Boolean oldNameVisible = this.nameVisible;
+      this.nameVisible = nameVisible;
+      this.propertyChangeSupport.firePropertyChange(Property.NAME_VISIBLE.name(), oldNameVisible, nameVisible);
+    }
+  }
+
+  /**
+   * Returns whether room name is visible on plan or not.
+   */
+  public Boolean getNameVisible() {
+    return this.nameVisible;
+  }
+
+  /**
    * Sets whether room area is visible or not.
    */
   public void setAreaVisible(Boolean areaVisible) {
@@ -1251,6 +1280,7 @@ public class RoomController implements Controller {
     List<Room> selectedRooms = Home.getRoomsSubList(oldSelection);
     if (!selectedRooms.isEmpty()) {
       String name = getName();
+      Boolean nameVisible = getNameVisible();
       Boolean areaVisible = getAreaVisible();
       Boolean floorVisible = getFloorVisible();
       RoomPaint floorPaint = getFloorPaint();
@@ -1312,7 +1342,7 @@ public class RoomController implements Controller {
       for (int i = 0; i < modifiedWallSides.length; i++) {
         modifiedWallSides [i] = new ModifiedWallSide(selectedRoomsWallSides.get(i));
       }
-      doModifyRoomsAndWallSides(home, modifiedRooms, name, areaVisible,
+      doModifyRoomsAndWallSides(home, modifiedRooms, name, nameVisible, areaVisible,
           floorVisible, floorPaint, floorColor, floorTexture, floorShininess, floorOpacity, smoothed,
           outlineThickness, outlineDashStyle, outlineColor, ceilingVisible,
           ceilingPaint, ceilingColor, ceilingTexture, ceilingShininess, ceilingFlat, modifiedWallSides,
@@ -1323,7 +1353,7 @@ public class RoomController implements Controller {
       if (this.undoSupport != null) {
         this.undoSupport.postEdit(new RoomsAndWallSidesModificationUndoableEdit(this.home, this.preferences,
             oldSelection.toArray(new Selectable [oldSelection.size()]), newSelection.toArray(new Selectable [newSelection.size()]),
-            modifiedRooms, name, areaVisible,
+            modifiedRooms, name, nameVisible, areaVisible,
             floorVisible, floorPaint, floorColor, floorTexture, floorShininess, floorOpacity, smoothed,
             outlineThickness, outlineDashStyle, outlineColor, ceilingVisible,
             ceilingPaint, ceilingColor, ceilingTexture, ceilingShininess, ceilingFlat, modifiedWallSides,
@@ -1527,6 +1557,7 @@ public class RoomController implements Controller {
     private final Selectable []       newSelection;
     private final ModifiedRoom []     modifiedRooms;
     private final String              name;
+    private final Boolean             nameVisible;
     private final Boolean             areaVisible;
     private final Boolean             floorVisible;
     private final RoomPaint           floorPaint;
@@ -1566,6 +1597,7 @@ public class RoomController implements Controller {
                                           Selectable [] newSelection,
                                           ModifiedRoom [] modifiedRooms,
                                           String name,
+                                          Boolean nameVisible,
                                           Boolean areaVisible,
                                           Boolean floorVisible,
                                           RoomPaint floorPaint,
@@ -1604,6 +1636,7 @@ public class RoomController implements Controller {
       this.newSelection = newSelection;
       this.modifiedRooms = modifiedRooms;
       this.name = name;
+      this.nameVisible = nameVisible;
       this.areaVisible = areaVisible;
       this.floorVisible = floorVisible;
       this.floorPaint = floorPaint;
@@ -1649,7 +1682,7 @@ public class RoomController implements Controller {
     public void redo() throws CannotRedoException {
       super.redo();
       doModifyRoomsAndWallSides(this.home,
-          this.modifiedRooms, this.name, this.areaVisible,
+          this.modifiedRooms, this.name, this.nameVisible, this.areaVisible,
           this.floorVisible, this.floorPaint, this.floorColor, this.floorTexture, this.floorShininess, this.floorOpacity, this.smoothed,
           this.outlineThickness, this.outlineDashStyle, this.outlineColor, this.ceilingVisible,
           this.ceilingPaint, this.ceilingColor, this.ceilingTexture, this.ceilingShininess, this.ceilingFlat, this.modifiedWallSides,
@@ -1666,7 +1699,7 @@ public class RoomController implements Controller {
    * Modifies rooms and walls properties with the values in parameter.
    */
   private static void doModifyRoomsAndWallSides(Home home, ModifiedRoom [] modifiedRooms,
-                                                String name, Boolean areaVisible,
+                                                String name, Boolean nameVisible, Boolean areaVisible,
                                                 Boolean floorVisible, RoomPaint floorPaint, Integer floorColor, HomeTexture floorTexture, Float floorShininess, Float floorOpacity, Boolean smoothed,
                                                 Float outlineThickness, Polyline.DashStyle outlineDashStyle, Integer outlineColor,
                                                 Boolean ceilingVisible,
@@ -1691,6 +1724,9 @@ public class RoomController implements Controller {
       Room room = modifiedRoom.getRoom();
       if (name != null) {
         room.setName(name);
+      }
+      if (nameVisible != null) {
+        room.setNameVisible(nameVisible);
       }
       if (areaVisible != null) {
         room.setAreaVisible(areaVisible);
@@ -1897,6 +1933,7 @@ public class RoomController implements Controller {
   private static final class ModifiedRoom {
     private final Room        room;
     private final String      name;
+    private final boolean     nameVisible;
     private final boolean     areaVisible;
     private final boolean     floorVisible;
     private final Integer     floorColor;
@@ -1916,6 +1953,7 @@ public class RoomController implements Controller {
     public ModifiedRoom(Room room) {
       this.room = room;
       this.name = room.getName();
+      this.nameVisible = room.isNameVisible();
       this.areaVisible = room.isAreaVisible();
       this.floorVisible = room.isFloorVisible();
       this.floorColor = room.getFloorColor();
@@ -1939,6 +1977,7 @@ public class RoomController implements Controller {
 
     public void reset() {
       this.room.setName(this.name);
+      this.room.setNameVisible(this.nameVisible);
       this.room.setAreaVisible(this.areaVisible);
       this.room.setFloorVisible(this.floorVisible);
       this.room.setFloorColor(this.floorColor);

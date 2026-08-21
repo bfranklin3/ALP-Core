@@ -653,6 +653,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           writer.writeFloatAttribute("nameAngle", room.getNameAngle(), 0f);
           writer.writeFloatAttribute("nameXOffset", room.getNameXOffset(), 0f);
           writer.writeFloatAttribute("nameYOffset", room.getNameYOffset(), -40f);
+          writer.writeBooleanAttribute("nameVisible", room.isNameVisible(), true);
           writer.writeBooleanAttribute("areaVisible", room.isAreaVisible(), false);
           writer.writeFloatAttribute("areaAngle", room.getAreaAngle(), 0f);
           writer.writeFloatAttribute("areaXOffset", room.getAreaXOffset(), 0f);

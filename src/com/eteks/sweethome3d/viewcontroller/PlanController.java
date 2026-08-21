@@ -4822,6 +4822,7 @@ public class PlanController extends FurnitureController implements Controller {
       Room room = (Room)selectedItems.get(0);
       float margin = getIndicatorMargin();
       if (room.isAtLevel(this.home.getSelectedLevel())
+          && room.isNameVisible()
           && room.getName() != null
           && room.getName().trim().length() > 0
           && room.isNameCenterPointAt(x, y, margin)) {
@@ -4843,6 +4844,7 @@ public class PlanController extends FurnitureController implements Controller {
       Room room = (Room)selectedItems.get(0);
       float margin = getIndicatorMargin();
       if (room.isAtLevel(this.home.getSelectedLevel())
+          && room.isNameVisible()
           && room.getName() != null
           && room.getName().trim().length() > 0
           && isTextAnglePointAt(room, room.getName(), room.getNameStyle(),
@@ -5527,7 +5529,8 @@ public class PlanController extends FurnitureController implements Controller {
           } else {
             // Search if room name contains point in case it is drawn outside of the room
             String roomName = room.getName();
-            if (roomName != null
+            if (room.isNameVisible()
+                && roomName != null
                 && isItemTextAt(room, roomName, room.getNameStyle(),
                   room.getXCenter() + room.getNameXOffset(),
                   room.getYCenter() + room.getNameYOffset(), room.getNameAngle(), x, y, textMargin)) {

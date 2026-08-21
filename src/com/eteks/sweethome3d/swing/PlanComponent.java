@@ -914,6 +914,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           String propertyName = ev.getPropertyName();
           if (Room.Property.POINTS.name().equals(propertyName)
               || Room.Property.NAME.name().equals(propertyName)
+              || Room.Property.NAME_VISIBLE.name().equals(propertyName)
               || Room.Property.NAME_X_OFFSET.name().equals(propertyName)
               || Room.Property.NAME_Y_OFFSET.name().equals(propertyName)
               || Room.Property.NAME_STYLE.name().equals(propertyName)
@@ -1952,7 +1953,8 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       float xRoomCenter = room.getXCenter();
       float yRoomCenter = room.getYCenter();
       String roomName = room.getName();
-      if (roomName != null && roomName.length() > 0) {
+      if (room.isNameVisible()
+          && roomName != null && roomName.length() > 0) {
         addTextBounds(room.getClass(),
             roomName, room.getNameStyle(),
             xRoomCenter + room.getNameXOffset(),
@@ -3455,7 +3457,8 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         float xRoomCenter = room.getXCenter();
         float yRoomCenter = room.getYCenter();
         String name = room.getName();
-        if (name != null) {
+        if (room.isNameVisible()
+            && name != null) {
           name = name.trim();
           if (name.length() > 0) {
             paintText(g2D, room.getClass(), name, room.getNameStyle(), null,
@@ -3742,6 +3745,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
                                             Paint indicatorPaint,
                                             float planScale) {
     if (this.resizeIndicatorVisible
+        && room.isNameVisible()
         && room.getName() != null
         && room.getName().trim().length() > 0) {
       float xName = room.getXCenter() + room.getNameXOffset();

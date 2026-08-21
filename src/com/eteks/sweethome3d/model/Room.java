@@ -39,7 +39,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
    * The properties of a room that may change. <code>PropertyChangeListener</code>s added
    * to a room will be notified under a property name equal to the string value of one these properties.
    */
-  public enum Property {NAME, NAME_X_OFFSET, NAME_Y_OFFSET, NAME_STYLE, NAME_ANGLE,
+  public enum Property {NAME, NAME_VISIBLE, NAME_X_OFFSET, NAME_Y_OFFSET, NAME_STYLE, NAME_ANGLE,
       POINTS, AREA_VISIBLE, AREA_X_OFFSET, AREA_Y_OFFSET, AREA_STYLE, AREA_ANGLE,
       FLOOR_COLOR, FLOOR_TEXTURE, FLOOR_VISIBLE, FLOOR_SHININESS, FLOOR_OPACITY, SMOOTHED, SHARP_CORNERS,
       OUTLINE_THICKNESS, OUTLINE_DASH_STYLE, OUTLINE_COLOR,
@@ -50,6 +50,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
   private static final double TWICE_PI = 2 * Math.PI;
 
   private String              name;
+  private boolean             nameVisible;
   private float               nameXOffset;
   private float               nameYOffset;
   private TextStyle           nameStyle;
@@ -99,6 +100,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
       throw new IllegalStateException("Room points must containt at least two points");
     }
     this.points = deepCopy(points);
+    this.nameVisible = true;
     this.areaVisible = true;
     this.nameYOffset = -40f;
     this.floorVisible = true;
@@ -115,6 +117,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
     this.ceilingFlat = false;
     this.floorOpacity = 0.75f;
     this.outlineDashStyle = Polyline.DashStyle.SOLID;
+    this.nameVisible = true;
     in.defaultReadObject();
     restoreOutlineDashStyle();
   }
@@ -149,6 +152,24 @@ public class Room extends HomeObject implements Selectable, Elevatable {
       String oldName = this.name;
       this.name = name;
       firePropertyChange(Property.NAME.name(), oldName, name);
+    }
+  }
+
+  /**
+   * Returns whether the name of this room should be drawn on plan or not.
+   */
+  public boolean isNameVisible() {
+    return this.nameVisible;
+  }
+
+  /**
+   * Sets whether the name of this room is visible on plan or not. Once this room
+   * is updated, listeners added to this room will receive a change notification.
+   */
+  public void setNameVisible(boolean nameVisible) {
+    if (nameVisible != this.nameVisible) {
+      this.nameVisible = nameVisible;
+      firePropertyChange(Property.NAME_VISIBLE.name(), !nameVisible, nameVisible);
     }
   }
 

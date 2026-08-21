@@ -113,6 +113,38 @@ public class HomeFileRecorderTest extends TestCase {
     }
   }
 
+  public void testRoomNameVisibleRoundTrip() throws RecorderException, URISyntaxException {
+    Home home = new Home();
+    Room visibleRoom = new Room(new float [][] {{0, 0}, {100, 0}, {100, 100}, {0, 100}});
+    visibleRoom.setName("Lawn");
+    visibleRoom.setNameVisible(true);
+    home.addRoom(visibleRoom);
+
+    Room hiddenRoom = new Room(new float [][] {{200, 0}, {300, 0}, {300, 100}, {200, 100}});
+    hiddenRoom.setName("Setback");
+    hiddenRoom.setNameVisible(false);
+    home.addRoom(hiddenRoom);
+
+    String testFile = new File("test-name-visible.sh3d").getAbsolutePath();
+    HomeFileRecorder recorder = new HomeFileRecorder();
+    try {
+      recorder.writeHome(home, testFile);
+      Home readHome = recorder.readHome(testFile);
+      assertEquals("Lawn", readHome.getRooms().get(0).getName());
+      assertTrue(readHome.getRooms().get(0).isNameVisible());
+      assertEquals("Setback", readHome.getRooms().get(1).getName());
+      assertFalse(readHome.getRooms().get(1).isNameVisible());
+    } finally {
+      new File(testFile).delete();
+    }
+
+    Home legacyHome = recorder.readHome(new File(
+        HomeControllerTest.class.getResource("resources/homeTest.xml").toURI()).getAbsolutePath());
+    assertEquals(1, legacyHome.getRooms().size());
+    assertTrue("Legacy room without nameVisible should default to visible",
+        legacyHome.getRooms().get(0).isNameVisible());
+  }
+
   private void checkSavedHome(Home home, HomeRecorder recorder) throws RecorderException {
     // 1. Record home in a file named test.sh3d in current directory
     String testFile = new File("test.sh3d").getAbsolutePath();

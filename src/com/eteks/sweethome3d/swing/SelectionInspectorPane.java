@@ -767,6 +767,7 @@ public class SelectionInspectorPane extends JPanel {
     private JTextField             nameTextField;
     private JLabel                 levelFieldLabel;
     private JLabel                 levelValueLabel;
+    private NullableCheckBox       nameVisibleCheckBox;
     private NullableCheckBox       areaVisibleCheckBox;
     private ColorButton            floorColorButton;
     private JRadioButton           floorColorRadioButton;
@@ -869,6 +870,23 @@ public class SelectionInspectorPane extends JPanel {
             if (ev.getKeyCode() == KeyEvent.VK_ENTER) {
               commitPendingEdits();
             }
+          }
+        });
+
+      this.nameVisibleCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(
+          this.preferences, RoomPanel.class, "nameVisibleCheckBox.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.nameVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                RoomPanel.class, "nameVisibleCheckBox.mnemonic")).getKeyCode());
+      }
+      this.nameVisibleCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            roomController.setNameVisible(nameVisibleCheckBox.getValue());
+            applyRoomChanges();
           }
         });
 
@@ -1156,8 +1174,11 @@ public class SelectionInspectorPane extends JPanel {
       namePanel.add(this.levelValueLabel, new GridBagConstraints(
           1, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
-      namePanel.add(this.areaVisibleCheckBox, new GridBagConstraints(
+      namePanel.add(this.nameVisibleCheckBox, new GridBagConstraints(
           0, 2, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      namePanel.add(this.areaVisibleCheckBox, new GridBagConstraints(
+          0, 3, 2, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
 
       fieldsPanel.add(namePanel, new GridBagConstraints(
@@ -1360,6 +1381,9 @@ public class SelectionInspectorPane extends JPanel {
       this.updatingFromController = true;
       try {
         this.roomController.refreshProperties();
+
+        this.nameVisibleCheckBox.setNullable(this.roomController.getNameVisible() == null);
+        this.nameVisibleCheckBox.setValue(this.roomController.getNameVisible());
 
         this.areaVisibleCheckBox.setNullable(this.roomController.getAreaVisible() == null);
         this.areaVisibleCheckBox.setValue(this.roomController.getAreaVisible());

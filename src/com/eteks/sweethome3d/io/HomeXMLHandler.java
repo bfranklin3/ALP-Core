@@ -404,6 +404,7 @@ import com.eteks.sweethome3d.tools.URLContent;
  *       nameAngle CDATA "0"
  *       nameXOffset CDATA "0"
  *       nameYOffset CDATA "-40"
+ *       nameVisible (false | true) "true"
  *       areaVisible (false | true) "false"
  *       areaAngle CDATA "0"
  *       areaXOffset CDATA "0"
@@ -1581,6 +1582,7 @@ public class HomeXMLHandler extends DefaultHandler {
     if (nameYOffset != null) {
       room.setNameYOffset(nameYOffset);
     }
+    room.setNameVisible(!"false".equals(attributes.get("nameVisible")));
     room.setAreaVisible("true".equals(attributes.get("areaVisible")));
     Float areaAngle = parseOptionalFloat(attributes, "areaAngle");
     if (areaAngle != null) {

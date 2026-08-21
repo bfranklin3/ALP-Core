@@ -62,6 +62,7 @@ public class RoomPanel extends JPanel implements DialogView {
   private final RoomController  controller;
   private JLabel                nameLabel;
   private JTextField            nameTextField;
+  private NullableCheckBox      nameVisibleCheckBox;
   private NullableCheckBox      areaVisibleCheckBox;
   private NullableCheckBox      floorVisibleCheckBox;
   private NullableCheckBox      smoothedCheckBox;
@@ -145,6 +146,27 @@ public class RoomPanel extends JPanel implements DialogView {
 
           public void removeUpdate(DocumentEvent ev) {
             changedUpdate(ev);
+          }
+        });
+    }
+
+    if (controller.isPropertyEditable(RoomController.Property.NAME_VISIBLE)) {
+      this.nameVisibleCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(preferences,
+          RoomPanel.class, "nameVisibleCheckBox.text"));
+      this.nameVisibleCheckBox.setNullable(controller.getNameVisible() == null);
+      this.nameVisibleCheckBox.setValue(controller.getNameVisible());
+      final PropertyChangeListener nameVisibleChangeListener = new PropertyChangeListener() {
+        public void propertyChange(PropertyChangeEvent ev) {
+          nameVisibleCheckBox.setNullable(ev.getNewValue() == null);
+          nameVisibleCheckBox.setValue((Boolean)ev.getNewValue());
+        }
+      };
+      controller.addPropertyChangeListener(RoomController.Property.NAME_VISIBLE, nameVisibleChangeListener);
+      this.nameVisibleCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            controller.removePropertyChangeListener(RoomController.Property.NAME_VISIBLE, nameVisibleChangeListener);
+            controller.setNameVisible(nameVisibleCheckBox.getValue());
+            controller.addPropertyChangeListener(RoomController.Property.NAME_VISIBLE, nameVisibleChangeListener);
           }
         });
     }
@@ -739,6 +761,10 @@ public class RoomPanel extends JPanel implements DialogView {
             preferences.getLocalizedString(RoomPanel.class, "nameLabel.mnemonic")).getKeyCode());
         this.nameLabel.setLabelFor(this.nameTextField);
       }
+      if (this.nameVisibleCheckBox != null) {
+        this.nameVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            preferences.getLocalizedString(RoomPanel.class, "nameVisibleCheckBox.mnemonic")).getKeyCode());
+      }
       if (this.areaVisibleCheckBox != null) {
         this.areaVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(
             preferences.getLocalizedString(RoomPanel.class, "areaVisibleCheckBox.mnemonic")).getKeyCode());
@@ -816,21 +842,27 @@ public class RoomPanel extends JPanel implements DialogView {
         : GridBagConstraints.LINE_START;
     int standardGap = Math.round(5 * SwingTools.getResolutionScale());
     // First row
-    if (this.nameLabel != null || this.areaVisibleCheckBox != null) {
+    if (this.nameLabel != null || this.nameVisibleCheckBox != null || this.areaVisibleCheckBox != null) {
       JPanel nameAndAreaPanel = SwingTools.createTitledPanel(preferences.getLocalizedString(
           RoomPanel.class, "nameAndAreaPanel.title"));
+      int nameAreaRow = 0;
       if (this.nameLabel != null) {
         nameAndAreaPanel.add(this.nameLabel, new GridBagConstraints(
-            0, 0, 1, 1, 0, 0, labelAlignment,
+            0, nameAreaRow, 1, 1, 0, 0, labelAlignment,
             GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
         nameAndAreaPanel.add(this.nameTextField, new GridBagConstraints(
-            1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+            1, nameAreaRow++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
+      }
+      if (this.nameVisibleCheckBox != null) {
+        nameAndAreaPanel.add(this.nameVisibleCheckBox, new GridBagConstraints(
+            0, nameAreaRow++, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
       }
       if (this.areaVisibleCheckBox != null) {
         nameAndAreaPanel.add(this.areaVisibleCheckBox, new GridBagConstraints(
-            2, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
-            GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
+            0, nameAreaRow, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
       }
       Insets rowInsets;
       if (OperatingSystem.isMacOSXLeopardOrSuperior()) {
