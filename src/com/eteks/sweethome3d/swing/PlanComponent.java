@@ -3340,7 +3340,9 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           g2D.setComposite(oldComposite);
 
           setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
-          g2D.draw(roomShape);
+          if (shouldDrawRoomOutline(room)) {
+            g2D.draw(roomShape);
+          }
           g2D.rotate(-textureAngle, 0, 0);
         } else {
           g2D.rotate(textureAngle, 0, 0);
@@ -3348,8 +3350,10 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
               ? AffineTransform.getRotateInstance(-textureAngle, 0, 0)
               : null;
           Shape roomShape = getRoomShape(room, rotation);
-          setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
-          g2D.draw(roomShape);
+          if (shouldDrawRoomOutline(room)) {
+            setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
+            g2D.draw(roomShape);
+          }
           g2D.rotate(-textureAngle, 0, 0);
         }
       }
@@ -3361,6 +3365,10 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
    */
   private Shape getRoomShape(Room room, AffineTransform rotation) {
     return ShapeTools.getRoomShape(room.getPoints(), room.isSmoothed(), room.getSharpCorners(), rotation);
+  }
+
+  private boolean shouldDrawRoomOutline(Room room) {
+    return !AlpColorSupport.isTransparentColor(room.getOutlineColor());
   }
 
   private void setRoomOutlinePaintAndStroke(Graphics2D g2D, Room room, PaintMode paintMode,
@@ -3586,7 +3594,8 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
 
     // Draw rooms area
     for (Room room : rooms) {
-      if (isViewableAtLevel(room, level)) {
+      if (isViewableAtLevel(room, level)
+          && shouldDrawRoomOutline(room)) {
         setRoomOutlinePaintAndStroke(g2D, room, PaintMode.PAINT, planScale, foregroundColor);
         g2D.draw(getRoomShape(room, null));
       }

@@ -1045,7 +1045,7 @@ public class RoomController implements Controller {
    * Sets the edited outline color.
    */
   public void setOutlineColor(Integer outlineColor) {
-    if (outlineColor != this.outlineColor) {
+    if (!java.util.Objects.equals(outlineColor, this.outlineColor)) {
       Integer oldOutlineColor = this.outlineColor;
       this.outlineColor = outlineColor;
       this.propertyChangeSupport.firePropertyChange(Property.OUTLINE_COLOR.name(),

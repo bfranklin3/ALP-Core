@@ -1091,6 +1091,7 @@ public class SelectionInspectorPane extends JPanel {
       this.outlineColorLabel = new JLabel(SwingTools.getLocalizedLabelText(
           this.preferences, PolylinePanel.class, "colorLabel.text"));
       this.outlineColorButton = new ColorButton(this.preferences);
+      this.outlineColorButton.setNullColorAllowed(true);
       this.outlineColorButton.setColorDialogTitle(this.preferences.getLocalizedString(
           SelectionInspectorPane.class, "outlineColorDialog.title"));
       this.outlineColorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
