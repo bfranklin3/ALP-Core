@@ -40,7 +40,9 @@ import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomeRecorder;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.RecorderException;
+import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.TextStyle;
 import com.eteks.sweethome3d.model.Wall;
 import com.eteks.sweethome3d.tools.URLContent;
@@ -80,6 +82,35 @@ public class HomeFileRecorderTest extends TestCase {
     checkSavedHome(home1, new HomeFileRecorder());
     // Test if home with XML entry is correctly saved
     checkSavedHome(home1, new HomeFileRecorder(9, false, null, false, true));
+  }
+
+  public void testLandscapeDashStyleRoundTrip() throws RecorderException {
+    Home home = new Home();
+    Polyline polyline = new Polyline(new float [][] {{0, 0}, {100, 0}});
+    polyline.setDashStyle(Polyline.DashStyle.PROPERTY_LINE);
+    home.addPolyline(polyline);
+    Room room = new Room(new float [][] {{0, 0}, {100, 0}, {100, 100}, {0, 100}});
+    room.setOutlineDashStyle(Polyline.DashStyle.UTILITY);
+    home.addRoom(room);
+
+    String testFile = new File("test-dash-styles.sh3d").getAbsolutePath();
+    HomeFileRecorder recorder = new HomeFileRecorder();
+    try {
+      recorder.writeHome(home, testFile);
+      Home readHome = recorder.readHome(testFile);
+      assertEquals(Polyline.DashStyle.PROPERTY_LINE,
+          readHome.getPolylines().get(0).getDashStyle());
+      assertEquals(Polyline.DashStyle.UTILITY,
+          readHome.getRooms().get(0).getOutlineDashStyle());
+
+      polyline.setDashStyle(Polyline.DashStyle.DASH);
+      recorder.writeHome(home, testFile);
+      readHome = recorder.readHome(testFile);
+      assertEquals(Polyline.DashStyle.DASH,
+          readHome.getPolylines().get(0).getDashStyle());
+    } finally {
+      new File(testFile).delete();
+    }
   }
 
   private void checkSavedHome(Home home, HomeRecorder recorder) throws RecorderException {

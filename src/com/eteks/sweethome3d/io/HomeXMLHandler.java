@@ -413,7 +413,7 @@ import com.eteks.sweethome3d.tools.URLContent;
  *       floorShininess CDATA "0"
  *       floorOpacity CDATA "0.75"
  *       outlineThickness CDATA "1.5"
- *       outlineDashStyle (SOLID | DOT | DASH | DASH_DOT | DASH_DOT_DOT) "SOLID"
+ *       outlineDashStyle (SOLID | DOT | DASH | DASH_DOT | DASH_DOT_DOT | PROPERTY_LINE | SETBACK | UTILITY | PHASE | HIDDEN) "SOLID"
  *       outlineColor CDATA #IMPLIED
  *       smoothed (false | true) "false"
  *       ceilingVisible (false | true) "true"
@@ -434,7 +434,7 @@ import com.eteks.sweethome3d.tools.URLContent;
  *       thickness CDATA "1"
  *       capStyle (BUTT | SQUARE | ROUND) "BUTT"
  *       joinStyle (BEVEL | MITER | ROUND | CURVED) "MITER"
- *       dashStyle (SOLID | DOT | DASH | DASH_DOT | DASH_DOT_DOT | CUSTOMIZED) "SOLID"
+ *       dashStyle (SOLID | DOT | DASH | DASH_DOT | DASH_DOT_DOT | PROPERTY_LINE | SETBACK | UTILITY | PHASE | HIDDEN | CUSTOMIZED) "SOLID"
  *       dashPattern CDATA #IMPLIED
  *       dashOffset CDATA "0"
  *       startArrowStyle (NONE | DELTA | OPEN | DISC) "NONE"

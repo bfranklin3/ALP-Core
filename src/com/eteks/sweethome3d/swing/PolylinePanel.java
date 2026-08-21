@@ -296,49 +296,19 @@ public class PolylinePanel extends JPanel implements DialogView {
     // Create dash style label and combo box bound to controller DASH_STYLE property
     this.dashStyleLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
         PolylinePanel.class, "dashStyleLabel.text"));
-    List<Polyline.DashStyle> dashStyles = new ArrayList<Polyline.DashStyle>(Arrays.asList(Polyline.DashStyle.values()));
-    if (controller.getDashStyle() != Polyline.DashStyle.CUSTOMIZED) {
-      dashStyles.remove(Polyline.DashStyle.CUSTOMIZED);
-    }
-    if (controller.getDashStyle() == null) {
-      dashStyles.add(0, null);
-    }
+    List<Polyline.DashStyle> dashStyles = AlpDashStyleSupport.getDashStyleChoicesForCombo(
+        controller.getDashStyle(), controller.getDashStyle() == null);
     this.dashStyleComboBox = new JComboBox(new DefaultComboBoxModel(dashStyles.toArray(new Polyline.DashStyle [dashStyles.size()])));
-    this.dashStyleComboBox.setRenderer(new DefaultListCellRenderer() {
-        @Override
-        public Component getListCellRendererComponent(final JList list,
-            Object value, int index, boolean isSelected, boolean cellHasFocus) {
-          final Polyline.DashStyle dashStyle = (Polyline.DashStyle)value;
-          final Component component = super.getListCellRendererComponent(
-              list, "", index, isSelected, cellHasFocus);
-          setIcon(new Icon() {
-              public int getIconWidth() {
-                return Math.round(64 * resolutionScale);
-              }
+    this.dashStyleComboBox.setRenderer(new AlpDashStyleListCellRenderer(preferences,
+        new AlpDashStyleListCellRenderer.DashStylePreviewSource() {
+          public float getDashOffset() {
+            return controller.getDashOffset() != null ? controller.getDashOffset().floatValue() : 0;
+          }
 
-              public int getIconHeight() {
-                return Math.round(16 * resolutionScale);
-              }
-
-              public void paintIcon(Component c, Graphics g, int x, int y) {
-                if (dashStyle != null) {
-                  Graphics2D g2D = (Graphics2D)g;
-                  g2D.scale(resolutionScale, resolutionScale);
-                  if (OperatingSystem.isMacOSXLeopardOrSuperior()) {
-                    g2D.translate(0, 2);
-                  }
-                  g2D.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                  g2D.setColor(list.getForeground());
-                  float dashOffset = controller.getDashOffset() != null ? controller.getDashOffset().floatValue() : 0;
-                  g2D.setStroke(ShapeTools.getStroke(2, Polyline.CapStyle.BUTT, Polyline.JoinStyle.MITER,
-                      dashStyle != Polyline.DashStyle.CUSTOMIZED ? dashStyle.getDashPattern() : controller.getDashPattern(), dashOffset));
-                  g2D.drawLine(4, 8, getIconWidth() - 4, 8);
-                }
-              }
-            });
-          return component;
-        }
-      });
+          public float [] getCustomPattern() {
+            return controller.getDashPattern();
+          }
+        }));
     this.dashStyleComboBox.setSelectedItem(controller.getDashStyle());
     this.dashStyleComboBox.addItemListener(new ItemListener() {
       public void itemStateChanged(ItemEvent ev) {

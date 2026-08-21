@@ -50,7 +50,8 @@ public class Polyline extends HomeObject implements Selectable, Elevatable {
 
   public enum ArrowStyle {NONE, DELTA, OPEN, DISC}
 
-  public enum DashStyle {SOLID, DOT, DASH, DASH_DOT, DASH_DOT_DOT, CUSTOMIZED;
+  public enum DashStyle {SOLID, DOT, DASH, DASH_DOT, DASH_DOT_DOT,
+      PROPERTY_LINE, SETBACK, UTILITY, PHASE, HIDDEN, CUSTOMIZED;
     /**
      * Returns an array describing the length of dashes and spaces between them
      * for a 1 cm thick polyline.
@@ -62,6 +63,11 @@ public class Polyline extends HomeObject implements Selectable, Elevatable {
         case DASH :         return new float [] {4f, 2f};
         case DASH_DOT :     return new float [] {8f, 2f, 2f, 2f};
         case DASH_DOT_DOT : return new float [] {8f, 2f, 2f, 2f, 2f, 2f};
+        case PROPERTY_LINE : return new float [] {12f, 6f};
+        case SETBACK :      return new float [] {6f, 3f};
+        case UTILITY :      return new float [] {8f, 2f, 2f, 2f};
+        case PHASE :        return new float [] {3f, 6f};
+        case HIDDEN :       return new float [] {1f, 2f};
         default :           return null;
       }
     }

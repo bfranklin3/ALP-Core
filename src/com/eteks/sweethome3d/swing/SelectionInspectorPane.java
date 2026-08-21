@@ -1088,12 +1088,11 @@ public class SelectionInspectorPane extends JPanel {
 
       this.outlineDashStyleLabel = new JLabel(SwingTools.getLocalizedLabelText(
           this.preferences, PolylinePanel.class, "dashStyleLabel.text"));
-      List<Polyline.DashStyle> dashStyles = new ArrayList<Polyline.DashStyle>(
-          Arrays.asList(Polyline.DashStyle.values()));
-      dashStyles.remove(Polyline.DashStyle.CUSTOMIZED);
-      dashStyles.add(0, null);
+      List<Polyline.DashStyle> dashStyles = AlpDashStyleSupport.getDashStyleChoicesForCombo(
+          this.roomController.getOutlineDashStyle(), true);
       this.outlineDashStyleComboBox = new JComboBox(
           new DefaultComboBoxModel(dashStyles.toArray(new Polyline.DashStyle [dashStyles.size()])));
+      this.outlineDashStyleComboBox.setRenderer(new AlpDashStyleListCellRenderer(this.preferences));
       this.outlineDashStyleComboBox.addItemListener(new ItemListener() {
           public void itemStateChanged(ItemEvent ev) {
             if (updatingFromController || ev.getStateChange() != ItemEvent.SELECTED) {
@@ -1763,12 +1762,11 @@ public class SelectionInspectorPane extends JPanel {
 
       this.dashStyleLabel = new JLabel(SwingTools.getLocalizedLabelText(
           this.preferences, PolylinePanel.class, "dashStyleLabel.text"));
-      List<Polyline.DashStyle> dashStyles = new ArrayList<Polyline.DashStyle>(
-          Arrays.asList(Polyline.DashStyle.values()));
-      dashStyles.remove(Polyline.DashStyle.CUSTOMIZED);
-      dashStyles.add(0, null);
+      List<Polyline.DashStyle> dashStyles = AlpDashStyleSupport.getDashStyleChoicesForCombo(
+          this.polylineController.getDashStyle(), true);
       this.dashStyleComboBox = new JComboBox(
           new DefaultComboBoxModel(dashStyles.toArray(new Polyline.DashStyle [dashStyles.size()])));
+      this.dashStyleComboBox.setRenderer(new AlpDashStyleListCellRenderer(this.preferences));
       this.dashStyleComboBox.addItemListener(new ItemListener() {
           public void itemStateChanged(ItemEvent ev) {
             if (updatingFromController || ev.getStateChange() != ItemEvent.SELECTED) {
