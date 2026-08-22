@@ -378,6 +378,7 @@ public class HomeController implements Controller {
     homeView.setEnabled(HomeView.ActionType.CREATE_ROOMS, viewableLevel);
     homeView.setEnabled(HomeView.ActionType.CREATE_POLYLINES, viewableLevel);
     homeView.setEnabled(HomeView.ActionType.CREATE_DIMENSION_LINES, viewableLevel);
+    homeView.setEnabled(HomeView.ActionType.MEASURE, viewableLevel);
     homeView.setEnabled(HomeView.ActionType.CREATE_LABELS, viewableLevel);
   }
 
@@ -3034,6 +3035,8 @@ public class HomeController implements Controller {
         actionKey = HomeView.ActionType.CREATE_POLYLINES.name();
       } else if (mode == PlanController.Mode.DIMENSION_LINE_CREATION) {
         actionKey = HomeView.ActionType.CREATE_DIMENSION_LINES.name();
+      } else if (mode == PlanController.Mode.MEASUREMENT) {
+        actionKey = HomeView.ActionType.MEASURE.name();
       } else if (mode == PlanController.Mode.LABEL_CREATION) {
         actionKey = HomeView.ActionType.CREATE_LABELS.name();
       } else {

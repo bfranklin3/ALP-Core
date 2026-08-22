@@ -1318,7 +1318,8 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
                          : ev.isShiftDown() && ev.isAltDown());
               controller.pressMouse(convertXPixelToModel(ev.getX()), convertYPixelToModel(ev.getY()),
                   ev.getClickCount(), ev.isShiftDown() && !ev.isControlDown() && !ev.isAltDown() && !ev.isMetaDown(),
-                  alignmentActivated, duplicationActivated, magnetismToggled);
+                  alignmentActivated, duplicationActivated, magnetismToggled, null,
+                  ev.isAltDown() && !ev.isShiftDown());
 
               if (OperatingSystem.isWindows()) {
                 // While mouse is pressed, prevent Alt released event from transferring focus to menu bar and toggling magnetism

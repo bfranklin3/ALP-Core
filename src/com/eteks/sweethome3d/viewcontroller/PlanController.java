@@ -96,6 +96,7 @@ public class PlanController extends FurnitureController implements Controller {
     public static final Mode ROOM_CREATION           = new Mode("ROOM_CREATION");
     public static final Mode POLYLINE_CREATION       = new Mode("POLYLINE_CREATION");
     public static final Mode DIMENSION_LINE_CREATION = new Mode("DIMENSION_LINE_CREATION");
+    public static final Mode MEASUREMENT             = new Mode("MEASUREMENT");
     public static final Mode LABEL_CREATION          = new Mode("LABEL_CREATION");
 
     private final String name;
@@ -124,6 +125,12 @@ public class PlanController extends FurnitureController implements Controller {
   private static final int PIXEL_MARGIN           = 4;
   private static final int INDICATOR_PIXEL_MARGIN = 5;
   private static final int WALL_ENDS_PIXEL_MARGIN = 2;
+
+  private static final int MEASURE_WAITING_START = 0;
+  private static final int MEASURE_DRAWING       = 1;
+  private static final int MEASURE_COMPLETE      = 2;
+  private static final int OVERLAY_DRAGGING      = 0;
+  private static final int OVERLAY_COMPLETE      = 1;
 
   private final Home                  home;
   private final UserPreferences       preferences;
@@ -157,6 +164,8 @@ public class PlanController extends FurnitureController implements Controller {
   private final ControllerState       cameraYawRotationState;
   private final ControllerState       cameraPitchRotationState;
   private final ControllerState       cameraElevationState;
+  private final ControllerState       measurementState;
+  private final ControllerState       measurementOverlayDragState;
   private final ControllerState       dimensionLineCreationState;
   private final ControllerState       dimensionLineDrawingState;
   private final ControllerState       dimensionLineResizeState;
@@ -189,7 +198,9 @@ public class PlanController extends FurnitureController implements Controller {
   private boolean                         alignmentActivatedLastMousePress;
   private boolean                         duplicationActivatedLastMousePress;
   private boolean                         magnetismToggledLastMousePress;
+  private boolean                         measurementOverlayActivatedLastMousePress;
   private View.PointerType                pointerTypeLastMousePress;
+  private ControllerState                 measurementOverlayReturnState;
   private float                           xLastMouseMove;
   private float                           yLastMouseMove;
   private Area                            wallsAreaCache;
@@ -243,6 +254,8 @@ public class PlanController extends FurnitureController implements Controller {
     this.cameraYawRotationState = new CameraYawRotationState();
     this.cameraPitchRotationState = new CameraPitchRotationState();
     this.cameraElevationState = new CameraElevationState();
+    this.measurementState = new MeasurementState();
+    this.measurementOverlayDragState = new MeasurementOverlayDragState();
     this.dimensionLineCreationState = new DimensionLineCreationState();
     this.dimensionLineDrawingState = new DimensionLineDrawingState();
     this.dimensionLineResizeState = new DimensionLineResizeState();
@@ -444,7 +457,7 @@ public class PlanController extends FurnitureController implements Controller {
    */
   public void pressMouse(float x, float y, int clickCount, boolean shiftDown,
                          boolean alignmentActivated, boolean duplicationActivated, boolean magnetismToggled) {
-    pressMouse(x, y, clickCount, shiftDown, alignmentActivated, duplicationActivated, magnetismToggled, null);
+    pressMouse(x, y, clickCount, shiftDown, alignmentActivated, duplicationActivated, magnetismToggled, null, false);
   }
 
   /**
@@ -454,6 +467,15 @@ public class PlanController extends FurnitureController implements Controller {
   public void pressMouse(float x, float y, int clickCount, boolean shiftDown,
                          boolean alignmentActivated, boolean duplicationActivated, boolean magnetismToggled,
                          View.PointerType pointerType) {
+    pressMouse(x, y, clickCount, shiftDown, alignmentActivated, duplicationActivated, magnetismToggled, pointerType, false);
+  }
+
+  /**
+   * Processes a mouse button pressed event.
+   */
+  public void pressMouse(float x, float y, int clickCount, boolean shiftDown,
+                         boolean alignmentActivated, boolean duplicationActivated, boolean magnetismToggled,
+                         View.PointerType pointerType, boolean measurementOverlayActivated) {
     // Store the last coordinates of a mouse press
     this.xLastMousePress = x;
     this.yLastMousePress = y;
@@ -463,8 +485,10 @@ public class PlanController extends FurnitureController implements Controller {
     this.alignmentActivatedLastMousePress = alignmentActivated;
     this.duplicationActivatedLastMousePress = duplicationActivated;
     this.magnetismToggledLastMousePress = magnetismToggled;
+    this.measurementOverlayActivatedLastMousePress = measurementOverlayActivated;
     this.pointerTypeLastMousePress = pointerType;
-    if (this.state.getMode() != Mode.SELECTION && this.state.getMode() != Mode.PANNING) {
+    if (this.state.getMode() != Mode.SELECTION && this.state.getMode() != Mode.PANNING
+        && this.state.getMode() != Mode.MEASUREMENT) {
       if (this.home.getSelectedLevel() != null && this.home.getSelectedLevel().isLocked()) {
         return;
       }
@@ -667,6 +691,105 @@ public class PlanController extends FurnitureController implements Controller {
    */
   protected ControllerState getDimensionLineCreationState() {
     return this.dimensionLineCreationState;
+  }
+
+  /**
+   * Returns the measurement state.
+   */
+  protected ControllerState getMeasurementState() {
+    return this.measurementState;
+  }
+
+  /**
+   * Returns the measurement overlay drag state.
+   */
+  protected ControllerState getMeasurementOverlayDragState() {
+    return this.measurementOverlayDragState;
+  }
+
+  /**
+   * Returns <code>true</code> if measurement overlay was activated at last mouse press.
+   */
+  protected boolean wasMeasurementOverlayActivatedLastMousePress() {
+    return this.measurementOverlayActivatedLastMousePress;
+  }
+
+  /**
+   * Starts an ephemeral measurement overlay and returns to the given state when done.
+   */
+  private void startMeasurementOverlay(ControllerState returnState) {
+    this.measurementOverlayReturnState = returnState;
+    setState(getMeasurementOverlayDragState());
+  }
+
+  /**
+   * Returns a dimension line used only for ephemeral measurement feedback.
+   */
+  private DimensionLine createEphemeralMeasureLine(float xStart, float yStart,
+                                                   float xEnd, float yEnd) {
+    return new DimensionLine(xStart, yStart, xEnd, yEnd, 0);
+  }
+
+  /**
+   * Computes measure end point with optional magnetism and alignment.
+   */
+  private float [] getMeasurePoint(float xReference, float yReference, float x, float y,
+                                   boolean magnetismEnabled, boolean alignmentActivated) {
+    if (magnetismEnabled || alignmentActivated) {
+      PointWithAngleMagnetism point = new PointWithAngleMagnetism(
+          xReference, yReference, x, y,
+          preferences.getLengthUnit(), getView().getPixelLength());
+      return new float [] {point.getX(), point.getY()};
+    } else {
+      return new float [] {x, y};
+    }
+  }
+
+  /**
+   * Displays ephemeral measurement feedback at the given line.
+   */
+  private void showMeasureFeedback(DimensionLine measureLine) {
+    PlanView planView = getView();
+    if (measureLine != null && measureLine.getLength() > 0) {
+      planView.setDimensionLinesFeedback(Arrays.asList(new DimensionLine [] {measureLine}));
+      float midX = (measureLine.getXStart() + measureLine.getXEnd()) / 2;
+      float midY = (measureLine.getYStart() + measureLine.getYEnd()) / 2;
+      String lengthText = preferences.getLengthUnit().getFormatWithUnit().format(measureLine.getLength());
+      planView.setToolTipFeedback(lengthText, midX, midY);
+    } else {
+      planView.setDimensionLinesFeedback(null);
+      planView.deleteToolTipFeedback();
+    }
+  }
+
+  /**
+   * Clears ephemeral measurement feedback.
+   */
+  private void clearMeasureFeedback() {
+    getView().deleteFeedback();
+  }
+
+  /**
+   * Switches controller state to match the given mode.
+   */
+  private void changeStateForMode(Mode mode) {
+    if (mode == Mode.SELECTION) {
+      setState(getSelectionState());
+    } else if (mode == Mode.PANNING) {
+      setState(getPanningState());
+    } else if (mode == Mode.WALL_CREATION) {
+      setState(getWallCreationState());
+    } else if (mode == Mode.ROOM_CREATION) {
+      setState(getRoomCreationState());
+    } else if (mode == Mode.POLYLINE_CREATION) {
+      setState(getPolylineCreationState());
+    } else if (mode == Mode.DIMENSION_LINE_CREATION) {
+      setState(getDimensionLineCreationState());
+    } else if (mode == Mode.MEASUREMENT) {
+      setState(getMeasurementState());
+    } else if (mode == Mode.LABEL_CREATION) {
+      setState(getLabelCreationState());
+    }
   }
 
   /**
@@ -9779,21 +9902,7 @@ public class PlanController extends FurnitureController implements Controller {
   private abstract class AbstractModeChangeState extends ControllerState {
     @Override
     public void setMode(Mode mode) {
-      if (mode == Mode.SELECTION) {
-        setState(getSelectionState());
-      } else if (mode == Mode.PANNING) {
-        setState(getPanningState());
-      } else if (mode == Mode.WALL_CREATION) {
-        setState(getWallCreationState());
-      } else if (mode == Mode.ROOM_CREATION) {
-        setState(getRoomCreationState());
-      } else if (mode == Mode.POLYLINE_CREATION) {
-        setState(getPolylineCreationState());
-      } else if (mode == Mode.DIMENSION_LINE_CREATION) {
-        setState(getDimensionLineCreationState());
-      } else if (mode == Mode.LABEL_CREATION) {
-        setState(getLabelCreationState());
-      }
+      changeStateForMode(mode);
     }
 
     @Override
@@ -10043,6 +10152,10 @@ public class PlanController extends FurnitureController implements Controller {
             setState(getCompassResizeState());
           }
         } else {
+          if (wasMeasurementOverlayActivatedLastMousePress()) {
+            startMeasurementOverlay(getSelectionState());
+            return;
+          }
           // If shift isn't pressed, and an item is under cursor position
           if (!shiftDown
               && (getPointerTypeLastMousePress() == View.PointerType.TOUCH
@@ -10605,19 +10718,7 @@ public class PlanController extends FurnitureController implements Controller {
 
     @Override
     public void setMode(Mode mode) {
-      if (mode == Mode.SELECTION) {
-        setState(getSelectionState());
-      } else if (mode == Mode.WALL_CREATION) {
-        setState(getWallCreationState());
-      } else if (mode == Mode.ROOM_CREATION) {
-        setState(getRoomCreationState());
-      } else if (mode == Mode.POLYLINE_CREATION) {
-        setState(getPolylineCreationState());
-      } else if (mode == Mode.DIMENSION_LINE_CREATION) {
-        setState(getDimensionLineCreationState());
-      } else if (mode == Mode.LABEL_CREATION) {
-        setState(getLabelCreationState());
-      }
+      changeStateForMode(mode);
     }
 
     @Override
@@ -10633,6 +10734,10 @@ public class PlanController extends FurnitureController implements Controller {
     @Override
     public void pressMouse(float x, float y, int clickCount, boolean shiftDown, boolean duplicationActivated) {
       if (clickCount == 1) {
+        if (wasMeasurementOverlayActivatedLastMousePress()) {
+          startMeasurementOverlay(getPanningState());
+          return;
+        }
         this.xLastMouseMove = getView().convertXModelToScreen(x);
         this.yLastMouseMove = getView().convertYModelToScreen(y);
       } else {
@@ -11040,19 +11145,7 @@ public class PlanController extends FurnitureController implements Controller {
     public void setMode(Mode mode) {
       // Escape current creation and change state to matching mode
       escape();
-      if (mode == Mode.SELECTION) {
-        setState(getSelectionState());
-      } else if (mode == Mode.PANNING) {
-        setState(getPanningState());
-      } else if (mode == Mode.ROOM_CREATION) {
-        setState(getRoomCreationState());
-      } else if (mode == Mode.POLYLINE_CREATION) {
-        setState(getPolylineCreationState());
-      } else if (mode == Mode.DIMENSION_LINE_CREATION) {
-        setState(getDimensionLineCreationState());
-      } else if (mode == Mode.LABEL_CREATION) {
-        setState(getLabelCreationState());
-      }
+      changeStateForMode(mode);
     }
 
     @Override
@@ -13126,6 +13219,195 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Ephemeral measurement state (SPIKE-26). Two-click measure without persisting dimension lines.
+   */
+  private class MeasurementState extends AbstractModeChangeState {
+    private int           phase = MEASURE_WAITING_START;
+    private float         xStart;
+    private float         yStart;
+    private DimensionLine measureLine;
+    private boolean       magnetismEnabled;
+    private boolean       alignmentActivated;
+
+    @Override
+    public Mode getMode() {
+      return Mode.MEASUREMENT;
+    }
+
+    @Override
+    public void enter() {
+      getView().setCursor(PlanView.CursorType.DRAW);
+      this.phase = MEASURE_WAITING_START;
+      this.measureLine = null;
+      this.alignmentActivated = wasAlignmentActivatedLastMousePress();
+      toggleMagnetism(wasMagnetismToggledLastMousePress());
+    }
+
+    @Override
+    public void exit() {
+      clearMeasureFeedback();
+    }
+
+    @Override
+    public void pressMouse(float x, float y, int clickCount,
+                           boolean shiftDown, boolean duplicationActivated) {
+      if (clickCount != 1) {
+        return;
+      }
+      if (this.phase == MEASURE_WAITING_START) {
+        float [] startPoint = getMeasurePoint(x, y, x, y, this.magnetismEnabled, this.alignmentActivated);
+        this.xStart = startPoint [0];
+        this.yStart = startPoint [1];
+        this.measureLine = null;
+        this.phase = MEASURE_DRAWING;
+      } else if (this.phase == MEASURE_DRAWING) {
+        updateMeasureEnd(x, y);
+        if (this.measureLine != null && this.measureLine.getLength() > 0.001f) {
+          showMeasureFeedback(this.measureLine);
+          this.phase = MEASURE_COMPLETE;
+        }
+      } else {
+        clearMeasureFeedback();
+        float [] startPoint = getMeasurePoint(x, y, x, y, this.magnetismEnabled, this.alignmentActivated);
+        this.xStart = startPoint [0];
+        this.yStart = startPoint [1];
+        this.measureLine = null;
+        this.phase = MEASURE_DRAWING;
+      }
+    }
+
+    @Override
+    public void moveMouse(float x, float y) {
+      if (this.phase == MEASURE_DRAWING) {
+        updateMeasureEnd(x, y);
+        showMeasureFeedback(this.measureLine);
+        getView().makePointVisible(x, y);
+      }
+    }
+
+    @Override
+    public void toggleMagnetism(boolean magnetismToggled) {
+      this.magnetismEnabled = preferences.isMagnetismEnabled() ^ magnetismToggled;
+      if (this.phase == MEASURE_DRAWING) {
+        moveMouse(getXLastMouseMove(), getYLastMouseMove());
+      }
+    }
+
+    @Override
+    public void setAlignmentActivated(boolean alignmentActivated) {
+      this.alignmentActivated = alignmentActivated;
+      if (this.phase == MEASURE_DRAWING) {
+        moveMouse(getXLastMouseMove(), getYLastMouseMove());
+      }
+    }
+
+    private void updateMeasureEnd(float x, float y) {
+      float [] endPoint = getMeasurePoint(this.xStart, this.yStart, x, y,
+          this.magnetismEnabled, this.alignmentActivated);
+      if (this.measureLine == null) {
+        this.measureLine = createEphemeralMeasureLine(this.xStart, this.yStart, endPoint [0], endPoint [1]);
+      } else {
+        this.measureLine.setXEnd(endPoint [0]);
+        this.measureLine.setYEnd(endPoint [1]);
+      }
+    }
+  }
+
+  /**
+   * Ephemeral measurement overlay activated with Alt-drag in Select or Pan mode (SPIKE-26).
+   */
+  private class MeasurementOverlayDragState extends ControllerState {
+    private int           phase = OVERLAY_DRAGGING;
+    private float         xStart;
+    private float         yStart;
+    private DimensionLine measureLine;
+    private boolean       magnetismEnabled;
+    private boolean       alignmentActivated;
+
+    @Override
+    public Mode getMode() {
+      return measurementOverlayReturnState != null
+          ? measurementOverlayReturnState.getMode()
+          : Mode.SELECTION;
+    }
+
+    @Override
+    public void enter() {
+      this.phase = OVERLAY_DRAGGING;
+      this.xStart = getXLastMousePress();
+      this.yStart = getYLastMousePress();
+      this.measureLine = null;
+      this.alignmentActivated = wasAlignmentActivatedLastMousePress();
+      toggleMagnetism(wasMagnetismToggledLastMousePress());
+    }
+
+    @Override
+    public void exit() {
+      clearMeasureFeedback();
+    }
+
+    @Override
+    public void escape() {
+      clearMeasureFeedback();
+      if (measurementOverlayReturnState != null) {
+        setState(measurementOverlayReturnState);
+        measurementOverlayReturnState = null;
+      } else {
+        setState(getSelectionState());
+      }
+    }
+
+    @Override
+    public void pressMouse(float x, float y, int clickCount,
+                           boolean shiftDown, boolean duplicationActivated) {
+      if (this.phase == OVERLAY_COMPLETE && clickCount == 1) {
+        escape();
+      }
+    }
+
+    @Override
+    public void moveMouse(float x, float y) {
+      if (this.phase == OVERLAY_DRAGGING) {
+        updateMeasureEnd(x, y);
+        showMeasureFeedback(this.measureLine);
+        getView().makePointVisible(x, y);
+      }
+    }
+
+    @Override
+    public void releaseMouse(float x, float y) {
+      if (this.phase == OVERLAY_DRAGGING) {
+        updateMeasureEnd(x, y);
+        if (this.measureLine != null && this.measureLine.getLength() > 0.001f) {
+          showMeasureFeedback(this.measureLine);
+          this.phase = OVERLAY_COMPLETE;
+        } else {
+          escape();
+        }
+      }
+    }
+
+    @Override
+    public void toggleMagnetism(boolean magnetismToggled) {
+      this.magnetismEnabled = preferences.isMagnetismEnabled() ^ magnetismToggled;
+      if (this.phase == OVERLAY_DRAGGING) {
+        moveMouse(getXLastMouseMove(), getYLastMouseMove());
+      }
+    }
+
+    private void updateMeasureEnd(float x, float y) {
+      float [] endPoint = getMeasurePoint(this.xStart, this.yStart, x, y,
+          this.magnetismEnabled, this.alignmentActivated);
+      if (this.measureLine == null) {
+        this.measureLine = createEphemeralMeasureLine(this.xStart, this.yStart, endPoint [0], endPoint [1]);
+      } else {
+        this.measureLine.setXEnd(endPoint [0]);
+        this.measureLine.setYEnd(endPoint [1]);
+      }
+    }
+  }
+
+  /**
    * Dimension line creation state. This state manages transition to
    * other modes, and initial dimension line creation.
    */
@@ -13229,19 +13511,7 @@ public class PlanController extends FurnitureController implements Controller {
     public void setMode(Mode mode) {
       // Escape current creation and change state to matching mode
       escape();
-      if (mode == Mode.SELECTION) {
-        setState(getSelectionState());
-      } else if (mode == Mode.PANNING) {
-        setState(getPanningState());
-      } else if (mode == Mode.WALL_CREATION) {
-        setState(getWallCreationState());
-      } else if (mode == Mode.ROOM_CREATION) {
-        setState(getRoomCreationState());
-      } else if (mode == Mode.POLYLINE_CREATION) {
-        setState(getPolylineCreationState());
-      } else if (mode == Mode.LABEL_CREATION) {
-        setState(getLabelCreationState());
-      }
+      changeStateForMode(mode);
     }
 
     @Override
@@ -14455,19 +14725,7 @@ public class PlanController extends FurnitureController implements Controller {
     public void setMode(Mode mode) {
       // Escape current creation and change state to matching mode
       escape();
-      if (mode == Mode.SELECTION) {
-        setState(getSelectionState());
-      } else if (mode == Mode.PANNING) {
-        setState(getPanningState());
-      } else if (mode == Mode.WALL_CREATION) {
-        setState(getWallCreationState());
-      } else if (mode == Mode.POLYLINE_CREATION) {
-        setState(getPolylineCreationState());
-      } else if (mode == Mode.DIMENSION_LINE_CREATION) {
-        setState(getDimensionLineCreationState());
-      } else if (mode == Mode.LABEL_CREATION) {
-        setState(getLabelCreationState());
-      }
+      changeStateForMode(mode);
     }
 
     @Override
@@ -15486,19 +15744,7 @@ public class PlanController extends FurnitureController implements Controller {
     public void setMode(Mode mode) {
       // Escape current creation and change state to matching mode
       escape();
-      if (mode == Mode.SELECTION) {
-        setState(getSelectionState());
-      } else if (mode == Mode.PANNING) {
-        setState(getPanningState());
-      } else if (mode == Mode.WALL_CREATION) {
-        setState(getWallCreationState());
-      } else if (mode == Mode.ROOM_CREATION) {
-        setState(getRoomCreationState());
-      } else if (mode == Mode.DIMENSION_LINE_CREATION) {
-        setState(getDimensionLineCreationState());
-      } else if (mode == Mode.LABEL_CREATION) {
-        setState(getLabelCreationState());
-      }
+      changeStateForMode(mode);
     }
 
     @Override

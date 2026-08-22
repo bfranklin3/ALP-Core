@@ -495,6 +495,8 @@ public class HomePane extends JRootPane implements HomeView {
           preferences, controller, "setMode", PlanController.Mode.POLYLINE_CREATION);
       createToggleAction(ActionType.CREATE_DIMENSION_LINES, planController.getMode() == PlanController.Mode.DIMENSION_LINE_CREATION, modeGroup,
           preferences, controller, "setMode", PlanController.Mode.DIMENSION_LINE_CREATION);
+      createToggleAction(ActionType.MEASURE, planController.getMode() == PlanController.Mode.MEASUREMENT, modeGroup,
+          preferences, controller, "setMode", PlanController.Mode.MEASUREMENT);
       createToggleAction(ActionType.CREATE_LABELS, planController.getMode() == PlanController.Mode.LABEL_CREATION, modeGroup,
           preferences, controller, "setMode", PlanController.Mode.LABEL_CREATION);
       createAction(ActionType.DELETE_SELECTION, preferences, planController, "deleteSelection");
@@ -934,6 +936,7 @@ public class HomePane extends JRootPane implements HomeView {
             setToggleButtonModelSelected(ActionType.CREATE_ROOMS, mode == PlanController.Mode.ROOM_CREATION);
             setToggleButtonModelSelected(ActionType.CREATE_POLYLINES, mode == PlanController.Mode.POLYLINE_CREATION);
             setToggleButtonModelSelected(ActionType.CREATE_DIMENSION_LINES, mode == PlanController.Mode.DIMENSION_LINE_CREATION);
+            setToggleButtonModelSelected(ActionType.MEASURE, mode == PlanController.Mode.MEASUREMENT);
             setToggleButtonModelSelected(ActionType.CREATE_LABELS, mode == PlanController.Mode.LABEL_CREATION);
             updateTextFormattingVisibility(planController);
           }
@@ -1314,6 +1317,7 @@ public class HomePane extends JRootPane implements HomeView {
     addToggleActionToMenu(ActionType.CREATE_ROOMS, true, planMenu);
     addToggleActionToMenu(ActionType.CREATE_POLYLINES, true, planMenu);
     addToggleActionToMenu(ActionType.CREATE_DIMENSION_LINES, true, planMenu);
+    addToggleActionToMenu(ActionType.MEASURE, true, planMenu);
     addToggleActionToMenu(ActionType.CREATE_LABELS, true, planMenu);
     planMenu.addSeparator();
     JMenuItem lockUnlockBasePlanMenuItem = createLockUnlockBasePlanMenuItem(home, false);
@@ -2775,6 +2779,7 @@ public class HomePane extends JRootPane implements HomeView {
     addToggleActionToToolBar(ActionType.CREATE_ROOMS, drawStrip);
     addToggleActionToToolBar(ActionType.CREATE_POLYLINES, drawStrip);
     addToggleActionToToolBar(ActionType.CREATE_DIMENSION_LINES, drawStrip);
+    addToggleActionToToolBar(ActionType.MEASURE, drawStrip);
     addToggleActionToToolBar(ActionType.CREATE_LABELS, drawStrip);
     AlpCatalogStyles.finalizeDrawStrip(drawStrip);
     return drawStrip;
@@ -3723,6 +3728,7 @@ public class HomePane extends JRootPane implements HomeView {
       addToggleActionToPopupMenu(ActionType.CREATE_ROOMS, true, planViewPopup);
       addToggleActionToPopupMenu(ActionType.CREATE_POLYLINES, true, planViewPopup);
       addToggleActionToPopupMenu(ActionType.CREATE_DIMENSION_LINES, true, planViewPopup);
+      addToggleActionToPopupMenu(ActionType.MEASURE, true, planViewPopup);
       addToggleActionToPopupMenu(ActionType.CREATE_LABELS, true, planViewPopup);
       planViewPopup.addSeparator();
       JMenuItem lockUnlockBasePlanMenuItem = createLockUnlockBasePlanMenuItem(home, true);
