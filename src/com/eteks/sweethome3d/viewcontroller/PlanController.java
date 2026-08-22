@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Hashtable;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -57,6 +58,7 @@ import com.eteks.sweethome3d.model.Compass;
 import com.eteks.sweethome3d.model.DimensionLine;
 import com.eteks.sweethome3d.model.Elevatable;
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.HomeObject;
 import com.eteks.sweethome3d.model.HomeDoorOrWindow;
 import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeLight;
@@ -4453,6 +4455,211 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Returns <code>true</code> if the current selection contains stackable plan draw order items.
+   */
+  public boolean canArrangeSelectedItems() {
+    return !getSelectedPlanDrawOrderRefs().isEmpty();
+  }
+
+  /**
+   * Returns <code>true</code> if the selection can be moved to the front of the plan draw order.
+   */
+  public boolean canBringSelectionToFront() {
+    List<String> refs = getSelectedPlanDrawOrderRefs();
+    if (refs.isEmpty()) {
+      return false;
+    }
+    List<String> order = this.home.getEffectivePlanDrawOrder();
+    for (int i = order.size() - 1; i >= 0; i--) {
+      if (refs.contains(order.get(i))) {
+        return i < order.size() - 1;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Returns <code>true</code> if the selection can be moved to the back of the plan draw order.
+   */
+  public boolean canSendSelectionToBack() {
+    List<String> refs = getSelectedPlanDrawOrderRefs();
+    if (refs.isEmpty()) {
+      return false;
+    }
+    List<String> order = this.home.getEffectivePlanDrawOrder();
+    for (int i = 0; i < order.size(); i++) {
+      if (refs.contains(order.get(i))) {
+        return i > 0;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Returns <code>true</code> if the selection can be moved one step forward in the plan draw order.
+   */
+  public boolean canBringSelectionForward() {
+    List<String> refs = getSelectedPlanDrawOrderRefs();
+    if (refs.isEmpty()) {
+      return false;
+    }
+    List<String> order = this.home.getEffectivePlanDrawOrder();
+    for (String ref : refs) {
+      if (order.indexOf(ref) < order.size() - 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Returns <code>true</code> if the selection can be moved one step backward in the plan draw order.
+   */
+  public boolean canSendSelectionBackward() {
+    List<String> refs = getSelectedPlanDrawOrderRefs();
+    if (refs.isEmpty()) {
+      return false;
+    }
+    List<String> order = this.home.getEffectivePlanDrawOrder();
+    for (String ref : refs) {
+      if (order.indexOf(ref) > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Moves the selected stackable items to the front of the plan draw order.
+   */
+  public void bringSelectionToFront() {
+    moveSelectedPlanDrawOrderRefs(this.home::movePlanDrawOrderRefsToFront, "undoBringToFrontName");
+  }
+
+  /**
+   * Moves the selected stackable items to the back of the plan draw order.
+   */
+  public void sendSelectionToBack() {
+    moveSelectedPlanDrawOrderRefs(this.home::movePlanDrawOrderRefsToBack, "undoSendToBackName");
+  }
+
+  /**
+   * Moves the selected stackable items one step forward in the plan draw order.
+   */
+  public void bringSelectionForward() {
+    moveSelectedPlanDrawOrderRefs(this.home::movePlanDrawOrderRefsForward, "undoBringForwardName");
+  }
+
+  /**
+   * Moves the selected stackable items one step backward in the plan draw order.
+   */
+  public void sendSelectionBackward() {
+    moveSelectedPlanDrawOrderRefs(this.home::movePlanDrawOrderRefsBackward, "undoSendBackwardName");
+  }
+
+  private interface PlanDrawOrderRefsMover {
+    void move(List<String> refs);
+  }
+
+  private void moveSelectedPlanDrawOrderRefs(PlanDrawOrderRefsMover mover, String undoKey) {
+    List<String> refs = getSelectedPlanDrawOrderRefs();
+    if (refs.isEmpty()) {
+      return;
+    }
+    List<String> oldOrder = copyPlanDrawOrderState();
+    mover.move(refs);
+    postPlanDrawOrderEdit(oldOrder, undoKey);
+  }
+
+  private List<String> getSelectedPlanDrawOrderRefs() {
+    LinkedHashSet<String> selectedRefs = new LinkedHashSet<String>();
+    for (Selectable item : this.home.getSelectedItems()) {
+      if (item instanceof Wall) {
+        Level level = ((Wall)item).getLevel();
+        if (level != null) {
+          selectedRefs.add(Home.getWallBlockRef(level));
+        }
+      } else if (item instanceof Room
+                 || item instanceof Polyline
+                 || item instanceof HomePieceOfFurniture
+                 || item instanceof DimensionLine
+                 || item instanceof Label) {
+        selectedRefs.add(((HomeObject)item).getId());
+      }
+    }
+    if (selectedRefs.isEmpty()) {
+      return Collections.emptyList();
+    }
+    List<String> refs = new ArrayList<String>();
+    for (String ref : this.home.getEffectivePlanDrawOrder()) {
+      if (selectedRefs.contains(ref)) {
+        refs.add(ref);
+      }
+    }
+    return refs;
+  }
+
+  private List<String> copyPlanDrawOrderState() {
+    List<String> planDrawOrder = this.home.getPlanDrawOrder();
+    if (planDrawOrder == null) {
+      return null;
+    } else {
+      return new ArrayList<String>(planDrawOrder);
+    }
+  }
+
+  private void postPlanDrawOrderEdit(List<String> oldOrder, String undoKey) {
+    List<String> newOrder = copyPlanDrawOrderState();
+    if (planDrawOrdersEqual(oldOrder, newOrder)) {
+      return;
+    }
+    this.undoSupport.postEdit(new PlanDrawOrderUndoableEdit(this.home, this.preferences,
+        oldOrder, newOrder, undoKey));
+  }
+
+  private boolean planDrawOrdersEqual(List<String> order1, List<String> order2) {
+    if (order1 == null) {
+      return order2 == null;
+    } else {
+      return order2 != null && order1.equals(order2);
+    }
+  }
+
+  private static class PlanDrawOrderUndoableEdit extends LocalizedUndoableEdit {
+    private final Home         home;
+    private final List<String> oldOrder;
+    private final List<String> newOrder;
+
+    public PlanDrawOrderUndoableEdit(Home home, UserPreferences preferences,
+                                     List<String> oldOrder, List<String> newOrder, String undoKey) {
+      super(preferences, PlanController.class, undoKey);
+      this.home = home;
+      this.oldOrder = copyPlanDrawOrderState(oldOrder);
+      this.newOrder = copyPlanDrawOrderState(newOrder);
+    }
+
+    @Override
+    public void undo() throws CannotUndoException {
+      super.undo();
+      this.home.setPlanDrawOrder(copyPlanDrawOrderState(this.oldOrder));
+    }
+
+    @Override
+    public void redo() throws CannotRedoException {
+      super.redo();
+      this.home.setPlanDrawOrder(copyPlanDrawOrderState(this.newOrder));
+    }
+
+    private static List<String> copyPlanDrawOrderState(List<String> order) {
+      if (order == null) {
+        return null;
+      } else {
+        return new ArrayList<String>(order);
+      }
+    }
+  }
+
+  /**
    * Returns whether {@code level} can be reordered to {@code targetStackIndex}.
    */
   public boolean canReorderLevelToStackIndex(Level level, int targetStackIndex) {
@@ -5459,9 +5666,11 @@ public class PlanController extends FurnitureController implements Controller {
   private List<Selectable> getSelectableItemsAt(float x, float y,
                                                 boolean stopAtFirstItem,
                                                 boolean ignoreGroupsFurniture) {
-    List<Selectable> items = new ArrayList<Selectable>();
     float margin = getSelectionMargin();
     float textMargin = margin / 2;
+    boolean basePlanLocked = this.home.isBasePlanLocked();
+    List<Selectable> items = new ArrayList<Selectable>();
+
     ObserverCamera camera = this.home.getObserverCamera();
     if (camera != null
         && camera == this.home.getCamera()
@@ -5472,86 +5681,34 @@ public class PlanController extends FurnitureController implements Controller {
       }
     }
 
-    boolean basePlanLocked = this.home.isBasePlanLocked();
-    Level selectedLevel = this.home.getSelectedLevel();
-    for (Label label : this.home.getLabels()) {
-      if ((!basePlanLocked
-            || !isItemPartOfBasePlan(label))
-          && isLevelNullOrViewable(label.getLevel())
-          && isItemPickableAtLevel(label, false)
-          && (label.containsPoint(x, y, margin)
-              || isItemTextAt(label, label.getText(), label.getStyle(),
-                    label.getX(), label.getY(), label.getAngle(), x, y, textMargin))) {
-        items.add(label);
-        if (stopAtFirstItem) {
-          return items;
-        }
+    HomePieceOfFurniture furnitureNameHit = getSelectableFurnitureNameAt(x, y, textMargin, basePlanLocked);
+    if (furnitureNameHit != null) {
+      if (stopAtFirstItem) {
+        return Arrays.asList(resolveFurnitureGroupSelection(furnitureNameHit, x, y, margin,
+            basePlanLocked, ignoreGroupsFurniture));
       }
+      items.add(furnitureNameHit);
     }
 
-    for (DimensionLine dimensionLine : this.home.getDimensionLines()) {
-      if ((!basePlanLocked
-            || !isItemPartOfBasePlan(dimensionLine))
-          && isLevelNullOrViewable(dimensionLine.getLevel())
-          && isItemPickableAtLevel(dimensionLine, false)
-          && dimensionLine.containsPoint(x, y, margin)) {
-        items.add(dimensionLine);
-        if (stopAtFirstItem) {
-          return items;
-        }
+    List<Room> roomChromeHits = getSelectableRoomChromeAt(x, y, textMargin, basePlanLocked);
+    if (!roomChromeHits.isEmpty()) {
+      if (stopAtFirstItem) {
+        return Arrays.asList(roomChromeHits.get(0));
       }
+      items.addAll(roomChromeHits);
     }
 
-    List<Polyline> polylines = this.home.getPolylines();
-    // Search in home polylines in reverse order to give priority to last drawn polyline
-    for (int i = polylines.size() - 1; i >= 0; i--) {
-      Polyline polyline = polylines.get(i);
-      if ((!basePlanLocked
-            || !isItemPartOfBasePlan(polyline))
-          && isLevelNullOrViewable(polyline.getLevel())
-          && isItemPickableAtLevel(polyline, false)
-          && polyline.containsPoint(x, y, margin)) {
-        items.add(polyline);
-        if (stopAtFirstItem) {
-          return items;
-        }
+    List<Selectable> stackHits = getStackOrderedSelectableItemsAt(x, y, margin, textMargin,
+        basePlanLocked, ignoreGroupsFurniture);
+    if (!stackHits.isEmpty()) {
+      if (stopAtFirstItem) {
+        return Arrays.asList(resolveFurnitureGroupSelection(stackHits.get(0), x, y, margin,
+            basePlanLocked, ignoreGroupsFurniture));
       }
-    }
-
-    List<HomePieceOfFurniture> furniture = this.home.getFurniture();
-    // Search in home furniture in reverse order to give priority to last drawn piece
-    // at highest elevation in case it covers an other piece
-    List<HomePieceOfFurniture> foundFurniture = new ArrayList<HomePieceOfFurniture>();
-    HomePieceOfFurniture foundPiece = null;
-    for (int i = furniture.size() - 1; i >= 0; i--) {
-      HomePieceOfFurniture piece = furniture.get(i);
-      if ((!basePlanLocked
-            || !isItemPartOfBasePlan(piece))
-          && isPieceOfFurniturePickableAtLevel(piece, false)) {
-        if (piece.containsPoint(x, y, margin)) {
-          foundFurniture.add(piece);
-          if (foundPiece == null
-              || piece.getGroundElevation() > foundPiece.getGroundElevation()) {
-            foundPiece = piece;
-          }
-        } else if (foundPiece == null) {
-          // Search if piece name contains point in case it is drawn outside of the piece
-          String pieceName = piece.getName();
-          if (pieceName != null
-              && piece.isNameVisible()
-              && isItemTextAt(piece, pieceName, piece.getNameStyle(),
-                  piece.getX() + piece.getNameXOffset(),
-                  piece.getY() + piece.getNameYOffset(), piece.getNameAngle(), x, y, textMargin)) {
-            foundFurniture.add(piece);
-            foundPiece = piece;
-          }
-        }
-      }
-    }
-    if (foundPiece == null
-        && basePlanLocked) {
+      items.addAll(stackHits);
+    } else if (basePlanLocked) {
       // Check among the furniture that is already selected if there's a movable piece at the given location
-      for (Selectable item : home.getSelectedItems()) {
+      for (Selectable item : this.home.getSelectedItems()) {
         if (item instanceof HomePieceOfFurniture) {
           HomePieceOfFurniture piece = (HomePieceOfFurniture)item;
           if (!isItemPartOfBasePlan(piece)
@@ -5562,130 +5719,222 @@ public class PlanController extends FurnitureController implements Controller {
                       && isItemTextAt(piece, piece.getName(), piece.getNameStyle(),
                           piece.getX() + piece.getNameXOffset(),
                           piece.getY() + piece.getNameYOffset(), piece.getNameAngle(), x, y, textMargin))) {
-            foundFurniture.add(piece);
-            foundPiece = piece;
             if (stopAtFirstItem) {
-              break;
+              return Arrays.asList(piece);
             }
+            items.add(piece);
+            break;
           }
         }
       }
     }
-    if (foundPiece != null
-        && stopAtFirstItem) {
-      if (!ignoreGroupsFurniture
-          && (foundPiece instanceof HomeFurnitureGroup)) {
-        List<Selectable> selectedItems = this.home.getSelectedItems();
-        if (selectedItems.size() >= 1) {
-          // If selected items are in the same group
-          if ((selectedItems.size() == 1 && selectedItems.get(0) == foundPiece)
-              || ((HomeFurnitureGroup)foundPiece).getAllFurniture().containsAll(selectedItems)) {
-            for (Selectable selectedItem : selectedItems) {
-              if (selectedItem instanceof HomeFurnitureGroup) {
-                // Search the piece at point among the furniture of the selected group
-                List<HomePieceOfFurniture> groupFurniture = ((HomeFurnitureGroup)selectedItem).getFurniture();
-                for (int i = groupFurniture.size() - 1; i >= 0; i--) {
-                  HomePieceOfFurniture piece = groupFurniture.get(i);
-                  if ((!basePlanLocked
-                        || !isItemPartOfBasePlan(piece))
-                      && !selectedItems.contains(piece)
-                      && piece.containsPoint(x, y, margin)) {
-                    return Arrays.asList(new Selectable [] {piece});
-                  }
-                }
-              }
-            }
-            // Search the piece at point among the groups of selected furniture
-            for (Selectable selectedItem : selectedItems) {
-              if (selectedItem instanceof HomePieceOfFurniture) {
-                List<HomePieceOfFurniture> groupFurniture = getFurnitureInSameGroup((HomePieceOfFurniture)selectedItem);
-                for (int i = groupFurniture.size() - 1; i >= 0; i--) {
-                  HomePieceOfFurniture piece = groupFurniture.get(i);
-                  if ((!basePlanLocked
-                        || !isItemPartOfBasePlan(piece))
-                      && piece.containsPoint(x, y, margin)) {
-                    return Arrays.asList(new Selectable [] {piece});
-                  }
-                }
-              }
-            }
+
+    Compass compass = this.home.getCompass();
+    if ((!basePlanLocked
+          || !isItemPartOfBasePlan(compass))
+        && compass.containsPoint(x, y, textMargin)) {
+      items.add(compass);
+    }
+    return items;
+  }
+
+  /**
+   * Returns furniture whose name is at the given point (painted above stack-ordered geometry).
+   */
+  private HomePieceOfFurniture getSelectableFurnitureNameAt(float x, float y, float textMargin,
+                                                          boolean basePlanLocked) {
+    List<HomePieceOfFurniture> furniture = this.home.getFurniture();
+    for (int i = furniture.size() - 1; i >= 0; i--) {
+      HomePieceOfFurniture piece = furniture.get(i);
+      if ((!basePlanLocked
+            || !isItemPartOfBasePlan(piece))
+          && isPieceOfFurniturePickableAtLevel(piece, false)
+          && !piece.containsPoint(x, y, getSelectionMargin())) {
+        String pieceName = piece.getName();
+        if (pieceName != null
+            && piece.isNameVisible()
+            && isItemTextAt(piece, pieceName, piece.getNameStyle(),
+                piece.getX() + piece.getNameXOffset(),
+                piece.getY() + piece.getNameYOffset(), piece.getNameAngle(), x, y, textMargin)) {
+          return piece;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns rooms hit in the area chrome pass (name and area text).
+   */
+  private List<Room> getSelectableRoomChromeAt(float x, float y, float textMargin,
+                                             boolean basePlanLocked) {
+    List<Room> roomChromeHits = new ArrayList<Room>();
+    List<Room> rooms = this.home.getRooms();
+    for (int i = rooms.size() - 1; i >= 0; i--) {
+      Room room = rooms.get(i);
+      if ((!basePlanLocked
+            || !isItemPartOfBasePlan(room))
+          && isLevelNullOrViewable(room.getLevel())
+          && isItemPickableAtLevel(room, false)) {
+        String roomName = room.getName();
+        if (room.isNameVisible()
+            && roomName != null
+            && isItemTextAt(room, roomName, room.getNameStyle(),
+                room.getXCenter() + room.getNameXOffset(),
+                room.getYCenter() + room.getNameYOffset(), room.getNameAngle(), x, y, textMargin)) {
+          roomChromeHits.add(room);
+        } else if (room.isAreaVisible()) {
+          String areaText = this.preferences.getLengthUnit().getAreaFormatWithUnit().format(room.getArea());
+          if (isItemTextAt(room, areaText, room.getAreaStyle(),
+              room.getXCenter() + room.getAreaXOffset(),
+              room.getYCenter() + room.getAreaYOffset(), room.getAreaAngle(), x, y, textMargin)) {
+            roomChromeHits.add(room);
           }
         }
       }
-      return Arrays.asList(new Selectable [] {foundPiece});
-    } else {
-      Collections.sort(foundFurniture, new Comparator<HomePieceOfFurniture>() {
-          public int compare(HomePieceOfFurniture p1, HomePieceOfFurniture p2) {
-            return -Float.compare(p1.getGroundElevation(), p2.getGroundElevation());
-          }
-        });
-      items.addAll(foundFurniture);
+    }
+    return roomChromeHits;
+  }
+
+  /**
+   * Returns selectable items at the given point in reverse plan draw order (SPIKE-36).
+   */
+  private List<Selectable> getStackOrderedSelectableItemsAt(float x, float y, float margin,
+                                                            float textMargin, boolean basePlanLocked,
+                                                            boolean ignoreGroupsFurniture) {
+    List<Selectable> items = new ArrayList<Selectable>();
+    List<String> planDrawOrder = this.home.getEffectivePlanDrawOrder();
+    for (int i = planDrawOrder.size() - 1; i >= 0; i--) {
+      Selectable item = getSelectableItemAtPlanDrawOrderRef(planDrawOrder.get(i), x, y,
+          margin, textMargin, basePlanLocked);
+      if (item != null) {
+        items.add(item);
+      }
+    }
+    return items;
+  }
+
+  /**
+   * Returns the selectable item matching a plan draw order reference at the given point.
+   */
+  private Selectable getSelectableItemAtPlanDrawOrderRef(String ref, float x, float y,
+                                                         float margin, float textMargin,
+                                                         boolean basePlanLocked) {
+    if (Home.isWallBlockRef(ref)) {
+      Level wallBlockLevel = this.home.getLevelForWallBlockRef(ref);
+      if (wallBlockLevel == null) {
+        return null;
+      }
+      Wall foundWall = null;
       for (Wall wall : this.home.getWalls()) {
-        if ((!basePlanLocked
-              || !isItemPartOfBasePlan(wall))
+        if (wallBlockLevel.equals(wall.getLevel())
+            && (!basePlanLocked
+                  || !isItemPartOfBasePlan(wall))
             && isLevelNullOrViewable(wall.getLevel())
             && isItemPickableAtLevel(wall, false)
             && wall.containsPoint(x, y, margin)) {
-          items.add(wall);
-          if (stopAtFirstItem) {
-            return items;
-          }
+          foundWall = wall;
         }
       }
+      return foundWall;
+    }
 
-      List<Room> rooms = this.home.getRooms();
-      // Search in home rooms in reverse order to give priority to last drawn room
-      // at highest elevation in case it covers an other piece
-      Room foundRoom = null;
-      for (int i = rooms.size() - 1; i >= 0; i--) {
-        Room room = rooms.get(i);
-        if ((!basePlanLocked
-              || !isItemPartOfBasePlan(room))
-            && isLevelNullOrViewable(room.getLevel())
-            && isItemPickableAtLevel(room, false)) {
-          if (room.containsPoint(x, y, margin)) {
-            items.add(room);
-             if (foundRoom == null
-                 || room.isCeilingVisible() && !foundRoom.isCeilingVisible()) {
-               foundRoom = room;
-             }
-          } else {
-            // Search if room name contains point in case it is drawn outside of the room
-            String roomName = room.getName();
-            if (room.isNameVisible()
-                && roomName != null
-                && isItemTextAt(room, roomName, room.getNameStyle(),
-                  room.getXCenter() + room.getNameXOffset(),
-                  room.getYCenter() + room.getNameYOffset(), room.getNameAngle(), x, y, textMargin)) {
-              items.add(room);
-              foundRoom = room;
+    Selectable item = this.home.findSelectableById(ref);
+    if (item instanceof Room) {
+      Room room = (Room)item;
+      if ((!basePlanLocked
+            || !isItemPartOfBasePlan(room))
+          && isLevelNullOrViewable(room.getLevel())
+          && isItemPickableAtLevel(room, false)
+          && room.containsPoint(x, y, margin)) {
+        return room;
+      }
+    } else if (item instanceof HomePieceOfFurniture) {
+      HomePieceOfFurniture piece = (HomePieceOfFurniture)item;
+      if ((!basePlanLocked
+            || !isItemPartOfBasePlan(piece))
+          && isPieceOfFurniturePickableAtLevel(piece, false)
+          && piece.containsPoint(x, y, margin)) {
+        return piece;
+      }
+    } else if (item instanceof Polyline) {
+      Polyline polyline = (Polyline)item;
+      if ((!basePlanLocked
+            || !isItemPartOfBasePlan(polyline))
+          && isLevelNullOrViewable(polyline.getLevel())
+          && isItemPickableAtLevel(polyline, false)
+          && polyline.containsPoint(x, y, margin)) {
+        return polyline;
+      }
+    } else if (item instanceof DimensionLine) {
+      DimensionLine dimensionLine = (DimensionLine)item;
+      if ((!basePlanLocked
+            || !isItemPartOfBasePlan(dimensionLine))
+          && isLevelNullOrViewable(dimensionLine.getLevel())
+          && isItemPickableAtLevel(dimensionLine, false)
+          && dimensionLine.containsPoint(x, y, margin)) {
+        return dimensionLine;
+      }
+    } else if (item instanceof Label) {
+      Label label = (Label)item;
+      if ((!basePlanLocked
+            || !isItemPartOfBasePlan(label))
+          && isLevelNullOrViewable(label.getLevel())
+          && isItemPickableAtLevel(label, false)
+          && (label.containsPoint(x, y, margin)
+              || isItemTextAt(label, label.getText(), label.getStyle(),
+                    label.getX(), label.getY(), label.getAngle(), x, y, textMargin))) {
+        return label;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns the selectable item to select when a furniture group is hit at the given point.
+   */
+  private Selectable resolveFurnitureGroupSelection(Selectable item, float x, float y, float margin,
+                                                    boolean basePlanLocked,
+                                                    boolean ignoreGroupsFurniture) {
+    if (ignoreGroupsFurniture
+        || !(item instanceof HomeFurnitureGroup)) {
+      return item;
+    }
+    HomeFurnitureGroup foundGroup = (HomeFurnitureGroup)item;
+    List<Selectable> selectedItems = this.home.getSelectedItems();
+    if (selectedItems.size() >= 1) {
+      if ((selectedItems.size() == 1 && selectedItems.get(0) == foundGroup)
+          || foundGroup.getAllFurniture().containsAll(selectedItems)) {
+        for (Selectable selectedItem : selectedItems) {
+          if (selectedItem instanceof HomeFurnitureGroup) {
+            List<HomePieceOfFurniture> groupFurniture = ((HomeFurnitureGroup)selectedItem).getFurniture();
+            for (int i = groupFurniture.size() - 1; i >= 0; i--) {
+              HomePieceOfFurniture piece = groupFurniture.get(i);
+              if ((!basePlanLocked
+                    || !isItemPartOfBasePlan(piece))
+                  && !selectedItems.contains(piece)
+                  && piece.containsPoint(x, y, margin)) {
+                return piece;
+              }
             }
-            // Search if room area contains point in case its text is drawn outside of the room
-            if (room.isAreaVisible()) {
-              String areaText = this.preferences.getLengthUnit().getAreaFormatWithUnit().format(room.getArea());
-              if (isItemTextAt(room, areaText, room.getAreaStyle(),
-                  room.getXCenter() + room.getAreaXOffset(),
-                  room.getYCenter() + room.getAreaYOffset(), room.getAreaAngle(), x, y, textMargin)) {
-                items.add(room);
-                foundRoom = room;
+          }
+        }
+        for (Selectable selectedItem : selectedItems) {
+          if (selectedItem instanceof HomePieceOfFurniture) {
+            List<HomePieceOfFurniture> groupFurniture = getFurnitureInSameGroup((HomePieceOfFurniture)selectedItem);
+            for (int i = groupFurniture.size() - 1; i >= 0; i--) {
+              HomePieceOfFurniture piece = groupFurniture.get(i);
+              if ((!basePlanLocked
+                    || !isItemPartOfBasePlan(piece))
+                  && piece.containsPoint(x, y, margin)) {
+                return piece;
               }
             }
           }
         }
       }
-      if (foundRoom != null
-          && stopAtFirstItem) {
-        return Arrays.asList(new Selectable [] {foundRoom});
-      } else {
-        Compass compass = this.home.getCompass();
-        if ((!basePlanLocked
-              || !isItemPartOfBasePlan(compass))
-            && compass.containsPoint(x, y, textMargin)) {
-          items.add(compass);
-        }
-        return items;
-      }
     }
+    return item;
   }
 
   /**

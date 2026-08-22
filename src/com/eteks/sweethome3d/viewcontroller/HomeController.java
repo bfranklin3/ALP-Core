@@ -1052,8 +1052,18 @@ public class HomeController implements Controller {
         && viewableLevel);
     view.setEnabled(HomeView.ActionType.UNGROUP_FURNITURE,
         homeSelectionContainsFurnitureGroup);
-    boolean selectionMode = getPlanController() != null
-        && getPlanController().getMode() == PlanController.Mode.SELECTION;
+    PlanController planController = getPlanController();
+    boolean planArrangeEnabled = !modificationState && planController.canArrangeSelectedItems();
+    view.setEnabled(HomeView.ActionType.BRING_TO_FRONT,
+        planArrangeEnabled && planController.canBringSelectionToFront());
+    view.setEnabled(HomeView.ActionType.SEND_TO_BACK,
+        planArrangeEnabled && planController.canSendSelectionToBack());
+    view.setEnabled(HomeView.ActionType.BRING_FORWARD,
+        planArrangeEnabled && planController.canBringSelectionForward());
+    view.setEnabled(HomeView.ActionType.SEND_BACKWARD,
+        planArrangeEnabled && planController.canSendSelectionBackward());
+    boolean selectionMode = planController != null
+        && planController.getMode() == PlanController.Mode.SELECTION;
     view.setEnabled(HomeView.ActionType.ADD_ROOM_POINT, homeSelectionContainsOnlyOneRoom && selectionMode);
     // Check minimum requirement for DELETE_ROOM_POINT and RECOMPUTE_ROOM_POINTS actions
     // and let home view check the coordinates of the deleted point

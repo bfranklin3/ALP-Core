@@ -233,7 +233,7 @@ import com.eteks.sweethome3d.viewcontroller.View3D;
  */
 public class HomePane extends JRootPane implements HomeView {
   private enum MenuActionType {FILE_MENU, EDIT_MENU, FURNITURE_MENU, PLAN_MENU, VIEW_3D_MENU, HELP_MENU,
-      OPEN_RECENT_HOME_MENU, ALIGN_OR_DISTRIBUTE_MENU, SORT_HOME_FURNITURE_MENU, DISPLAY_HOME_FURNITURE_PROPERTY_MENU,
+      OPEN_RECENT_HOME_MENU, ALIGN_OR_DISTRIBUTE_MENU, ARRANGE_MENU, SORT_HOME_FURNITURE_MENU, DISPLAY_HOME_FURNITURE_PROPERTY_MENU,
       MODIFY_TEXT_STYLE, LEVELS_MENU, GO_TO_POINT_OF_VIEW, SELECT_OBJECT_MENU, TOGGLE_SELECTION_MENU}
 
   private static final String MAIN_PANE_DIVIDER_LOCATION_VISUAL_PROPERTY     = "com.eteks.sweethome3d.SweetHome3D.MainPaneDividerLocation";
@@ -544,6 +544,10 @@ public class HomePane extends JRootPane implements HomeView {
       createAction(ActionType.MODIFY_LEVEL, preferences, planController, "modifySelectedLevel");
       createAction(ActionType.MOVE_LAYER_UP, preferences, planController, "moveSelectedLayerUp");
       createAction(ActionType.MOVE_LAYER_DOWN, preferences, planController, "moveSelectedLayerDown");
+      createAction(ActionType.BRING_TO_FRONT, preferences, planController, "bringSelectionToFront");
+      createAction(ActionType.SEND_TO_BACK, preferences, planController, "sendSelectionToBack");
+      createAction(ActionType.BRING_FORWARD, preferences, planController, "bringSelectionForward");
+      createAction(ActionType.SEND_BACKWARD, preferences, planController, "sendSelectionBackward");
       createAction(ActionType.DELETE_LEVEL, preferences, planController, "deleteSelectedLevel");
       createAction(ActionType.ZOOM_IN, preferences, controller, "zoomIn");
       createAction(ActionType.ZOOM_OUT, preferences, controller, "zoomOut");
@@ -701,6 +705,7 @@ public class HomePane extends JRootPane implements HomeView {
     createMenuAction(preferences, MenuActionType.OPEN_RECENT_HOME_MENU, null);
     createMenuAction(preferences, MenuActionType.SORT_HOME_FURNITURE_MENU, null);
     createMenuAction(preferences, MenuActionType.ALIGN_OR_DISTRIBUTE_MENU, null);
+    createMenuAction(preferences, MenuActionType.ARRANGE_MENU, null);
     createMenuAction(preferences, MenuActionType.DISPLAY_HOME_FURNITURE_PROPERTY_MENU, null);
     createMenuAction(preferences, MenuActionType.MODIFY_TEXT_STYLE, null);
     createMenuAction(preferences, MenuActionType.LEVELS_MENU, null);
@@ -1590,6 +1595,20 @@ public class HomePane extends JRootPane implements HomeView {
     addActionToMenu(ActionType.DISTRIBUTE_FURNITURE_HORIZONTALLY, popup, alignOrDistributeMenu);
     addActionToMenu(ActionType.DISTRIBUTE_FURNITURE_VERTICALLY, popup, alignOrDistributeMenu);
     return alignOrDistributeMenu;
+  }
+
+  /**
+   * Returns arrange menu for plan Z-order.
+   */
+  private JMenu createArrangeMenu(final Home home,
+                                  final UserPreferences preferences,
+                                  boolean popup) {
+    JMenu arrangeMenu = new JMenu(this.menuActionMap.get(MenuActionType.ARRANGE_MENU));
+    addActionToMenu(ActionType.BRING_TO_FRONT, popup, arrangeMenu);
+    addActionToMenu(ActionType.SEND_TO_BACK, popup, arrangeMenu);
+    addActionToMenu(ActionType.BRING_FORWARD, popup, arrangeMenu);
+    addActionToMenu(ActionType.SEND_BACKWARD, popup, arrangeMenu);
+    return arrangeMenu;
   }
 
   /**
@@ -3745,6 +3764,7 @@ public class HomePane extends JRootPane implements HomeView {
       addActionToPopupMenu(ActionType.GROUP_FURNITURE, planViewPopup);
       addActionToPopupMenu(ActionType.UNGROUP_FURNITURE, planViewPopup);
       planViewPopup.add(createAlignOrDistributeMenu(home, preferences, true));
+      planViewPopup.add(createArrangeMenu(home, preferences, true));
       addActionToPopupMenu(ActionType.RESET_FURNITURE_ELEVATION, planViewPopup);
       addActionToPopupMenu(ActionType.MODIFY_COMPASS, planViewPopup);
       addActionToPopupMenu(ActionType.MODIFY_WALL, planViewPopup);
