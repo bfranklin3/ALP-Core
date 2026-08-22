@@ -1127,6 +1127,11 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           repaint();
         }
       });
+    home.addPropertyChangeListener(Home.Property.PLAN_DRAW_ORDER, new PropertyChangeListener() {
+        public void propertyChange(PropertyChangeEvent ev) {
+          repaint();
+        }
+      });
     UserPreferencesChangeListener preferencesListener = new UserPreferencesChangeListener(this);
     preferences.addPropertyChangeListener(UserPreferences.Property.UNIT, preferencesListener);
     preferences.addPropertyChangeListener(UserPreferences.Property.LANGUAGE, preferencesListener);
@@ -3115,36 +3120,17 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
 
     paintCompass(g2D, selectedItems, planScale, foregroundColor, paintMode);
 
-    checkCurrentThreadIsntInterrupted(paintMode);
-    paintRooms(g2D, selectedItems, level, planScale, foregroundColor, paintMode);
-
-    checkCurrentThreadIsntInterrupted(paintMode);
-    paintWalls(g2D, selectedItems, level, planScale, backgroundColor, foregroundColor, paintMode);
-
-    checkCurrentThreadIsntInterrupted(paintMode);
-    paintFurniture(g2D, this.sortedLevelFurniture, selectedItems, level,
-        planScale, backgroundColor, foregroundColor, getFurnitureOutlineColor(), paintMode, true);
-
-    checkCurrentThreadIsntInterrupted(paintMode);
-    paintPolylines(g2D, this.home.getPolylines(), selectedItems, level,
-        selectionOutlinePaint, selectionColor, planScale, foregroundColor, paintMode);
-
-    checkCurrentThreadIsntInterrupted(paintMode);
-    paintDimensionLines(g2D, this.home.getDimensionLines(), selectedItems, level,
+    ensureSortedLevelRooms(level);
+    paintStackOrderedHomeItems(g2D, level, selectedItems, planScale, backgroundColor, foregroundColor,
         selectionOutlinePaint, dimensionLinesSelectionOutlineStroke, selectionColor,
-        locationFeedbackStroke, planScale, backgroundColor, foregroundColor, paintMode, false);
+        locationFeedbackStroke, paintMode);
 
-    // Paint rooms text, furniture name and labels last to ensure they are not hidden
+    // Area chrome pass: outlines, names and area text (SPIKE-36)
     checkCurrentThreadIsntInterrupted(paintMode);
-    paintRoomsNameAndArea(g2D, selectedItems, planScale, foregroundColor, paintMode);
+    paintRoomsAreaChromePass(g2D, selectedItems, level, planScale, foregroundColor, paintMode);
 
     checkCurrentThreadIsntInterrupted(paintMode);
     paintFurnitureName(g2D, this.sortedLevelFurniture, selectedItems, planScale, foregroundColor, paintMode);
-
-    checkCurrentThreadIsntInterrupted(paintMode);
-    paintLabels(g2D, this.home.getLabels(), selectedItems, level,
-        selectionOutlinePaint, dimensionLinesSelectionOutlineStroke,
-        selectionColor, planScale, foregroundColor, paintMode);
 
     if (paintMode == PaintMode.PAINT
         && this.selectedItemsOutlinePainted) {
@@ -3201,12 +3187,10 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
   }
 
   /**
-   * Paints rooms.
+   * Ensures {@link #sortedLevelRooms} is initialized for the given level.
    */
-  private void paintRooms(Graphics2D g2D, List<Selectable> selectedItems, Level level, float planScale,
-                          Color foregroundColor, PaintMode paintMode) {
+  private void ensureSortedLevelRooms(Level level) {
     if (this.sortedLevelRooms == null) {
-      // Sort home rooms in floor / floor-ceiling / ceiling order
       this.sortedLevelRooms = new ArrayList<Room>();
       for (Room room : this.home.getRooms()) {
         if (isViewableAtLevel(room, level)) {
@@ -3225,7 +3209,6 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
                   return 1;
                 }
               }
-              // Paint lower layers first so higher layers appear on top when areas overlap
               int levelIndex1 = room1.getLevel() != null ? room1.getLevel().getElevationIndex() : -1;
               int levelIndex2 = room2.getLevel() != null ? room2.getLevel().getElevationIndex() : -1;
               if (levelIndex1 != levelIndex2) {
@@ -3235,131 +3218,236 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
             }
           });
     }
+  }
 
-    Color defaultFillPaint = isDraftMode(paintMode) || paintMode == PaintMode.PRINT
-        ? Color.WHITE
-        : Color.GRAY;
-    // Draw rooms area
+  /**
+   * Paints stackable home items in plan draw order (SPIKE-36 pass 1).
+   */
+  private void paintStackOrderedHomeItems(Graphics2D g2D, Level level, List<Selectable> selectedItems,
+                                          float planScale, Color backgroundColor, Color foregroundColor,
+                                          Paint selectionOutlinePaint,
+                                          Stroke dimensionLinesSelectionOutlineStroke,
+                                          Paint selectionColor, Stroke locationFeedbackStroke,
+                                          PaintMode paintMode) throws InterruptedIOException {
+    Color furnitureOutlineColor = getFurnitureOutlineColor();
+    for (String ref : this.home.getEffectivePlanDrawOrder()) {
+      checkCurrentThreadIsntInterrupted(paintMode);
+      if (Home.isWallBlockRef(ref)) {
+        Level wallBlockLevel = this.home.getLevelForWallBlockRef(ref);
+        if (wallBlockLevel != null) {
+          paintWallsForBlockLevel(g2D, wallBlockLevel, level, selectedItems, planScale,
+              backgroundColor, foregroundColor, paintMode);
+        }
+      } else {
+        Selectable item = this.home.findSelectableById(ref);
+        if (item instanceof Room) {
+          Room room = (Room)item;
+          if (isViewableAtLevel(room, level)) {
+            paintRoomFill(g2D, room, selectedItems, planScale, foregroundColor, paintMode);
+          }
+        } else if (item instanceof HomePieceOfFurniture) {
+          HomePieceOfFurniture piece = (HomePieceOfFurniture)item;
+          if (isViewableAtLevel(piece, level)) {
+            paintFurniture(g2D, Collections.singletonList(piece), selectedItems, level,
+                planScale, backgroundColor, foregroundColor, furnitureOutlineColor, paintMode, true);
+          }
+        } else if (item instanceof Polyline) {
+          Polyline polyline = (Polyline)item;
+          if (isViewableAtLevel(polyline, level)) {
+            paintPolylines(g2D, Collections.singletonList(polyline), selectedItems, level,
+                selectionOutlinePaint, selectionColor, planScale, foregroundColor, paintMode);
+          }
+        } else if (item instanceof DimensionLine) {
+          DimensionLine dimensionLine = (DimensionLine)item;
+          if (isViewableAtLevel(dimensionLine, level)) {
+            paintDimensionLines(g2D, Collections.singletonList(dimensionLine), selectedItems, level,
+                selectionOutlinePaint, dimensionLinesSelectionOutlineStroke, selectionColor,
+                locationFeedbackStroke, planScale, backgroundColor, foregroundColor, paintMode, false);
+          }
+        } else if (item instanceof Label) {
+          Label label = (Label)item;
+          if (isViewableAtLevel(label, level)) {
+            paintLabels(g2D, Collections.singletonList(label), selectedItems, level,
+                selectionOutlinePaint, dimensionLinesSelectionOutlineStroke,
+                selectionColor, planScale, foregroundColor, paintMode);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Paints area chrome (outline, name, area text) in a fixed pass after stack-ordered geometry (SPIKE-36 pass 2).
+   */
+  private void paintRoomsAreaChromePass(Graphics2D g2D, List<Selectable> selectedItems, Level level,
+                                        float planScale, Color foregroundColor, PaintMode paintMode) {
     for (Room room : this.sortedLevelRooms) {
       boolean selectedRoom = selectedItems.contains(room);
-      // In clipboard paint mode, paint room only if it is selected
       if (paintMode != PaintMode.CLIPBOARD
           || selectedRoom) {
-        g2D.setPaint(defaultFillPaint);
-        float textureAngle = 0;
-        boolean fillRoomInterior = !AlpColorSupport.isTransparentColor(room.getFloorColor());
-        if (fillRoomInterior
-            && !isDraftMode(paintMode)
-            && this.preferences.isRoomFloorColoredOrTextured()
-            && room.isFloorVisible()) {
-          // Use room floor color or texture image
-          if (room.getFloorColor() != null) {
-            g2D.setPaint(new Color(room.getFloorColor()));
-          } else {
-            final HomeTexture floorTexture = room.getFloorTexture();
-            if (floorTexture != null) {
-              if (this.floorTextureImagesCache == null) {
-                this.floorTextureImagesCache = new WeakHashMap<HomeTexture, BufferedImage>();
-              }
-              BufferedImage textureImage = this.floorTextureImagesCache.get(floorTexture);
-              if (textureImage == null
-                  || textureImage == WAIT_TEXTURE_IMAGE) {
-                final boolean waitForTexture = paintMode != PaintMode.PAINT;
-                if (isTextureManagerAvailable()
-                    // Don't use images managed by Java3D textures
-                    // to avoid InternalError "Surface not cachable" in Graphics2D#fill call
-                    // See bug at https://bugs.openjdk.java.net/browse/JDK-8072618
-                    && !(OperatingSystem.isLinux()
-                          && OperatingSystem.isJavaVersionGreaterOrEqual("1.7"))) {
-                  // Prefer to share textures images with texture manager if it's available
-                  TextureManager.getInstance().loadTexture(floorTexture.getImage(), waitForTexture,
-                      new TextureManager.TextureObserver() {
-                        public void textureUpdated(Texture texture) {
-                          floorTextureImagesCache.put(floorTexture,
-                              ((ImageComponent2D)texture.getImage(0)).getImage());
-                          if (!waitForTexture) {
-                            repaint();
-                          }
-                        }
-                      });
-                } else {
-                  // Use icon manager if texture manager should be ignored
-                  Icon textureIcon = IconManager.getInstance().getIcon(floorTexture.getImage(),
-                      waitForTexture ? null : this);
-                  if (IconManager.getInstance().isWaitIcon(textureIcon)) {
-                    this.floorTextureImagesCache.put(floorTexture, WAIT_TEXTURE_IMAGE);
-                  } else if (IconManager.getInstance().isErrorIcon(textureIcon)) {
-                    this.floorTextureImagesCache.put(floorTexture, ERROR_TEXTURE_IMAGE);
-                  } else {
-                    BufferedImage textureIconImage = new BufferedImage(
-                        textureIcon.getIconWidth(), textureIcon.getIconHeight(), BufferedImage.TYPE_INT_ARGB);
-                    Graphics2D g2DIcon = (Graphics2D)textureIconImage.getGraphics();
-                    textureIcon.paintIcon(this, g2DIcon, 0, 0);
-                    g2DIcon.dispose();
-                    this.floorTextureImagesCache.put(floorTexture, textureIconImage);
-                  }
-                }
-                textureImage = this.floorTextureImagesCache.get(floorTexture);
-              }
+        if (shouldDrawRoomOutline(room)) {
+          setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
+          g2D.draw(getRoomShape(room, null));
+        }
+      }
+    }
+    paintRoomsNameAndArea(g2D, selectedItems, planScale, foregroundColor, paintMode);
+  }
 
-              if (room.getFloorTexture().isFittingArea()) {
-                float [] min = room.getBoundsMinimumCoordinates();
-                float [] max = room.getBoundsMaximumCoordinates();
-                g2D.setPaint(new TexturePaint(textureImage,
-                    new Rectangle2D.Float(min[0], min[1], max[0] - min[0],  max[1] - min[1])));
+  /**
+   * Paints walls belonging to a wall block level ref.
+   */
+  private void paintWallsForBlockLevel(Graphics2D g2D, Level wallBlockLevel, Level viewLevel,
+                                       List<Selectable> selectedItems, float planScale,
+                                       Color backgroundColor, Color foregroundColor,
+                                       PaintMode paintMode) {
+    List<Wall> wallsAtBlockLevel = new ArrayList<Wall>();
+    for (Wall wall : this.home.getWalls()) {
+      if (wallBlockLevel.equals(wall.getLevel())
+          && isViewableAtLevel(wall, viewLevel)) {
+        wallsAtBlockLevel.add(wall);
+      }
+    }
+    if (paintMode == PaintMode.CLIPBOARD) {
+      wallsAtBlockLevel.retainAll(Home.getWallsSubList(selectedItems));
+    }
+    if (wallsAtBlockLevel.isEmpty()) {
+      return;
+    }
+    Map<Collection<Wall>, Area> wallAreas = getWallAreas(wallsAtBlockLevel);
+    float wallPaintScale = paintMode == PaintMode.PRINT
+        ? planScale / 72 * 150
+        : planScale;
+    Composite oldComposite = null;
+    if (paintMode == PaintMode.PAINT
+        && this.backgroundPainted
+        && this.backgroundImageCache != null
+        && this.wallsDoorsOrWindowsModification) {
+      oldComposite = setTransparency(g2D, 0.5f);
+    }
+    for (Map.Entry<Collection<Wall>, Area> areaEntry : wallAreas.entrySet()) {
+      TextureImage wallPattern = areaEntry.getKey().iterator().next().getPattern();
+      fillAndDrawWallsArea(g2D, areaEntry.getValue(), planScale,
+          getWallPaint(wallPaintScale, backgroundColor, foregroundColor,
+              wallPattern != null ? wallPattern : this.preferences.getWallPattern()), foregroundColor, paintMode);
+    }
+    if (oldComposite != null) {
+      g2D.setComposite(oldComposite);
+    }
+  }
+
+  /**
+   * Paints the fill of a single room at its stack slot (no outline or text).
+   */
+  private void paintRoomFill(Graphics2D g2D, Room room, List<Selectable> selectedItems,
+                               float planScale, Color foregroundColor, PaintMode paintMode) {
+    boolean selectedRoom = selectedItems.contains(room);
+    if (paintMode != PaintMode.CLIPBOARD
+        || selectedRoom) {
+      Color defaultFillPaint = isDraftMode(paintMode) || paintMode == PaintMode.PRINT
+          ? Color.WHITE
+          : Color.GRAY;
+      g2D.setPaint(defaultFillPaint);
+      float textureAngle = 0;
+      boolean fillRoomInterior = !AlpColorSupport.isTransparentColor(room.getFloorColor());
+      if (fillRoomInterior
+          && !isDraftMode(paintMode)
+          && this.preferences.isRoomFloorColoredOrTextured()
+          && room.isFloorVisible()) {
+        if (room.getFloorColor() != null) {
+          g2D.setPaint(new Color(room.getFloorColor()));
+        } else {
+          final HomeTexture floorTexture = room.getFloorTexture();
+          if (floorTexture != null) {
+            if (this.floorTextureImagesCache == null) {
+              this.floorTextureImagesCache = new WeakHashMap<HomeTexture, BufferedImage>();
+            }
+            BufferedImage textureImage = this.floorTextureImagesCache.get(floorTexture);
+            if (textureImage == null
+                || textureImage == WAIT_TEXTURE_IMAGE) {
+              final boolean waitForTexture = paintMode != PaintMode.PAINT;
+              if (isTextureManagerAvailable()
+                  && !(OperatingSystem.isLinux()
+                        && OperatingSystem.isJavaVersionGreaterOrEqual("1.7"))) {
+                TextureManager.getInstance().loadTexture(floorTexture.getImage(), waitForTexture,
+                    new TextureManager.TextureObserver() {
+                      public void textureUpdated(Texture texture) {
+                        floorTextureImagesCache.put(floorTexture,
+                            ((ImageComponent2D)texture.getImage(0)).getImage());
+                        if (!waitForTexture) {
+                          repaint();
+                        }
+                      }
+                    });
               } else {
-                float textureWidth = floorTexture.getWidth();
-                float textureHeight = floorTexture.getHeight();
-                if (textureWidth == -1 || textureHeight == -1) {
-                  textureWidth = 100;
-                  textureHeight = 100;
+                Icon textureIcon = IconManager.getInstance().getIcon(floorTexture.getImage(),
+                    waitForTexture ? null : this);
+                if (IconManager.getInstance().isWaitIcon(textureIcon)) {
+                  this.floorTextureImagesCache.put(floorTexture, WAIT_TEXTURE_IMAGE);
+                } else if (IconManager.getInstance().isErrorIcon(textureIcon)) {
+                  this.floorTextureImagesCache.put(floorTexture, ERROR_TEXTURE_IMAGE);
+                } else {
+                  BufferedImage textureIconImage = new BufferedImage(
+                      textureIcon.getIconWidth(), textureIcon.getIconHeight(), BufferedImage.TYPE_INT_ARGB);
+                  Graphics2D g2DIcon = (Graphics2D)textureIconImage.getGraphics();
+                  textureIcon.paintIcon(this, g2DIcon, 0, 0);
+                  g2DIcon.dispose();
+                  this.floorTextureImagesCache.put(floorTexture, textureIconImage);
                 }
-                float textureScale = floorTexture.getScale();
-                textureAngle = floorTexture.getAngle();
-                double cosAngle = Math.cos(textureAngle);
-                double sinAngle = Math.sin(textureAngle);
-                g2D.setPaint(new TexturePaint(textureImage,
-                    new Rectangle2D.Double(
-                        floorTexture.getXOffset() * textureWidth * textureScale * cosAngle
-                        - floorTexture.getYOffset() * textureHeight * textureScale * sinAngle,
-                        - floorTexture.getXOffset() * textureWidth * textureScale * sinAngle
-                        - floorTexture.getYOffset() * textureHeight * textureScale * cosAngle,
-                        textureWidth * textureScale, textureHeight * textureScale)));
               }
+              textureImage = this.floorTextureImagesCache.get(floorTexture);
+            }
+
+            if (room.getFloorTexture().isFittingArea()) {
+              float [] min = room.getBoundsMinimumCoordinates();
+              float [] max = room.getBoundsMaximumCoordinates();
+              g2D.setPaint(new TexturePaint(textureImage,
+                  new Rectangle2D.Float(min[0], min[1], max[0] - min[0],  max[1] - min[1])));
+            } else {
+              float textureWidth = floorTexture.getWidth();
+              float textureHeight = floorTexture.getHeight();
+              if (textureWidth == -1 || textureHeight == -1) {
+                textureWidth = 100;
+                textureHeight = 100;
+              }
+              float textureScale = floorTexture.getScale();
+              textureAngle = floorTexture.getAngle();
+              double cosAngle = Math.cos(textureAngle);
+              double sinAngle = Math.sin(textureAngle);
+              g2D.setPaint(new TexturePaint(textureImage,
+                  new Rectangle2D.Double(
+                      floorTexture.getXOffset() * textureWidth * textureScale * cosAngle
+                      - floorTexture.getYOffset() * textureHeight * textureScale * sinAngle,
+                      - floorTexture.getXOffset() * textureWidth * textureScale * sinAngle
+                      - floorTexture.getYOffset() * textureHeight * textureScale * cosAngle,
+                      textureWidth * textureScale, textureHeight * textureScale)));
             }
           }
         }
-
-        if (fillRoomInterior) {
-          Composite oldComposite = setTransparency(g2D, room.getFloorOpacity());
-          // Rotate graphics to rotate texture with requested angle
-          // and draw shape rotated with the opposite angle
-          g2D.rotate(textureAngle, 0, 0);
-          AffineTransform rotation = textureAngle != 0
-              ? AffineTransform.getRotateInstance(-textureAngle, 0, 0)
-              : null;
-          Shape roomShape = getRoomShape(room, rotation);
-          fillShape(g2D, roomShape, paintMode);
-          g2D.setComposite(oldComposite);
-
-          setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
-          if (shouldDrawRoomOutline(room)) {
-            g2D.draw(roomShape);
-          }
-          g2D.rotate(-textureAngle, 0, 0);
-        } else {
-          g2D.rotate(textureAngle, 0, 0);
-          AffineTransform rotation = textureAngle != 0
-              ? AffineTransform.getRotateInstance(-textureAngle, 0, 0)
-              : null;
-          Shape roomShape = getRoomShape(room, rotation);
-          if (shouldDrawRoomOutline(room)) {
-            setRoomOutlinePaintAndStroke(g2D, room, paintMode, planScale, foregroundColor);
-            g2D.draw(roomShape);
-          }
-          g2D.rotate(-textureAngle, 0, 0);
-        }
       }
+
+      if (fillRoomInterior) {
+        Composite oldComposite = setTransparency(g2D, room.getFloorOpacity());
+        g2D.rotate(textureAngle, 0, 0);
+        AffineTransform rotation = textureAngle != 0
+            ? AffineTransform.getRotateInstance(-textureAngle, 0, 0)
+            : null;
+        Shape roomShape = getRoomShape(room, rotation);
+        fillShape(g2D, roomShape, paintMode);
+        g2D.setComposite(oldComposite);
+        g2D.rotate(-textureAngle, 0, 0);
+      }
+    }
+  }
+
+  /**
+   * Paints rooms.
+   */
+  private void paintRooms(Graphics2D g2D, List<Selectable> selectedItems, Level level, float planScale,
+                          Color foregroundColor, PaintMode paintMode) {
+    ensureSortedLevelRooms(level);
+    for (Room room : this.sortedLevelRooms) {
+      paintRoomFill(g2D, room, selectedItems, planScale, foregroundColor, paintMode);
     }
   }
 
