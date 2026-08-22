@@ -145,6 +145,43 @@ public class HomeFileRecorderTest extends TestCase {
         legacyHome.getRooms().get(0).isNameVisible());
   }
 
+  public void testPlanDrawOrderRoundTrip() throws RecorderException {
+    Home home = new Home();
+    Level level = new Level("Proposed", 0, 0, 250);
+    home.addLevel(level);
+    home.setSelectedLevel(level);
+
+    Room room = new Room(new float [][] {{0, 0}, {100, 0}, {100, 100}, {0, 100}});
+    Polyline polyline = new Polyline(new float [][] {{0, 0}, {100, 0}});
+    home.addRoom(room);
+    home.addPolyline(polyline);
+
+    List<String> order = Arrays.asList(
+        polyline.getId(),
+        Home.getWallBlockRef(level),
+        room.getId());
+    home.setPlanDrawOrder(order);
+
+    String testFile = new File("test-plan-draw-order.sh3d").getAbsolutePath();
+    HomeFileRecorder recorder = new HomeFileRecorder();
+    try {
+      recorder.writeHome(home, testFile);
+      Home readHome = recorder.readHome(testFile);
+      assertEquals(order, readHome.getPlanDrawOrder());
+    } finally {
+      new File(testFile).delete();
+    }
+  }
+
+  public void testPlanDrawOrderLegacyMigration() throws RecorderException, URISyntaxException {
+    HomeFileRecorder recorder = new HomeFileRecorder();
+    Home legacyHome = recorder.readHome(new File(
+        HomeControllerTest.class.getResource("resources/homeTest.xml").toURI()).getAbsolutePath());
+    assertNull("Legacy home should not store plan draw order", legacyHome.getPlanDrawOrder());
+    assertFalse("Legacy home should synthesize plan draw order",
+        legacyHome.getEffectivePlanDrawOrder().isEmpty());
+  }
+
   private void checkSavedHome(Home home, HomeRecorder recorder) throws RecorderException {
     // 1. Record home in a file named test.sh3d in current directory
     String testFile = new File("test.sh3d").getAbsolutePath();

@@ -46,7 +46,9 @@ public class Home implements Serializable, Cloneable {
    * in <code>Home</code> class or in one of the classes that it uses,
    * this number is increased.
    */
-  public static final long CURRENT_VERSION = 7400;
+  public static final long CURRENT_VERSION = 7500;
+
+  public static final String PLAN_DRAW_ORDER_WALL_BLOCK_PREFIX = "walls@";
 
   private static final String  HOME_TOP_CAMERA_ID         = "camera-homeTopCamera";
   private static final String  HOME_OBSERVER_CAMERA_ID    = "observerCamera-homeObserverCamera";
@@ -74,7 +76,7 @@ public class Home implements Serializable, Cloneable {
     FURNITURE_SORTED_PROPERTY, FURNITURE_DESCENDING_SORTED, FURNITURE_VISIBLE_PROPERTIES,
     BACKGROUND_IMAGE, CAMERA, PRINT, BASE_PLAN_LOCKED, DRAFT_MODE, STORED_CAMERAS, RECOVERED, REPAIRED,
     SELECTED_LEVEL, ALL_LEVELS_SELECTION, SELECT_CURRENT_LAYER_ONLY,
-    FURNITURE_ADDITIONAL_PROPERTIES};
+    FURNITURE_ADDITIONAL_PROPERTIES, PLAN_DRAW_ORDER};
 
   private List<HomePieceOfFurniture>                  furniture;
   private transient CollectionChangeSupport<HomePieceOfFurniture> furnitureChangeSupport;
@@ -94,6 +96,8 @@ public class Home implements Serializable, Cloneable {
   private transient CollectionChangeSupport<DimensionLine> dimensionLinesChangeSupport;
   private List<Label>                                 labels;
   private transient CollectionChangeSupport<Label>    labelsChangeSupport;
+  private List<String>                                planDrawOrder;
+  private transient boolean                           readingFromXml;
   private Camera                                      camera;
   private String                                      name;
   private final float                                 wallHeight;
@@ -433,6 +437,9 @@ public class Home implements Serializable, Cloneable {
     this.visualProperties = new HashMap<String, Object>();
     this.properties = new HashMap<String, String>();
     this.furnitureAdditionalProperties = new ArrayList<ObjectProperty>();
+    if (newHome) {
+      this.planDrawOrder = new ArrayList<String>();
+    }
 
     this.version = CURRENT_VERSION;
   }
@@ -732,6 +739,7 @@ public class Home implements Serializable, Cloneable {
       this.levels = new ArrayList<Level>(this.levels);
       this.levels.remove(index);
       this.levelsChangeSupport.fireCollectionChanged(level, index, CollectionEvent.Type.DELETE);
+      removePlanDrawOrderRef(getWallBlockRef(level));
     }
   }
 
@@ -824,6 +832,7 @@ public class Home implements Serializable, Cloneable {
     piece.setLevel(this.selectedLevel);
     this.furniture.add(index, piece);
     this.furnitureChangeSupport.fireCollectionChanged(piece, index, CollectionEvent.Type.ADD);
+    appendPlanDrawOrderRef(piece.getId());
   }
 
   /**
@@ -873,6 +882,7 @@ public class Home implements Serializable, Cloneable {
       } else {
         this.furniture.remove(index);
         this.furnitureChangeSupport.fireCollectionChanged(piece, index, CollectionEvent.Type.DELETE);
+        removePlanDrawOrderRef(piece.getId());
       }
     }
   }
@@ -1015,6 +1025,7 @@ public class Home implements Serializable, Cloneable {
     this.rooms.add(index, room);
     room.setLevel(this.selectedLevel);
     this.roomsChangeSupport.fireCollectionChanged(room, index, CollectionEvent.Type.ADD);
+    appendPlanDrawOrderRef(room.getId());
   }
 
   /**
@@ -1035,6 +1046,7 @@ public class Home implements Serializable, Cloneable {
       this.rooms = new ArrayList<Room>(this.rooms);
       this.rooms.remove(index);
       this.roomsChangeSupport.fireCollectionChanged(room, index, CollectionEvent.Type.DELETE);
+      removePlanDrawOrderRef(room.getId());
     }
   }
 
@@ -1075,6 +1087,7 @@ public class Home implements Serializable, Cloneable {
     this.walls.add(wall);
     wall.setLevel(this.selectedLevel);
     this.wallsChangeSupport.fireCollectionChanged(wall, CollectionEvent.Type.ADD);
+    ensureWallBlockInPlanDrawOrder(wall.getLevel());
   }
 
   /**
@@ -1162,6 +1175,7 @@ public class Home implements Serializable, Cloneable {
     this.polylines.add(index, polyline);
     polyline.setLevel(this.selectedLevel);
     this.polylinesChangeSupport.fireCollectionChanged(polyline, CollectionEvent.Type.ADD);
+    appendPlanDrawOrderRef(polyline.getId());
   }
 
   /**
@@ -1183,6 +1197,7 @@ public class Home implements Serializable, Cloneable {
       this.polylines = new ArrayList<Polyline>(this.polylines);
       this.polylines.remove(index);
       this.polylinesChangeSupport.fireCollectionChanged(polyline, CollectionEvent.Type.DELETE);
+      removePlanDrawOrderRef(polyline.getId());
     }
   }
 
@@ -1224,6 +1239,7 @@ public class Home implements Serializable, Cloneable {
     this.dimensionLines.add(dimensionLine);
     dimensionLine.setLevel(this.selectedLevel);
     this.dimensionLinesChangeSupport.fireCollectionChanged(dimensionLine, CollectionEvent.Type.ADD);
+    appendPlanDrawOrderRef(dimensionLine.getId());
   }
 
   /**
@@ -1245,6 +1261,7 @@ public class Home implements Serializable, Cloneable {
       this.dimensionLines = new ArrayList<DimensionLine>(this.dimensionLines);
       this.dimensionLines.remove(index);
       this.dimensionLinesChangeSupport.fireCollectionChanged(dimensionLine, CollectionEvent.Type.DELETE);
+      removePlanDrawOrderRef(dimensionLine.getId());
     }
   }
 
@@ -1286,6 +1303,7 @@ public class Home implements Serializable, Cloneable {
     this.labels.add(label);
     label.setLevel(this.selectedLevel);
     this.labelsChangeSupport.fireCollectionChanged(label, CollectionEvent.Type.ADD);
+    appendPlanDrawOrderRef(label.getId());
   }
 
   /**
@@ -1306,8 +1324,284 @@ public class Home implements Serializable, Cloneable {
       this.labels = new ArrayList<Label>(this.labels);
       this.labels.remove(index);
       this.labelsChangeSupport.fireCollectionChanged(label, CollectionEvent.Type.DELETE);
+      removePlanDrawOrderRef(label.getId());
     }
   }
+
+  /**
+   * Sets whether plan draw order shouldn't be updated while reading a home file.
+   */
+  public void setReadingFromXml(boolean readingFromXml) {
+    this.readingFromXml = readingFromXml;
+  }
+
+  /**
+   * Returns the stored plan draw order, or <code>null</code> if legacy order should be synthesized.
+   */
+  public List<String> getPlanDrawOrder() {
+    return this.planDrawOrder;
+  }
+
+  /**
+   * Sets the plan draw order list.
+   */
+  public void setPlanDrawOrder(List<String> planDrawOrder) {
+    List<String> oldPlanDrawOrder = this.planDrawOrder;
+    this.planDrawOrder = planDrawOrder != null
+        ? new ArrayList<String>(planDrawOrder)
+        : null;
+    this.propertyChangeSupport.firePropertyChange(Property.PLAN_DRAW_ORDER.name(),
+        oldPlanDrawOrder, this.planDrawOrder);
+  }
+
+  /**
+   * Returns the effective plan draw order, synthesizing legacy order when needed.
+   */
+  public List<String> getEffectivePlanDrawOrder() {
+    if (this.planDrawOrder != null) {
+      return Collections.unmodifiableList(this.planDrawOrder);
+    } else {
+      return Collections.unmodifiableList(synthesizePlanDrawOrder());
+    }
+  }
+
+  /**
+   * Returns the wall block reference for the given level.
+   */
+  public static String getWallBlockRef(Level level) {
+    return PLAN_DRAW_ORDER_WALL_BLOCK_PREFIX + level.getId();
+  }
+
+  /**
+   * Returns <code>true</code> if the given reference is a wall block reference.
+   */
+  public static boolean isWallBlockRef(String ref) {
+    return ref != null && ref.startsWith(PLAN_DRAW_ORDER_WALL_BLOCK_PREFIX);
+  }
+
+  /**
+   * Returns the level matching a wall block reference, or <code>null</code>.
+   */
+  public Level getLevelForWallBlockRef(String ref) {
+    if (!isWallBlockRef(ref)) {
+      return null;
+    }
+    String levelId = ref.substring(PLAN_DRAW_ORDER_WALL_BLOCK_PREFIX.length());
+    for (Level level : this.levels) {
+      if (levelId.equals(level.getId())) {
+        return level;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns the selectable item matching the given id, or <code>null</code>.
+   */
+  public Selectable findSelectableById(String id) {
+    if (id == null) {
+      return null;
+    }
+    for (Room room : this.rooms) {
+      if (id.equals(room.getId())) {
+        return room;
+      }
+    }
+    for (Polyline polyline : this.polylines) {
+      if (id.equals(polyline.getId())) {
+        return polyline;
+      }
+    }
+    for (DimensionLine dimensionLine : this.dimensionLines) {
+      if (id.equals(dimensionLine.getId())) {
+        return dimensionLine;
+      }
+    }
+    for (Label label : this.labels) {
+      if (id.equals(label.getId())) {
+        return label;
+      }
+    }
+    for (HomePieceOfFurniture piece : this.furniture) {
+      if (id.equals(piece.getId())) {
+        return piece;
+      }
+    }
+    for (Wall wall : this.walls) {
+      if (id.equals(wall.getId())) {
+        return wall;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Moves the given refs to the front of the plan draw order.
+   */
+  public void movePlanDrawOrderRefsToFront(List<String> refs) {
+    movePlanDrawOrderRefs(refs, Integer.MAX_VALUE);
+  }
+
+  /**
+   * Moves the given refs to the back of the plan draw order.
+   */
+  public void movePlanDrawOrderRefsToBack(List<String> refs) {
+    movePlanDrawOrderRefs(refs, Integer.MIN_VALUE);
+  }
+
+  /**
+   * Moves the given refs one step forward in the plan draw order.
+   */
+  public void movePlanDrawOrderRefsForward(List<String> refs) {
+    movePlanDrawOrderRefs(refs, 1);
+  }
+
+  /**
+   * Moves the given refs one step backward in the plan draw order.
+   */
+  public void movePlanDrawOrderRefsBackward(List<String> refs) {
+    movePlanDrawOrderRefs(refs, -1);
+  }
+
+  private void movePlanDrawOrderRefs(List<String> refs, int step) {
+    if (refs == null || refs.isEmpty()) {
+      return;
+    }
+    materializePlanDrawOrderIfNeeded();
+    List<String> order = new ArrayList<String>(this.planDrawOrder);
+    List<String> movingRefs = new ArrayList<String>();
+    for (String ref : refs) {
+      if (order.contains(ref) && !movingRefs.contains(ref)) {
+        movingRefs.add(ref);
+      }
+    }
+    if (movingRefs.isEmpty()) {
+      return;
+    }
+    if (step == Integer.MAX_VALUE) {
+      order.removeAll(movingRefs);
+      order.addAll(movingRefs);
+    } else if (step == Integer.MIN_VALUE) {
+      order.removeAll(movingRefs);
+      order.addAll(0, movingRefs);
+    } else if (step > 0) {
+      List<Integer> indices = new ArrayList<Integer>();
+      for (String ref : movingRefs) {
+        indices.add(order.indexOf(ref));
+      }
+      Collections.sort(indices, Collections.reverseOrder());
+      for (int index : indices) {
+        if (index < order.size() - 1) {
+          String ref = order.remove(index);
+          order.add(index + 1, ref);
+        }
+      }
+    } else {
+      List<Integer> indices = new ArrayList<Integer>();
+      for (String ref : movingRefs) {
+        indices.add(order.indexOf(ref));
+      }
+      Collections.sort(indices);
+      for (int index : indices) {
+        if (index > 0) {
+          String ref = order.remove(index);
+          order.add(index - 1, ref);
+        }
+      }
+    }
+    setPlanDrawOrder(order);
+  }
+
+  private void materializePlanDrawOrderIfNeeded() {
+    if (this.planDrawOrder == null) {
+      this.planDrawOrder = new ArrayList<String>(synthesizePlanDrawOrder());
+    }
+  }
+
+  private void appendPlanDrawOrderRef(String ref) {
+    if (this.readingFromXml || ref == null) {
+      return;
+    }
+    materializePlanDrawOrderIfNeeded();
+    if (!this.planDrawOrder.contains(ref)) {
+      this.planDrawOrder.add(ref);
+      this.propertyChangeSupport.firePropertyChange(Property.PLAN_DRAW_ORDER.name(),
+          null, this.planDrawOrder);
+    }
+  }
+
+  private void removePlanDrawOrderRef(String ref) {
+    if (ref == null || this.planDrawOrder == null) {
+      return;
+    }
+    if (this.planDrawOrder.remove(ref)) {
+      this.propertyChangeSupport.firePropertyChange(Property.PLAN_DRAW_ORDER.name(),
+          null, this.planDrawOrder);
+    }
+  }
+
+  private void ensureWallBlockInPlanDrawOrder(Level level) {
+    if (level == null || this.readingFromXml) {
+      return;
+    }
+    appendPlanDrawOrderRef(getWallBlockRef(level));
+  }
+
+  /**
+   * Builds a default plan draw order matching pre-SPIKE-36 paint semantics.
+   */
+  public List<String> synthesizePlanDrawOrder() {
+    List<String> order = new ArrayList<String>();
+    List<Room> sortedRooms = new ArrayList<Room>(this.rooms);
+    Collections.sort(sortedRooms, PLAN_DRAW_ORDER_ROOM_COMPARATOR);
+    for (Room room : sortedRooms) {
+      order.add(room.getId());
+    }
+    List<Level> sortedLevels = new ArrayList<Level>(this.levels);
+    Collections.sort(sortedLevels, LEVEL_ELEVATION_COMPARATOR);
+    for (Level level : sortedLevels) {
+      order.add(getWallBlockRef(level));
+    }
+    List<HomePieceOfFurniture> sortedFurniture = new ArrayList<HomePieceOfFurniture>(this.furniture);
+    Collections.sort(sortedFurniture, new Comparator<HomePieceOfFurniture>() {
+        public int compare(HomePieceOfFurniture piece1, HomePieceOfFurniture piece2) {
+          return Float.compare(piece1.getGroundElevation(), piece2.getGroundElevation());
+        }
+      });
+    for (HomePieceOfFurniture piece : sortedFurniture) {
+      order.add(piece.getId());
+    }
+    for (Polyline polyline : this.polylines) {
+      order.add(polyline.getId());
+    }
+    for (DimensionLine dimensionLine : this.dimensionLines) {
+      order.add(dimensionLine.getId());
+    }
+    for (Label label : this.labels) {
+      order.add(label.getId());
+    }
+    return order;
+  }
+
+  private static final Comparator<Room> PLAN_DRAW_ORDER_ROOM_COMPARATOR = new Comparator<Room>() {
+      public int compare(Room room1, Room room2) {
+        if (room1.isFloorVisible() != room2.isFloorVisible()
+            || room1.isCeilingVisible() != room2.isCeilingVisible()) {
+          if (!room1.isFloorVisible() && !room1.isCeilingVisible()
+              || room1.isFloorVisible() && room2.isCeilingVisible()) {
+            return -1;
+          } else {
+            return 1;
+          }
+        }
+        int levelIndex1 = room1.getLevel() != null ? room1.getLevel().getElevationIndex() : -1;
+        int levelIndex2 = room2.getLevel() != null ? room2.getLevel().getElevationIndex() : -1;
+        if (levelIndex1 != levelIndex2) {
+          return levelIndex1 - levelIndex2;
+        }
+        return 0;
+      }
+    };
 
   /**
    * Returns all the selectable and viewable items in this home, except the observer camera.
@@ -2152,6 +2446,11 @@ public class Home implements Serializable, Cloneable {
         source.furnitureVisiblePropertyNames);
     destination.visualProperties = new HashMap<String, Object>(source.visualProperties);
     destination.properties = new HashMap<String, String>(source.properties);
+    if (source.planDrawOrder != null) {
+      destination.planDrawOrder = new ArrayList<String>(source.planDrawOrder);
+    } else {
+      destination.planDrawOrder = null;
+    }
   }
 
   /**

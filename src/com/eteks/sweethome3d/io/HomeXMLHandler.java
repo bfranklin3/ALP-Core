@@ -81,7 +81,7 @@ import com.eteks.sweethome3d.tools.URLContent;
 /**
  * SAX handler for Sweet Home 3D XML stream. Read home should respect the following DTD:<pre>
  * &lt;!ELEMENT home (property*, furnitureVisibleProperty*, environment?, backgroundImage?, print?, compass?, (camera | observerCamera)*, level*,
- *       (pieceOfFurniture | doorOrWindow | furnitureGroup | light)*, wall*, room*, polyline*, dimensionLine*, label*)>
+ *       (pieceOfFurniture | doorOrWindow | furnitureGroup | light)*, wall*, room*, polyline*, dimensionLine*, label*, planDrawOrder?)>
  * &lt;!ATTLIST home
  *       version CDATA #IMPLIED
  *       name CDATA #IMPLIED
@@ -513,6 +513,7 @@ public class HomeXMLHandler extends DefaultHandler {
   private final List<Boolean>      pointSharpFlags = new ArrayList<Boolean>();
   private final List<String>       furnitureVisiblePropertyNames = new ArrayList<String>();
   private final List<String>       printedLevelIds = new ArrayList<String>();
+  private final List<String>       planDrawOrderRefs = new ArrayList<String>();
 
   private static final String UNIQUE_ATTRIBUTE = "@&unique&@";
 
@@ -539,6 +540,7 @@ public class HomeXMLHandler extends DefaultHandler {
     this.groupsFurniture.clear();
     this.levels.clear();
     this.joinedWalls.clear();
+    this.planDrawOrderRefs.clear();
   }
 
   @Override
@@ -733,6 +735,12 @@ public class HomeXMLHandler extends DefaultHandler {
       if (levelId != null) {
         label.setLevel(this.levels.get(levelId));
       }
+    } else if ("item".equals(name)
+               && "planDrawOrder".equals(parent)) {
+      if (attributesMap.get("ref") == null) {
+        throw new SAXException("Missing ref attribute");
+      }
+      this.planDrawOrderRefs.add(attributesMap.get("ref"));
     } else if ("text".equals(name)) {
       this.labelText = getCharacters();
     } else if ("textStyle".equals(name)) {
@@ -904,6 +912,13 @@ public class HomeXMLHandler extends DefaultHandler {
         }
       }
     }
+    // Rebind plan draw order
+    if (!this.planDrawOrderRefs.isEmpty()) {
+      this.home.setPlanDrawOrder(this.planDrawOrderRefs);
+    } else {
+      this.home.setPlanDrawOrder(null);
+    }
+    this.home.setReadingFromXml(false);
   }
 
   /**
@@ -2059,6 +2074,7 @@ public class HomeXMLHandler extends DefaultHandler {
   protected void setHome(Home home) {
     this.home = home;
     this.homeElementName = this.elements.peek();
+    home.setReadingFromXml(true);
   }
 
   /**

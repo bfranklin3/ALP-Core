@@ -178,6 +178,16 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
     for (Label label : home.getLabels()) {
       writeLabel(writer, label);
     }
+    List<String> planDrawOrder = home.getPlanDrawOrder();
+    if (planDrawOrder != null && !planDrawOrder.isEmpty()) {
+      writer.writeStartElement("planDrawOrder");
+      for (String ref : planDrawOrder) {
+        writer.writeStartElement("item");
+        writer.writeAttribute("ref", ref);
+        writer.writeEndElement();
+      }
+      writer.writeEndElement();
+    }
   }
 
   /**
