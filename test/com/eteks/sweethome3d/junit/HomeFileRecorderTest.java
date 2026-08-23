@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -35,7 +36,9 @@ import com.eteks.sweethome3d.io.HomeFileRecorder;
 import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.DamagedHomeRecorderException;
 import com.eteks.sweethome3d.model.FurnitureCatalog;
+import com.eteks.sweethome3d.model.DimensionLine;
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomeRecorder;
@@ -180,6 +183,66 @@ public class HomeFileRecorderTest extends TestCase {
     assertNull("Legacy home should not store plan draw order", legacyHome.getPlanDrawOrder());
     assertFalse("Legacy home should synthesize plan draw order",
         legacyHome.getEffectivePlanDrawOrder().isEmpty());
+  }
+
+  public void testPlanDrawOrderArrangeCommands() {
+    Home home = new Home();
+    Level level = new Level("Proposed", 0, 0, 250);
+    home.addLevel(level);
+    home.setSelectedLevel(level);
+
+    Room room = new Room(new float [][] {{0, 0}, {100, 0}, {100, 100}, {0, 100}});
+    Polyline polyline = new Polyline(new float [][] {{0, 0}, {100, 0}});
+    Label label = new Label("North", 50, 50, 0);
+    home.addRoom(room);
+    home.addPolyline(polyline);
+    home.addLabel(label);
+
+    List<String> initialOrder = new ArrayList<String>(home.getEffectivePlanDrawOrder());
+    assertEquals(room.getId(), initialOrder.get(0));
+    assertTrue(initialOrder.contains(Home.getWallBlockRef(level)));
+    assertEquals(polyline.getId(), initialOrder.get(initialOrder.indexOf(polyline.getId())));
+    assertEquals(label.getId(), initialOrder.get(initialOrder.size() - 1));
+
+    home.movePlanDrawOrderRefsToFront(Arrays.asList(polyline.getId(), label.getId()));
+    List<String> frontOrder = home.getPlanDrawOrder();
+    assertEquals(polyline.getId(), frontOrder.get(frontOrder.size() - 2));
+    assertEquals(label.getId(), frontOrder.get(frontOrder.size() - 1));
+
+    home.movePlanDrawOrderRefsToBack(Arrays.asList(polyline.getId(), label.getId()));
+    List<String> backOrder = home.getPlanDrawOrder();
+    assertEquals(polyline.getId(), backOrder.get(0));
+    assertEquals(label.getId(), backOrder.get(1));
+
+    home.movePlanDrawOrderRefsForward(Arrays.asList(polyline.getId()));
+    List<String> forwardOrder = home.getPlanDrawOrder();
+    assertEquals(label.getId(), forwardOrder.get(0));
+    assertEquals(polyline.getId(), forwardOrder.get(1));
+
+    home.movePlanDrawOrderRefsBackward(Arrays.asList(label.getId()));
+    List<String> backwardOrder = home.getPlanDrawOrder();
+    assertEquals(polyline.getId(), backwardOrder.get(0));
+    assertEquals(label.getId(), backwardOrder.get(1));
+  }
+
+  public void testPlanDrawOrderPasteOrder() {
+    Home home = new Home();
+    Level level = new Level("Proposed", 0, 0, 250);
+    home.addLevel(level);
+    home.setSelectedLevel(level);
+
+    Room room = new Room(new float [][] {{0, 0}, {100, 0}, {100, 100}, {0, 100}});
+    Polyline polyline = new Polyline(new float [][] {{0, 0}, {100, 0}});
+    Label label = new Label("North", 50, 50, 0);
+    home.addRoom(room);
+    home.addPolyline(polyline);
+    home.addLabel(label);
+
+    List<String> pastedRefs = Arrays.asList(label.getId(), polyline.getId());
+    home.movePlanDrawOrderRefsToFront(pastedRefs);
+    List<String> order = home.getPlanDrawOrder();
+    assertEquals(label.getId(), order.get(order.size() - 2));
+    assertEquals(polyline.getId(), order.get(order.size() - 1));
   }
 
   private void checkSavedHome(Home home, HomeRecorder recorder) throws RecorderException {

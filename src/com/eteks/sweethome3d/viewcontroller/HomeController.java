@@ -40,6 +40,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,6 +85,7 @@ import com.eteks.sweethome3d.model.HomeDoorOrWindow;
 import com.eteks.sweethome3d.model.HomeEnvironment;
 import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeMaterial;
+import com.eteks.sweethome3d.model.HomeObject;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomePrint;
 import com.eteks.sweethome3d.model.HomeRecorder;
@@ -1741,6 +1743,7 @@ public class HomeController implements Controller {
         getFurnitureController().addFurniture(Home.getFurnitureSubList(items), (HomePieceOfFurniture)beforeItem);
       } else {
         getPlanController().addItems(items);
+        reorderPastedItemsPlanDrawOrder(items);
       }
       List<HomePieceOfFurniture> addedFurniture = Home.getFurnitureSubList(items);
       adjustFurnitureSizeAndElevation(addedFurniture, dx == 0 && dy == 0 && destinationView == null);
@@ -1759,6 +1762,39 @@ public class HomeController implements Controller {
       // End compound edit
       undoSupport.endUpdate();
     }
+  }
+
+  /**
+   * Moves pasted stackable items to the top of the plan draw order, preserving paste list order (SPIKE-36).
+   */
+  private void reorderPastedItemsPlanDrawOrder(List<? extends Selectable> items) {
+    LinkedHashSet<String> pastedRefs = new LinkedHashSet<String>();
+    List<String> refsInPasteOrder = new ArrayList<String>();
+    for (Selectable item : items) {
+      String ref = getPlanDrawOrderRefForSelectable(item);
+      if (ref != null && pastedRefs.add(ref)) {
+        refsInPasteOrder.add(ref);
+      }
+    }
+    if (!refsInPasteOrder.isEmpty()) {
+      this.home.movePlanDrawOrderRefsToFront(refsInPasteOrder);
+    }
+  }
+
+  private String getPlanDrawOrderRefForSelectable(Selectable item) {
+    if (item instanceof Wall) {
+      Level level = ((Wall)item).getLevel();
+      if (level != null) {
+        return Home.getWallBlockRef(level);
+      }
+    } else if (item instanceof Room
+               || item instanceof Polyline
+               || item instanceof HomePieceOfFurniture
+               || item instanceof DimensionLine
+               || item instanceof Label) {
+      return ((HomeObject)item).getId();
+    }
+    return null;
   }
 
   /**
