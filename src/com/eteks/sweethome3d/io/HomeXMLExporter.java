@@ -52,6 +52,7 @@ import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.LightSource;
 import com.eteks.sweethome3d.model.ObjectProperty;
 import com.eteks.sweethome3d.model.ObserverCamera;
+import com.eteks.sweethome3d.model.PlanAssembly;
 import com.eteks.sweethome3d.model.PlanGraphicsGroup;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
@@ -186,6 +187,19 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
         writer.writeAttribute("name", group.getName());
       }
       for (String memberRef : group.getMemberIds()) {
+        writer.writeStartElement("member");
+        writer.writeAttribute("ref", memberRef);
+        writer.writeEndElement();
+      }
+      writer.writeEndElement();
+    }
+    for (PlanAssembly assembly : home.getPlanAssemblies()) {
+      writer.writeStartElement("planAssembly");
+      writer.writeAttribute("id", assembly.getId());
+      if (assembly.getName() != null) {
+        writer.writeAttribute("name", assembly.getName());
+      }
+      for (String memberRef : assembly.getMemberIds()) {
         writer.writeStartElement("member");
         writer.writeAttribute("ref", memberRef);
         writer.writeEndElement();

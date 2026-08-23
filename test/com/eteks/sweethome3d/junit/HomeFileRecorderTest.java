@@ -43,6 +43,7 @@ import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomeRecorder;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.PlanAssembly;
 import com.eteks.sweethome3d.model.PlanGraphicsGroup;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.RecorderException;
@@ -337,6 +338,59 @@ public class HomeFileRecorderTest extends TestCase {
     assertEquals(2, home.getPlanGraphicsGroupMembers(group).size());
     assertTrue(home.getPlanGraphicsGroupMembers(group).contains(room));
     assertTrue(home.getPlanGraphicsGroupMembers(group).contains(polyline));
+  }
+
+  public void testPlanAssemblyRoundTrip() throws RecorderException {
+    Home home = new Home();
+    Level level = new Level("Proposed", 0, 0, 250);
+    home.addLevel(level);
+    home.setSelectedLevel(level);
+
+    Wall wall1 = new Wall(0, 0, 100, 0, 10, home.getWallHeight());
+    Wall wall2 = new Wall(100, 0, 200, 0, 10, home.getWallHeight());
+    wall1.setLevel(level);
+    wall2.setLevel(level);
+    home.addWall(wall1);
+    home.addWall(wall2);
+
+    List<String> memberIds = Arrays.asList(wall1.getId(), wall2.getId());
+    PlanAssembly assembly = new PlanAssembly("Facade", memberIds);
+    home.addPlanAssembly(assembly);
+
+    String testFile = new File("test-plan-assembly.sh3d").getAbsolutePath();
+    HomeFileRecorder recorder = new HomeFileRecorder();
+    try {
+      recorder.writeHome(home, testFile);
+      Home readHome = recorder.readHome(testFile);
+      assertEquals(1, readHome.getPlanAssemblies().size());
+      PlanAssembly readAssembly = readHome.getPlanAssemblies().get(0);
+      assertEquals("Facade", readAssembly.getName());
+      assertEquals(memberIds, readAssembly.getMemberIds());
+    } finally {
+      new File(testFile).delete();
+    }
+  }
+
+  public void testPlanAssemblyMemberRemovalDissolvesAssembly() {
+    Home home = new Home();
+    Level level = new Level("Proposed", 0, 0, 250);
+    home.addLevel(level);
+    home.setSelectedLevel(level);
+
+    Wall wall1 = new Wall(0, 0, 100, 0, 10, home.getWallHeight());
+    Wall wall2 = new Wall(100, 0, 200, 0, 10, home.getWallHeight());
+    wall1.setLevel(level);
+    wall2.setLevel(level);
+    home.addWall(wall1);
+    home.addWall(wall2);
+
+    PlanAssembly assembly = new PlanAssembly("Shell",
+        Arrays.asList(wall1.getId(), wall2.getId()));
+    home.addPlanAssembly(assembly);
+    home.removePlanAssemblyMember(wall2.getId());
+
+    assertEquals(0, home.getPlanAssemblies().size());
+    assertNull(home.getPlanAssemblyForMemberId(wall1.getId()));
   }
 
   private void checkSavedHome(Home home, HomeRecorder recorder) throws RecorderException {

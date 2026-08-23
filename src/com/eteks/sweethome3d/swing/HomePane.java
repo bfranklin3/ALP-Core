@@ -551,6 +551,8 @@ public class HomePane extends JRootPane implements HomeView {
       createAction(ActionType.GROUP_PLAN_GRAPHICS, preferences, planController, "groupSelectedPlanGraphics");
       createAction(ActionType.UNGROUP_PLAN_GRAPHICS, preferences, planController, "ungroupSelectedPlanGraphics");
       createAction(ActionType.INCLUDE_WALL_OPENINGS, preferences, planController, "includeWallOpeningsInSelection");
+      createAction(ActionType.GROUP_PLAN_ASSEMBLY, preferences, planController, "groupSelectedPlanAssembly");
+      createAction(ActionType.UNGROUP_PLAN_ASSEMBLY, preferences, planController, "ungroupSelectedPlanAssembly");
       createAction(ActionType.DELETE_LEVEL, preferences, planController, "deleteSelectedLevel");
       createAction(ActionType.ZOOM_IN, preferences, controller, "zoomIn");
       createAction(ActionType.ZOOM_OUT, preferences, controller, "zoomOut");
@@ -3766,6 +3768,8 @@ public class HomePane extends JRootPane implements HomeView {
       addActionToPopupMenu(ActionType.MODIFY_FURNITURE, planViewPopup);
       addActionToPopupMenu(ActionType.GROUP_FURNITURE, planViewPopup);
       addActionToPopupMenu(ActionType.UNGROUP_FURNITURE, planViewPopup);
+      addActionToPopupMenu(ActionType.GROUP_PLAN_ASSEMBLY, planViewPopup);
+      addActionToPopupMenu(ActionType.UNGROUP_PLAN_ASSEMBLY, planViewPopup);
       planViewPopup.add(createAlignOrDistributeMenu(home, preferences, true));
       planViewPopup.add(createArrangeMenu(home, preferences, true));
       addActionToPopupMenu(ActionType.GROUP_PLAN_GRAPHICS, planViewPopup);

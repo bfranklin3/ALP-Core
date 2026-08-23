@@ -72,6 +72,7 @@ import com.eteks.sweethome3d.model.LevelCategory;
 import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.ObserverCamera;
 import com.eteks.sweethome3d.model.Polyline;
+import com.eteks.sweethome3d.model.PlanAssembly;
 import com.eteks.sweethome3d.model.PlanGraphicsGroup;
 import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Selectable;
@@ -4709,6 +4710,150 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Returns <code>true</code> if the current selection can be grouped as a plan assembly.
+   */
+  public boolean canGroupSelectedPlanAssembly() {
+    return getGroupablePlanAssemblySelection(this.home.getSelectedItems()).size() >= 2;
+  }
+
+  /**
+   * Returns <code>true</code> if the current selection matches a plan assembly.
+   */
+  public boolean canUngroupSelectedPlanAssembly() {
+    return getPlanAssemblyForCurrentSelection() != null;
+  }
+
+  /**
+   * Groups the selected architectural objects as one persistent assembly.
+   */
+  public void groupSelectedPlanAssembly() {
+    List<Selectable> groupableSelection = getGroupablePlanAssemblySelection(
+        expandSelectionWithWallOpenings(this.home.getSelectedItems()));
+    if (groupableSelection.size() < 2) {
+      return;
+    }
+    LinkedHashSet<String> memberIds = new LinkedHashSet<String>();
+    for (Selectable item : groupableSelection) {
+      String memberId = getPlanAssemblyMemberIdForSelectable(item);
+      if (memberId != null) {
+        memberIds.add(memberId);
+      }
+    }
+    if (memberIds.size() < 2) {
+      return;
+    }
+    List<String> memberIdList = new ArrayList<String>(memberIds);
+    for (String memberId : memberIdList) {
+      this.home.removePlanAssemblyMember(memberId);
+    }
+    String assemblyName = this.preferences.getLocalizedString(PlanController.class,
+        "defaultPlanAssemblyName");
+    PlanAssembly assembly = new PlanAssembly(assemblyName, memberIdList);
+    List<PlanAssembly> oldAssemblies = new ArrayList<PlanAssembly>(this.home.getPlanAssemblies());
+    List<Selectable> oldSelection = new ArrayList<Selectable>(this.home.getSelectedItems());
+    this.home.addPlanAssembly(assembly);
+    selectItems(this.home.getPlanAssemblyMembers(assembly));
+    this.undoSupport.postEdit(new PlanAssemblyModificationUndoableEdit(this.home, this.preferences,
+        oldAssemblies, oldSelection, assembly, memberIdList, true));
+  }
+
+  /**
+   * Ungroups the selected plan assembly.
+   */
+  public void ungroupSelectedPlanAssembly() {
+    PlanAssembly assembly = getPlanAssemblyForCurrentSelection();
+    if (assembly == null) {
+      return;
+    }
+    List<PlanAssembly> oldAssemblies = new ArrayList<PlanAssembly>(this.home.getPlanAssemblies());
+    List<Selectable> oldSelection = new ArrayList<Selectable>(this.home.getSelectedItems());
+    List<Selectable> members = this.home.getPlanAssemblyMembers(assembly);
+    this.home.deletePlanAssembly(assembly);
+    selectItems(members);
+    this.undoSupport.postEdit(new PlanAssemblyModificationUndoableEdit(this.home, this.preferences,
+        oldAssemblies, oldSelection, assembly, assembly.getMemberIds(), false));
+  }
+
+  private PlanAssembly getPlanAssemblyForCurrentSelection() {
+    List<Selectable> selectedItems = this.home.getSelectedItems();
+    if (selectedItems.isEmpty()) {
+      return null;
+    }
+    PlanAssembly matchedAssembly = null;
+    for (Selectable item : selectedItems) {
+      String memberId = getPlanAssemblyMemberIdForSelectable(item);
+      if (memberId == null) {
+        return null;
+      }
+      PlanAssembly assembly = this.home.getPlanAssemblyForMemberId(memberId);
+      if (assembly == null) {
+        return null;
+      }
+      if (matchedAssembly == null) {
+        matchedAssembly = assembly;
+      } else if (matchedAssembly != assembly) {
+        return null;
+      }
+    }
+    if (matchedAssembly == null) {
+      return null;
+    }
+    List<Selectable> assemblyMembers = this.home.getPlanAssemblyMembers(matchedAssembly);
+    return assemblyMembers.size() == selectedItems.size()
+        && assemblyMembers.containsAll(selectedItems)
+        ? matchedAssembly
+        : null;
+  }
+
+  private List<Selectable> getGroupablePlanAssemblySelection(List<Selectable> selectedItems) {
+    List<Selectable> groupableSelection = new ArrayList<Selectable>();
+    boolean containsWall = false;
+    for (Selectable item : selectedItems) {
+      if (isPlanAssemblyMemberCandidate(item)) {
+        groupableSelection.add(item);
+        if (item instanceof Wall) {
+          containsWall = true;
+        }
+      }
+    }
+    if (groupableSelection.size() < 2) {
+      return Collections.emptyList();
+    }
+    if (!containsWall) {
+      for (Selectable item : groupableSelection) {
+        if (!(item instanceof HomePieceOfFurniture)) {
+          return Collections.emptyList();
+        }
+      }
+      return Collections.emptyList();
+    }
+    return groupableSelection;
+  }
+
+  private boolean isPlanAssemblyMemberCandidate(Selectable item) {
+    if (!isItemMovable(item)) {
+      return false;
+    }
+    if (item instanceof Wall) {
+      return true;
+    }
+    if (item instanceof HomePieceOfFurniture) {
+      HomePieceOfFurniture piece = (HomePieceOfFurniture)item;
+      return !(piece instanceof HomeFurnitureGroup)
+          && this.home.getFurniture().contains(piece);
+    }
+    return false;
+  }
+
+  private String getPlanAssemblyMemberIdForSelectable(Selectable item) {
+    if (item instanceof Wall
+        || item instanceof HomePieceOfFurniture) {
+      return ((HomeObject)item).getId();
+    }
+    return null;
+  }
+
+  /**
    * Groups the selected plan graphics as one persistent group.
    */
   public void groupSelectedPlanGraphics() {
@@ -4867,6 +5012,22 @@ public class PlanController extends FurnitureController implements Controller {
     return new ArrayList<Selectable>(expandedItems);
   }
 
+  private List<Selectable> expandSelectionWithPlanAssemblies(List<? extends Selectable> items) {
+    LinkedHashSet<Selectable> expandedItems = new LinkedHashSet<Selectable>();
+    for (Selectable item : items) {
+      String memberId = getPlanAssemblyMemberIdForSelectable(item);
+      PlanAssembly assembly = memberId != null
+          ? this.home.getPlanAssemblyForMemberId(memberId)
+          : null;
+      if (assembly != null) {
+        expandedItems.addAll(this.home.getPlanAssemblyMembers(assembly));
+      } else {
+        expandedItems.add(item);
+      }
+    }
+    return new ArrayList<Selectable>(expandedItems);
+  }
+
   private List<Selectable> expandSelectionWithWallOpenings(List<? extends Selectable> items) {
     LinkedHashSet<Selectable> expandedItems = new LinkedHashSet<Selectable>(items);
     List<Wall> walls = Home.getWallsSubList(items);
@@ -5005,6 +5166,80 @@ public class PlanController extends FurnitureController implements Controller {
       } else {
         return new ArrayList<String>(order);
       }
+    }
+  }
+
+  private static class PlanAssemblyModificationUndoableEdit extends LocalizedUndoableEdit {
+    private final Home                 home;
+    private final List<PlanAssembly>  oldAssemblies;
+    private final List<Selectable>    oldSelection;
+    private final PlanAssembly        assembly;
+    private final List<String>        memberIds;
+    private final boolean             grouped;
+
+    public PlanAssemblyModificationUndoableEdit(Home home, UserPreferences preferences,
+                                                List<PlanAssembly> oldAssemblies,
+                                                List<Selectable> oldSelection,
+                                                PlanAssembly assembly,
+                                                List<String> memberIds,
+                                                boolean grouped) {
+      super(preferences, PlanController.class, grouped ? "undoGroupPlanAssemblyName" : "undoUngroupPlanAssemblyName");
+      this.home = home;
+      this.oldAssemblies = clonePlanAssemblies(oldAssemblies);
+      this.oldSelection = new ArrayList<Selectable>(oldSelection);
+      this.assembly = assembly.clone();
+      this.memberIds = new ArrayList<String>(memberIds);
+      this.grouped = grouped;
+    }
+
+    @Override
+    public void undo() throws CannotUndoException {
+      super.undo();
+      restoreState(this.oldAssemblies, this.oldSelection);
+    }
+
+    @Override
+    public void redo() throws CannotRedoException {
+      super.redo();
+      if (this.grouped) {
+        for (String memberId : this.memberIds) {
+          this.home.removePlanAssemblyMember(memberId);
+        }
+        this.home.addPlanAssembly(this.assembly.clone());
+        this.home.setSelectedItems(this.home.getPlanAssemblyMembers(this.assembly));
+      } else {
+        PlanAssembly existingAssembly = this.home.getPlanAssemblyForMemberId(
+            this.memberIds.isEmpty() ? null : this.memberIds.get(0));
+        if (existingAssembly != null) {
+          this.home.deletePlanAssembly(existingAssembly);
+        }
+        List<Selectable> members = new ArrayList<Selectable>();
+        for (String memberId : this.memberIds) {
+          Selectable member = this.home.findSelectableById(memberId);
+          if (member != null) {
+            members.add(member);
+          }
+        }
+        this.home.setSelectedItems(members);
+      }
+    }
+
+    private void restoreState(List<PlanAssembly> assemblies, List<Selectable> selection) {
+      while (!this.home.getPlanAssemblies().isEmpty()) {
+        this.home.deletePlanAssembly(this.home.getPlanAssemblies().get(0));
+      }
+      for (PlanAssembly oldAssembly : assemblies) {
+        this.home.addPlanAssembly(oldAssembly.clone());
+      }
+      this.home.setSelectedItems(selection);
+    }
+
+    private static List<PlanAssembly> clonePlanAssemblies(List<PlanAssembly> assemblies) {
+      List<PlanAssembly> clones = new ArrayList<PlanAssembly>();
+      for (PlanAssembly assembly : assemblies) {
+        clones.add(assembly.clone());
+      }
+      return clones;
     }
   }
 
@@ -7210,7 +7445,8 @@ public class PlanController extends FurnitureController implements Controller {
     // Remove selectionListener when selection is done from this controller
     // to control when selection should be made visible
     this.home.removeSelectionListener(this.selectionListener);
-    this.home.setSelectedItems(expandSelectionWithPlanGraphicsGroups(items));
+    this.home.setSelectedItems(expandSelectionWithPlanGraphicsGroups(
+        expandSelectionWithPlanAssemblies(items)));
     this.home.addSelectionListener(this.selectionListener);
     this.home.setAllLevelsSelection(allLevelsSelection);
   }
@@ -7227,13 +7463,19 @@ public class PlanController extends FurnitureController implements Controller {
    * @since 4.4
    */
   public void toggleItemSelection(Selectable item) {
+    String assemblyMemberId = getPlanAssemblyMemberIdForSelectable(item);
+    PlanAssembly assembly = assemblyMemberId != null
+        ? this.home.getPlanAssemblyForMemberId(assemblyMemberId)
+        : null;
     String memberId = getPlanDrawOrderRefForSelectable(item);
-    PlanGraphicsGroup group = memberId != null
+    PlanGraphicsGroup group = assembly == null && memberId != null
         ? this.home.getPlanGraphicsGroupForMemberId(memberId)
         : null;
-    List<Selectable> toggleItems = group != null
-        ? this.home.getPlanGraphicsGroupMembers(group)
-        : Arrays.asList(item);
+    List<Selectable> toggleItems = assembly != null
+        ? this.home.getPlanAssemblyMembers(assembly)
+        : group != null
+            ? this.home.getPlanGraphicsGroupMembers(group)
+            : Arrays.asList(item);
     List<Selectable> selectedItems = new ArrayList<Selectable>(this.home.getSelectedItems());
     if (selectedItems.containsAll(toggleItems)) {
       selectedItems.removeAll(toggleItems);

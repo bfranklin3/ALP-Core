@@ -46,7 +46,7 @@ public class Home implements Serializable, Cloneable {
    * in <code>Home</code> class or in one of the classes that it uses,
    * this number is increased.
    */
-  public static final long CURRENT_VERSION = 7600;
+  public static final long CURRENT_VERSION = 7700;
 
   public static final String PLAN_DRAW_ORDER_WALL_BLOCK_PREFIX = "walls@";
 
@@ -76,7 +76,7 @@ public class Home implements Serializable, Cloneable {
     FURNITURE_SORTED_PROPERTY, FURNITURE_DESCENDING_SORTED, FURNITURE_VISIBLE_PROPERTIES,
     BACKGROUND_IMAGE, CAMERA, PRINT, BASE_PLAN_LOCKED, DRAFT_MODE, STORED_CAMERAS, RECOVERED, REPAIRED,
     SELECTED_LEVEL, ALL_LEVELS_SELECTION, SELECT_CURRENT_LAYER_ONLY,
-    FURNITURE_ADDITIONAL_PROPERTIES, PLAN_DRAW_ORDER, PLAN_GRAPHICS_GROUPS};
+    FURNITURE_ADDITIONAL_PROPERTIES, PLAN_DRAW_ORDER, PLAN_GRAPHICS_GROUPS, PLAN_ASSEMBLIES};
 
   private List<HomePieceOfFurniture>                  furniture;
   private transient CollectionChangeSupport<HomePieceOfFurniture> furnitureChangeSupport;
@@ -99,6 +99,8 @@ public class Home implements Serializable, Cloneable {
   private List<String>                                planDrawOrder;
   private List<PlanGraphicsGroup>                   planGraphicsGroups;
   private transient CollectionChangeSupport<PlanGraphicsGroup> planGraphicsGroupsChangeSupport;
+  private List<PlanAssembly>                        planAssemblies;
+  private transient CollectionChangeSupport<PlanAssembly> planAssembliesChangeSupport;
   private transient boolean                           readingFromXml;
   private Camera                                      camera;
   private String                                      name;
@@ -433,6 +435,7 @@ public class Home implements Serializable, Cloneable {
     this.dimensionLines = new ArrayList<DimensionLine>();
     this.labels = new ArrayList<Label>();
     this.planGraphicsGroups = new ArrayList<PlanGraphicsGroup>();
+    this.planAssemblies = new ArrayList<PlanAssembly>();
     this.compass = new Compass(HOME_COMPASS_ID, -100, 50, 100);
     this.levels = new ArrayList<Level>();
     // Let compass be visible only on new homes
@@ -457,6 +460,7 @@ public class Home implements Serializable, Cloneable {
     home.dimensionLinesChangeSupport = new CollectionChangeSupport<DimensionLine>(home);
     home.labelsChangeSupport = new CollectionChangeSupport<Label>(home);
     home.planGraphicsGroupsChangeSupport = new CollectionChangeSupport<PlanGraphicsGroup>(home);
+    home.planAssembliesChangeSupport = new CollectionChangeSupport<PlanAssembly>(home);
     home.propertyChangeSupport = new PropertyChangeSupport(home);
   }
 
@@ -888,6 +892,7 @@ public class Home implements Serializable, Cloneable {
         this.furnitureChangeSupport.fireCollectionChanged(piece, index, CollectionEvent.Type.DELETE);
         removePlanDrawOrderRef(piece.getId());
         removePlanGraphicsGroupMember(piece.getId());
+        removePlanAssemblyMember(piece.getId());
       }
     }
   }
@@ -1108,6 +1113,7 @@ public class Home implements Serializable, Cloneable {
   public void deleteWall(Wall wall) {
     //  Ensure selectedItems don't keep a reference to wall
     deselectItem(wall);
+    removePlanAssemblyMember(wall.getId());
     // Detach any other wall attached to wall
     for (Wall otherWall : getWalls()) {
       if (wall.equals(otherWall.getWallAtStart())) {
@@ -1696,6 +1702,114 @@ public class Home implements Serializable, Cloneable {
     if (!groupsToUpdate.isEmpty() || !groupsToDelete.isEmpty()) {
       this.propertyChangeSupport.firePropertyChange(Property.PLAN_GRAPHICS_GROUPS.name(),
           null, this.planGraphicsGroups);
+    }
+  }
+
+  /**
+   * Returns an unmodifiable list of plan assemblies in this home.
+   */
+  public List<PlanAssembly> getPlanAssemblies() {
+    return Collections.unmodifiableList(this.planAssemblies);
+  }
+
+  /**
+   * Adds a listener to plan assembly changes.
+   */
+  public void addPlanAssembliesListener(CollectionListener<PlanAssembly> listener) {
+    this.planAssembliesChangeSupport.addCollectionListener(listener);
+  }
+
+  /**
+   * Removes a listener to plan assembly changes.
+   */
+  public void removePlanAssembliesListener(CollectionListener<PlanAssembly> listener) {
+    this.planAssembliesChangeSupport.removeCollectionListener(listener);
+  }
+
+  /**
+   * Adds the given plan assembly to this home.
+   */
+  public void addPlanAssembly(PlanAssembly assembly) {
+    this.planAssemblies = new ArrayList<PlanAssembly>(this.planAssemblies);
+    this.planAssemblies.add(assembly);
+    this.planAssembliesChangeSupport.fireCollectionChanged(assembly, CollectionEvent.Type.ADD);
+    this.propertyChangeSupport.firePropertyChange(Property.PLAN_ASSEMBLIES.name(),
+        null, this.planAssemblies);
+  }
+
+  /**
+   * Removes the given plan assembly from this home.
+   */
+  public void deletePlanAssembly(PlanAssembly assembly) {
+    int index = this.planAssemblies.indexOf(assembly);
+    if (index != -1) {
+      this.planAssemblies = new ArrayList<PlanAssembly>(this.planAssemblies);
+      this.planAssemblies.remove(index);
+      this.planAssembliesChangeSupport.fireCollectionChanged(assembly, index, CollectionEvent.Type.DELETE);
+      this.propertyChangeSupport.firePropertyChange(Property.PLAN_ASSEMBLIES.name(),
+          null, this.planAssemblies);
+    }
+  }
+
+  /**
+   * Returns the plan assembly containing the given member id, or <code>null</code>.
+   */
+  public PlanAssembly getPlanAssemblyForMemberId(String memberId) {
+    if (memberId == null) {
+      return null;
+    }
+    for (PlanAssembly assembly : this.planAssemblies) {
+      if (assembly.getMemberIds().contains(memberId)) {
+        return assembly;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns the selectable members of the given plan assembly.
+   */
+  public List<Selectable> getPlanAssemblyMembers(PlanAssembly assembly) {
+    List<Selectable> members = new ArrayList<Selectable>();
+    if (assembly == null) {
+      return members;
+    }
+    for (String memberId : assembly.getMemberIds()) {
+      Selectable member = findSelectableById(memberId);
+      if (member != null) {
+        members.add(member);
+      }
+    }
+    return members;
+  }
+
+  /**
+   * Removes a member from any plan assembly; deletes assemblies with fewer than two members.
+   */
+  public void removePlanAssemblyMember(String memberId) {
+    if (memberId == null) {
+      return;
+    }
+    List<PlanAssembly> assembliesToUpdate = new ArrayList<PlanAssembly>();
+    List<PlanAssembly> assembliesToDelete = new ArrayList<PlanAssembly>();
+    for (PlanAssembly assembly : this.planAssemblies) {
+      if (assembly.getMemberIds().contains(memberId)) {
+        List<String> memberIds = new ArrayList<String>(assembly.getMemberIds());
+        memberIds.remove(memberId);
+        if (memberIds.size() < 2) {
+          assembliesToDelete.add(assembly);
+        } else {
+          assembly.setMemberIds(memberIds);
+          assembliesToUpdate.add(assembly);
+        }
+      }
+    }
+    for (PlanAssembly assembly : assembliesToDelete) {
+      deletePlanAssembly(assembly);
+    }
+    if (!assembliesToUpdate.isEmpty() || !assembliesToDelete.isEmpty()) {
+      this.propertyChangeSupport.firePropertyChange(Property.PLAN_ASSEMBLIES.name(),
+          null, this.planAssemblies);
     }
   }
 
@@ -2600,6 +2714,10 @@ public class Home implements Serializable, Cloneable {
     destination.planGraphicsGroups = new ArrayList<PlanGraphicsGroup>(source.planGraphicsGroups.size());
     for (PlanGraphicsGroup group : source.planGraphicsGroups) {
       destination.planGraphicsGroups.add(group.clone());
+    }
+    destination.planAssemblies = new ArrayList<PlanAssembly>(source.planAssemblies.size());
+    for (PlanAssembly assembly : source.planAssemblies) {
+      destination.planAssemblies.add(assembly.clone());
     }
   }
 

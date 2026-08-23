@@ -1070,6 +1070,10 @@ public class HomeController implements Controller {
         !modificationState && planController.canUngroupSelectedPlanGraphics());
     view.setEnabled(HomeView.ActionType.INCLUDE_WALL_OPENINGS,
         !modificationState && planController.canIncludeWallOpeningsInSelection());
+    view.setEnabled(HomeView.ActionType.GROUP_PLAN_ASSEMBLY,
+        !modificationState && planController.canGroupSelectedPlanAssembly());
+    view.setEnabled(HomeView.ActionType.UNGROUP_PLAN_ASSEMBLY,
+        !modificationState && planController.canUngroupSelectedPlanAssembly());
     boolean selectionMode = planController != null
         && planController.getMode() == PlanController.Mode.SELECTION;
     view.setEnabled(HomeView.ActionType.ADD_ROOM_POINT, homeSelectionContainsOnlyOneRoom && selectionMode);
