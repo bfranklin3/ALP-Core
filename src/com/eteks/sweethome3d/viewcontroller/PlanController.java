@@ -4684,6 +4684,31 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Returns <code>true</code> if the current selection contains walls and at least one
+   * door or window on those walls isn't selected yet.
+   */
+  public boolean canIncludeWallOpeningsInSelection() {
+    List<Wall> walls = Home.getWallsSubList(this.home.getSelectedItems());
+    if (walls.isEmpty()) {
+      return false;
+    }
+    LinkedHashSet<Selectable> selectedItems = new LinkedHashSet<Selectable>(this.home.getSelectedItems());
+    for (HomePieceOfFurniture opening : getDoorOrWindowsOnWalls(walls)) {
+      if (!selectedItems.contains(opening)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Adds doors and windows geometrically located on selected walls to the selection.
+   */
+  public void includeWallOpeningsInSelection() {
+    selectItems(expandSelectionWithWallOpenings(this.home.getSelectedItems()));
+  }
+
+  /**
    * Groups the selected plan graphics as one persistent group.
    */
   public void groupSelectedPlanGraphics() {
@@ -4840,6 +4865,59 @@ public class PlanController extends FurnitureController implements Controller {
       }
     }
     return new ArrayList<Selectable>(expandedItems);
+  }
+
+  private List<Selectable> expandSelectionWithWallOpenings(List<? extends Selectable> items) {
+    LinkedHashSet<Selectable> expandedItems = new LinkedHashSet<Selectable>(items);
+    List<Wall> walls = Home.getWallsSubList(items);
+    if (!walls.isEmpty()) {
+      expandedItems.addAll(getDoorOrWindowsOnWalls(walls));
+    }
+    return new ArrayList<Selectable>(expandedItems);
+  }
+
+  private List<HomePieceOfFurniture> getDoorOrWindowsOnWalls(Collection<Wall> walls) {
+    List<HomePieceOfFurniture> openings = new ArrayList<HomePieceOfFurniture>();
+    collectDoorOrWindowsOnWalls(this.home.getFurniture(), walls, openings);
+    return openings;
+  }
+
+  private void collectDoorOrWindowsOnWalls(List<HomePieceOfFurniture> furniture,
+                                           Collection<Wall> walls,
+                                           List<HomePieceOfFurniture> openings) {
+    for (HomePieceOfFurniture piece : furniture) {
+      if (piece instanceof HomeFurnitureGroup) {
+        collectDoorOrWindowsOnWalls(((HomeFurnitureGroup)piece).getFurniture(), walls, openings);
+      } else if (piece.isDoorOrWindow()
+                 && piece.getElevation() == 0
+                 && piece.isVisible()
+                 && isDoorOrWindowOnAnyWall(piece, walls)) {
+        openings.add(piece);
+      }
+    }
+  }
+
+  private boolean isDoorOrWindowOnAnyWall(HomePieceOfFurniture piece, Collection<Wall> walls) {
+    Area doorArea = new Area(getPath(piece.getPoints()));
+    for (Wall wall : walls) {
+      Level wallLevel = wall.getLevel();
+      if (wallLevel == null) {
+        continue;
+      }
+      if (piece.getLevel() != null
+          && piece.getLevel() != wallLevel
+          && !piece.isAtLevel(wallLevel)) {
+        continue;
+      }
+      if (piece.isParallelToWall(wall)) {
+        Area intersectionArea = new Area(getPath(wall.getPoints()));
+        intersectionArea.intersect(doorArea);
+        if (!intersectionArea.isEmpty()) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private static class PlanGraphicsGroupModificationUndoableEdit extends LocalizedUndoableEdit {
@@ -11226,6 +11304,7 @@ public class PlanController extends FurnitureController implements Controller {
           }
         }
       }
+      selectedItems = expandSelectionWithWallOpenings(selectedItems);
       // Update selection
       selectItems(selectedItems, isAllLevelsSelection(selectedItems, shiftDown));
     }

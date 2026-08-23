@@ -550,6 +550,7 @@ public class HomePane extends JRootPane implements HomeView {
       createAction(ActionType.SEND_BACKWARD, preferences, planController, "sendSelectionBackward");
       createAction(ActionType.GROUP_PLAN_GRAPHICS, preferences, planController, "groupSelectedPlanGraphics");
       createAction(ActionType.UNGROUP_PLAN_GRAPHICS, preferences, planController, "ungroupSelectedPlanGraphics");
+      createAction(ActionType.INCLUDE_WALL_OPENINGS, preferences, planController, "includeWallOpeningsInSelection");
       createAction(ActionType.DELETE_LEVEL, preferences, planController, "deleteSelectedLevel");
       createAction(ActionType.ZOOM_IN, preferences, controller, "zoomIn");
       createAction(ActionType.ZOOM_OUT, preferences, controller, "zoomOut");
@@ -3775,6 +3776,7 @@ public class HomePane extends JRootPane implements HomeView {
       addActionToPopupMenu(ActionType.JOIN_WALLS, planViewPopup);
       addActionToPopupMenu(ActionType.REVERSE_WALL_DIRECTION, planViewPopup);
       addActionToPopupMenu(ActionType.SPLIT_WALL, planViewPopup);
+      addActionToPopupMenu(ActionType.INCLUDE_WALL_OPENINGS, planViewPopup);
       addActionToPopupMenu(ActionType.MODIFY_ROOM, planViewPopup);
       JMenuItem addRoomPointMenuItem = addActionToPopupMenu(ActionType.ADD_ROOM_POINT, planViewPopup);
       JMenuItem deleteRoomPointMenuItem = addActionToPopupMenu(ActionType.DELETE_ROOM_POINT, planViewPopup);

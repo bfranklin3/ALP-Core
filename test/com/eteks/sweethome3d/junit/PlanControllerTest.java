@@ -34,17 +34,22 @@ import javax.swing.undo.UndoableEditSupport;
 import junit.framework.TestCase;
 
 import com.eteks.sweethome3d.io.DefaultUserPreferences;
+import com.eteks.sweethome3d.model.CatalogDoorOrWindow;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.CollectionEvent;
 import com.eteks.sweethome3d.model.CollectionListener;
+import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.FurnitureCategory;
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.HomeDoorOrWindow;
 import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.Selectable;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.model.Wall;
 import com.eteks.sweethome3d.swing.SwingViewFactory;
+import com.eteks.sweethome3d.tools.URLContent;
 import com.eteks.sweethome3d.viewcontroller.PlanController;
 import com.eteks.sweethome3d.viewcontroller.ViewFactory;
 
@@ -398,6 +403,47 @@ public class PlanControllerTest extends TestCase {
   private void assertWallsAreJoined(Wall wallAtStart, Wall wall, Wall wallAtEnd) {
     assertSame("Incorrect wall at start", wallAtStart, wall.getWallAtStart());
     assertSame("Incorrect wall at end", wallAtEnd, wall.getWallAtEnd());
+  }
+
+  /**
+   * Tests that wall-only selection can include geometrically bound openings.
+   */
+  public void testIncludeWallOpeningsInSelection() throws InterruptedException, InvocationTargetException {
+    EventQueue.invokeAndWait(new Runnable() {
+        public void run() {
+          Home home = new Home();
+          Level level = new Level("Proposed", 0, 0, 250);
+          home.addLevel(level);
+          home.setSelectedLevel(level);
+
+          Wall wall = new Wall(0, 0, 100, 0, 10, home.getWallHeight());
+          wall.setLevel(level);
+          home.addWall(wall);
+
+          Content content = new URLContent(PlanControllerTest.class.getResource("resources/test.obj"));
+          CatalogDoorOrWindow catalogDoor = new CatalogDoorOrWindow("Test door", content, content,
+              80, 10, 200, 0, true, 0.78f, 0, null, null, null, false, 0, false);
+          HomeDoorOrWindow door = new HomeDoorOrWindow(catalogDoor);
+          door.setX(50);
+          door.setY(0);
+          door.setAngle(0);
+          door.setBoundToWall(true);
+          home.addPieceOfFurniture(door);
+
+          UserPreferences preferences = new DefaultUserPreferences();
+          ViewFactory viewFactory = new SwingViewFactory();
+          PlanController planController =
+              new PlanController(home, preferences, viewFactory, null, new UndoableEditSupport());
+
+          home.setSelectedItems(Arrays.asList(new Selectable [] {wall}));
+          assertTrue(planController.canIncludeWallOpeningsInSelection());
+          planController.includeWallOpeningsInSelection();
+          assertTrue("Door should be included in selection", home.getSelectedItems().contains(door));
+
+          home.setSelectedItems(Arrays.asList(new Selectable [] {wall, door}));
+          assertFalse(planController.canIncludeWallOpeningsInSelection());
+        }
+      });
   }
 
   /**
