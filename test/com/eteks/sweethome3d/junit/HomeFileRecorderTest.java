@@ -275,6 +275,70 @@ public class HomeFileRecorderTest extends TestCase {
     }
   }
 
+  public void testPlanGraphicsGroupDrawOrderBlock() {
+    Home home = new Home();
+    Level level = new Level("Proposed", 0, 0, 250);
+    home.addLevel(level);
+    home.setSelectedLevel(level);
+
+    Room room = new Room(new float [][] {{0, 0}, {100, 0}, {100, 100}, {0, 100}});
+    Polyline polyline = new Polyline(new float [][] {{0, 0}, {100, 0}});
+    Label label = new Label("North", 50, 50, 0);
+    home.addRoom(room);
+    home.addPolyline(polyline);
+    home.addLabel(label);
+
+    List<String> memberRefs = Arrays.asList(room.getId(), label.getId(), polyline.getId());
+    home.consolidatePlanDrawOrderMemberBlock(memberRefs);
+    List<String> order = home.getPlanDrawOrder();
+    int roomIndex = order.indexOf(room.getId());
+    int labelIndex = order.indexOf(label.getId());
+    int polylineIndex = order.indexOf(polyline.getId());
+    assertTrue(labelIndex == roomIndex + 1);
+    assertTrue(polylineIndex == labelIndex + 1);
+  }
+
+  public void testPlanGraphicsGroupMemberRemovalDissolvesGroup() {
+    Home home = new Home();
+    Level level = new Level("Proposed", 0, 0, 250);
+    home.addLevel(level);
+    home.setSelectedLevel(level);
+
+    Polyline polyline = new Polyline(new float [][] {{0, 0}, {100, 0}});
+    Label label = new Label("North", 50, 50, 0);
+    home.addPolyline(polyline);
+    home.addLabel(label);
+
+    PlanGraphicsGroup group = new PlanGraphicsGroup("Set",
+        Arrays.asList(polyline.getId(), label.getId()));
+    home.addPlanGraphicsGroup(group);
+    home.removePlanGraphicsGroupMember(label.getId());
+
+    assertEquals(0, home.getPlanGraphicsGroups().size());
+    assertNull(home.getPlanGraphicsGroupForMemberId(polyline.getId()));
+  }
+
+  public void testPlanGraphicsGroupMemberLookup() {
+    Home home = new Home();
+    Level level = new Level("Proposed", 0, 0, 250);
+    home.addLevel(level);
+    home.setSelectedLevel(level);
+
+    Room room = new Room(new float [][] {{0, 0}, {100, 0}, {100, 100}, {0, 100}});
+    Polyline polyline = new Polyline(new float [][] {{0, 0}, {100, 0}});
+    home.addRoom(room);
+    home.addPolyline(polyline);
+
+    PlanGraphicsGroup group = new PlanGraphicsGroup("Site set",
+        Arrays.asList(room.getId(), polyline.getId()));
+    home.addPlanGraphicsGroup(group);
+
+    assertEquals(group, home.getPlanGraphicsGroupForMemberId(room.getId()));
+    assertEquals(2, home.getPlanGraphicsGroupMembers(group).size());
+    assertTrue(home.getPlanGraphicsGroupMembers(group).contains(room));
+    assertTrue(home.getPlanGraphicsGroupMembers(group).contains(polyline));
+  }
+
   private void checkSavedHome(Home home, HomeRecorder recorder) throws RecorderException {
     // 1. Record home in a file named test.sh3d in current directory
     String testFile = new File("test.sh3d").getAbsolutePath();
