@@ -43,6 +43,7 @@ import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomeRecorder;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.PlanGraphicsGroup;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.RecorderException;
 import com.eteks.sweethome3d.model.Room;
@@ -243,6 +244,35 @@ public class HomeFileRecorderTest extends TestCase {
     List<String> order = home.getPlanDrawOrder();
     assertEquals(label.getId(), order.get(order.size() - 2));
     assertEquals(polyline.getId(), order.get(order.size() - 1));
+  }
+
+  public void testPlanGraphicsGroupRoundTrip() throws RecorderException {
+    Home home = new Home();
+    Level level = new Level("Proposed", 0, 0, 250);
+    home.addLevel(level);
+    home.setSelectedLevel(level);
+
+    Polyline polyline = new Polyline(new float [][] {{0, 0}, {100, 0}});
+    Label label = new Label("North", 50, 50, 0);
+    home.addPolyline(polyline);
+    home.addLabel(label);
+
+    List<String> memberIds = Arrays.asList(polyline.getId(), label.getId());
+    PlanGraphicsGroup group = new PlanGraphicsGroup("Property line set", memberIds);
+    home.addPlanGraphicsGroup(group);
+
+    String testFile = new File("test-plan-graphics-group.sh3d").getAbsolutePath();
+    HomeFileRecorder recorder = new HomeFileRecorder();
+    try {
+      recorder.writeHome(home, testFile);
+      Home readHome = recorder.readHome(testFile);
+      assertEquals(1, readHome.getPlanGraphicsGroups().size());
+      PlanGraphicsGroup readGroup = readHome.getPlanGraphicsGroups().get(0);
+      assertEquals("Property line set", readGroup.getName());
+      assertEquals(memberIds, readGroup.getMemberIds());
+    } finally {
+      new File(testFile).delete();
+    }
   }
 
   private void checkSavedHome(Home home, HomeRecorder recorder) throws RecorderException {

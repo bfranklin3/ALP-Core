@@ -67,6 +67,7 @@ import com.eteks.sweethome3d.model.LightSource;
 import com.eteks.sweethome3d.model.ObjectProperty;
 import com.eteks.sweethome3d.model.ObserverCamera;
 import com.eteks.sweethome3d.model.PieceOfFurniture;
+import com.eteks.sweethome3d.model.PlanGraphicsGroup;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Sash;
@@ -81,7 +82,7 @@ import com.eteks.sweethome3d.tools.URLContent;
 /**
  * SAX handler for Sweet Home 3D XML stream. Read home should respect the following DTD:<pre>
  * &lt;!ELEMENT home (property*, furnitureVisibleProperty*, environment?, backgroundImage?, print?, compass?, (camera | observerCamera)*, level*,
- *       (pieceOfFurniture | doorOrWindow | furnitureGroup | light)*, wall*, room*, polyline*, dimensionLine*, label*, planDrawOrder?)>
+ *       (pieceOfFurniture | doorOrWindow | furnitureGroup | light)*, wall*, room*, polyline*, dimensionLine*, label*, planGraphicsGroup*, planDrawOrder?)>
  * &lt;!ATTLIST home
  *       version CDATA #IMPLIED
  *       name CDATA #IMPLIED
@@ -514,6 +515,8 @@ public class HomeXMLHandler extends DefaultHandler {
   private final List<String>       furnitureVisiblePropertyNames = new ArrayList<String>();
   private final List<String>       printedLevelIds = new ArrayList<String>();
   private final List<String>       planDrawOrderRefs = new ArrayList<String>();
+  private final List<PlanGraphicsGroup> planGraphicsGroups = new ArrayList<PlanGraphicsGroup>();
+  private final Stack<List<String>> planGraphicsGroupMemberRefs = new Stack<List<String>>();
 
   private static final String UNIQUE_ATTRIBUTE = "@&unique&@";
 
@@ -541,6 +544,8 @@ public class HomeXMLHandler extends DefaultHandler {
     this.levels.clear();
     this.joinedWalls.clear();
     this.planDrawOrderRefs.clear();
+    this.planGraphicsGroups.clear();
+    this.planGraphicsGroupMemberRefs.clear();
   }
 
   @Override
@@ -592,6 +597,8 @@ public class HomeXMLHandler extends DefaultHandler {
       this.pointSharpFlags.clear();
     } else if ("label".equals(name)) {
       this.labelText = null;
+    } else if ("planGraphicsGroup".equals(name)) {
+      this.planGraphicsGroupMemberRefs.push(new ArrayList<String>());
     } else if ("wall".equals(name)) {
       this.textures.clear();
       this.leftSideBaseboard = null;
@@ -741,6 +748,20 @@ public class HomeXMLHandler extends DefaultHandler {
         throw new SAXException("Missing ref attribute");
       }
       this.planDrawOrderRefs.add(attributesMap.get("ref"));
+    } else if ("member".equals(name)
+               && "planGraphicsGroup".equals(parent)) {
+      if (attributesMap.get("ref") == null) {
+        throw new SAXException("Missing ref attribute");
+      }
+      this.planGraphicsGroupMemberRefs.peek().add(attributesMap.get("ref"));
+    } else if ("planGraphicsGroup".equals(name)) {
+      List<String> memberRefs = this.planGraphicsGroupMemberRefs.pop();
+      String id = attributesMap.get("id");
+      String groupName = attributesMap.get("name");
+      PlanGraphicsGroup group = id != null
+          ? new PlanGraphicsGroup(id, groupName, memberRefs)
+          : new PlanGraphicsGroup(groupName != null ? groupName : "", memberRefs);
+      this.home.addPlanGraphicsGroup((PlanGraphicsGroup)resolveObject(group, name, attributesMap));
     } else if ("text".equals(name)) {
       this.labelText = getCharacters();
     } else if ("textStyle".equals(name)) {

@@ -72,6 +72,7 @@ import com.eteks.sweethome3d.model.LevelCategory;
 import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.ObserverCamera;
 import com.eteks.sweethome3d.model.Polyline;
+import com.eteks.sweethome3d.model.PlanGraphicsGroup;
 import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Selectable;
 import com.eteks.sweethome3d.model.SelectionEvent;
@@ -4660,6 +4661,276 @@ public class PlanController extends FurnitureController implements Controller {
   }
 
   /**
+   * Returns <code>true</code> if the current selection can be grouped as plan graphics.
+   */
+  public boolean canGroupSelectedPlanGraphics() {
+    List<Selectable> groupableSelection = getGroupablePlanGraphicsSelection(this.home.getSelectedItems());
+    if (groupableSelection.size() < 2) {
+      return false;
+    }
+    for (Selectable item : groupableSelection) {
+      if (!(item instanceof HomePieceOfFurniture)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Returns <code>true</code> if the current selection matches a plan graphics group.
+   */
+  public boolean canUngroupSelectedPlanGraphics() {
+    return getPlanGraphicsGroupForCurrentSelection() != null;
+  }
+
+  /**
+   * Groups the selected plan graphics as one persistent group.
+   */
+  public void groupSelectedPlanGraphics() {
+    List<Selectable> groupableSelection = getGroupablePlanGraphicsSelection(this.home.getSelectedItems());
+    if (groupableSelection.size() < 2) {
+      return;
+    }
+    List<String> memberRefs = getPlanDrawOrderRefsForItems(groupableSelection);
+    if (memberRefs.size() < 2) {
+      return;
+    }
+    for (String memberRef : memberRefs) {
+      this.home.removePlanGraphicsGroupMember(memberRef);
+    }
+    String groupName = this.preferences.getLocalizedString(PlanController.class,
+        "defaultPlanGraphicsGroupName");
+    PlanGraphicsGroup group = new PlanGraphicsGroup(groupName, memberRefs);
+    List<PlanGraphicsGroup> oldGroups = new ArrayList<PlanGraphicsGroup>(this.home.getPlanGraphicsGroups());
+    List<String> oldPlanDrawOrder = copyPlanDrawOrderState();
+    List<Selectable> oldSelection = new ArrayList<Selectable>(this.home.getSelectedItems());
+    this.home.addPlanGraphicsGroup(group);
+    this.home.consolidatePlanDrawOrderMemberBlock(memberRefs);
+    selectItems(this.home.getPlanGraphicsGroupMembers(group));
+    this.undoSupport.postEdit(new PlanGraphicsGroupModificationUndoableEdit(this.home, this.preferences,
+        oldGroups, oldPlanDrawOrder, oldSelection, group, memberRefs, true));
+  }
+
+  /**
+   * Ungroups the selected plan graphics group.
+   */
+  public void ungroupSelectedPlanGraphics() {
+    PlanGraphicsGroup group = getPlanGraphicsGroupForCurrentSelection();
+    if (group == null) {
+      return;
+    }
+    List<PlanGraphicsGroup> oldGroups = new ArrayList<PlanGraphicsGroup>(this.home.getPlanGraphicsGroups());
+    List<String> oldPlanDrawOrder = copyPlanDrawOrderState();
+    List<Selectable> oldSelection = new ArrayList<Selectable>(this.home.getSelectedItems());
+    List<Selectable> members = this.home.getPlanGraphicsGroupMembers(group);
+    this.home.deletePlanGraphicsGroup(group);
+    selectItems(members);
+    this.undoSupport.postEdit(new PlanGraphicsGroupModificationUndoableEdit(this.home, this.preferences,
+        oldGroups, oldPlanDrawOrder, oldSelection, group, group.getMemberIds(), false));
+  }
+
+  private PlanGraphicsGroup getPlanGraphicsGroupForCurrentSelection() {
+    List<Selectable> selectedItems = this.home.getSelectedItems();
+    if (selectedItems.isEmpty()) {
+      return null;
+    }
+    PlanGraphicsGroup matchedGroup = null;
+    for (Selectable item : selectedItems) {
+      String memberId = getPlanDrawOrderRefForSelectable(item);
+      if (memberId == null) {
+        return null;
+      }
+      PlanGraphicsGroup group = this.home.getPlanGraphicsGroupForMemberId(memberId);
+      if (group == null) {
+        return null;
+      }
+      if (matchedGroup == null) {
+        matchedGroup = group;
+      } else if (matchedGroup != group) {
+        return null;
+      }
+    }
+    if (matchedGroup == null) {
+      return null;
+    }
+    List<Selectable> groupMembers = this.home.getPlanGraphicsGroupMembers(matchedGroup);
+    return groupMembers.size() == selectedItems.size()
+        && groupMembers.containsAll(selectedItems)
+        ? matchedGroup
+        : null;
+  }
+
+  private List<Selectable> getGroupablePlanGraphicsSelection(List<Selectable> selectedItems) {
+    List<Selectable> groupableSelection = new ArrayList<Selectable>();
+    for (Selectable item : selectedItems) {
+      if (isPlanGraphicsGroupMemberCandidate(item)) {
+        groupableSelection.add(item);
+      }
+    }
+    return groupableSelection;
+  }
+
+  private boolean isPlanGraphicsGroupMemberCandidate(Selectable item) {
+    if (!isItemMovable(item)) {
+      return false;
+    }
+    if (item instanceof Wall
+        || item instanceof DimensionLine
+        || item instanceof Compass
+        || item instanceof Camera) {
+      return false;
+    }
+    if (item instanceof HomePieceOfFurniture) {
+      HomePieceOfFurniture piece = (HomePieceOfFurniture)item;
+      return !(piece instanceof HomeFurnitureGroup)
+          && this.home.getFurniture().contains(piece);
+    }
+    return item instanceof Room
+        || item instanceof Polyline
+        || item instanceof Label;
+  }
+
+  private List<String> getPlanDrawOrderRefsForItems(List<? extends Selectable> items) {
+    LinkedHashSet<String> selectedRefs = new LinkedHashSet<String>();
+    for (Selectable item : items) {
+      String ref = getPlanDrawOrderRefForSelectable(item);
+      if (ref != null) {
+        selectedRefs.add(ref);
+      }
+    }
+    if (selectedRefs.isEmpty()) {
+      return Collections.emptyList();
+    }
+    List<String> refs = new ArrayList<String>();
+    for (String ref : this.home.getEffectivePlanDrawOrder()) {
+      if (selectedRefs.contains(ref)) {
+        refs.add(ref);
+      }
+    }
+    return refs;
+  }
+
+  private String getPlanDrawOrderRefForSelectable(Selectable item) {
+    if (item instanceof Wall) {
+      Level level = ((Wall)item).getLevel();
+      if (level != null) {
+        return Home.getWallBlockRef(level);
+      }
+    } else if (item instanceof Room
+               || item instanceof Polyline
+               || item instanceof HomePieceOfFurniture
+               || item instanceof DimensionLine
+               || item instanceof Label) {
+      return ((HomeObject)item).getId();
+    }
+    return null;
+  }
+
+  private List<Selectable> expandSelectionWithPlanGraphicsGroups(List<? extends Selectable> items) {
+    LinkedHashSet<Selectable> expandedItems = new LinkedHashSet<Selectable>();
+    for (Selectable item : items) {
+      String memberId = getPlanDrawOrderRefForSelectable(item);
+      PlanGraphicsGroup group = memberId != null
+          ? this.home.getPlanGraphicsGroupForMemberId(memberId)
+          : null;
+      if (group != null) {
+        expandedItems.addAll(this.home.getPlanGraphicsGroupMembers(group));
+      } else {
+        expandedItems.add(item);
+      }
+    }
+    return new ArrayList<Selectable>(expandedItems);
+  }
+
+  private static class PlanGraphicsGroupModificationUndoableEdit extends LocalizedUndoableEdit {
+    private final Home                    home;
+    private final List<PlanGraphicsGroup> oldGroups;
+    private final List<String>            oldPlanDrawOrder;
+    private final List<Selectable>        oldSelection;
+    private final PlanGraphicsGroup       group;
+    private final List<String>            memberRefs;
+    private final boolean                 grouped;
+
+    public PlanGraphicsGroupModificationUndoableEdit(Home home, UserPreferences preferences,
+                                                     List<PlanGraphicsGroup> oldGroups,
+                                                     List<String> oldPlanDrawOrder,
+                                                     List<Selectable> oldSelection,
+                                                     PlanGraphicsGroup group,
+                                                     List<String> memberRefs,
+                                                     boolean grouped) {
+      super(preferences, PlanController.class, grouped ? "undoGroupPlanGraphicsName" : "undoUngroupPlanGraphicsName");
+      this.home = home;
+      this.oldGroups = clonePlanGraphicsGroups(oldGroups);
+      this.oldPlanDrawOrder = copyPlanDrawOrderState(oldPlanDrawOrder);
+      this.oldSelection = new ArrayList<Selectable>(oldSelection);
+      this.group = group.clone();
+      this.memberRefs = new ArrayList<String>(memberRefs);
+      this.grouped = grouped;
+    }
+
+    @Override
+    public void undo() throws CannotUndoException {
+      super.undo();
+      restoreState(this.oldGroups, this.oldPlanDrawOrder, this.oldSelection);
+    }
+
+    @Override
+    public void redo() throws CannotRedoException {
+      super.redo();
+      if (this.grouped) {
+        for (String memberRef : this.memberRefs) {
+          this.home.removePlanGraphicsGroupMember(memberRef);
+        }
+        this.home.addPlanGraphicsGroup(this.group.clone());
+        this.home.consolidatePlanDrawOrderMemberBlock(this.memberRefs);
+        this.home.setSelectedItems(this.home.getPlanGraphicsGroupMembers(this.group));
+      } else {
+        PlanGraphicsGroup existingGroup = this.home.getPlanGraphicsGroupForMemberId(
+            this.memberRefs.isEmpty() ? null : this.memberRefs.get(0));
+        if (existingGroup != null) {
+          this.home.deletePlanGraphicsGroup(existingGroup);
+        }
+        List<Selectable> members = new ArrayList<Selectable>();
+        for (String memberRef : this.memberRefs) {
+          Selectable member = this.home.findSelectableById(memberRef);
+          if (member != null) {
+            members.add(member);
+          }
+        }
+        this.home.setSelectedItems(members);
+      }
+    }
+
+    private void restoreState(List<PlanGraphicsGroup> groups, List<String> planDrawOrder,
+                              List<Selectable> selection) {
+      while (!this.home.getPlanGraphicsGroups().isEmpty()) {
+        this.home.deletePlanGraphicsGroup(this.home.getPlanGraphicsGroups().get(0));
+      }
+      for (PlanGraphicsGroup oldGroup : groups) {
+        this.home.addPlanGraphicsGroup(oldGroup.clone());
+      }
+      this.home.setPlanDrawOrder(copyPlanDrawOrderState(planDrawOrder));
+      this.home.setSelectedItems(selection);
+    }
+
+    private static List<PlanGraphicsGroup> clonePlanGraphicsGroups(List<PlanGraphicsGroup> groups) {
+      List<PlanGraphicsGroup> clones = new ArrayList<PlanGraphicsGroup>();
+      for (PlanGraphicsGroup group : groups) {
+        clones.add(group.clone());
+      }
+      return clones;
+    }
+
+    private static List<String> copyPlanDrawOrderState(List<String> order) {
+      if (order == null) {
+        return null;
+      } else {
+        return new ArrayList<String>(order);
+      }
+    }
+  }
+
+  /**
    * Returns whether {@code level} can be reordered to {@code targetStackIndex}.
    */
   public boolean canReorderLevelToStackIndex(Level level, int targetStackIndex) {
@@ -6861,7 +7132,7 @@ public class PlanController extends FurnitureController implements Controller {
     // Remove selectionListener when selection is done from this controller
     // to control when selection should be made visible
     this.home.removeSelectionListener(this.selectionListener);
-    this.home.setSelectedItems(items);
+    this.home.setSelectedItems(expandSelectionWithPlanGraphicsGroups(items));
     this.home.addSelectionListener(this.selectionListener);
     this.home.setAllLevelsSelection(allLevelsSelection);
   }
@@ -6878,11 +7149,18 @@ public class PlanController extends FurnitureController implements Controller {
    * @since 4.4
    */
   public void toggleItemSelection(Selectable item) {
+    String memberId = getPlanDrawOrderRefForSelectable(item);
+    PlanGraphicsGroup group = memberId != null
+        ? this.home.getPlanGraphicsGroupForMemberId(memberId)
+        : null;
+    List<Selectable> toggleItems = group != null
+        ? this.home.getPlanGraphicsGroupMembers(group)
+        : Arrays.asList(item);
     List<Selectable> selectedItems = new ArrayList<Selectable>(this.home.getSelectedItems());
-    if (selectedItems.contains(item)) {
-      selectedItems.remove(item);
+    if (selectedItems.containsAll(toggleItems)) {
+      selectedItems.removeAll(toggleItems);
     } else {
-      selectedItems.add(item);
+      selectedItems.addAll(toggleItems);
     }
     selectItems(selectedItems, this.home.isAllLevelsSelection());
   }

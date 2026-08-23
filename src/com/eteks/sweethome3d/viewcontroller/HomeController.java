@@ -1064,6 +1064,10 @@ public class HomeController implements Controller {
         planArrangeEnabled && planController.canBringSelectionForward());
     view.setEnabled(HomeView.ActionType.SEND_BACKWARD,
         planArrangeEnabled && planController.canSendSelectionBackward());
+    view.setEnabled(HomeView.ActionType.GROUP_PLAN_GRAPHICS,
+        !modificationState && planController.canGroupSelectedPlanGraphics());
+    view.setEnabled(HomeView.ActionType.UNGROUP_PLAN_GRAPHICS,
+        !modificationState && planController.canUngroupSelectedPlanGraphics());
     boolean selectionMode = planController != null
         && planController.getMode() == PlanController.Mode.SELECTION;
     view.setEnabled(HomeView.ActionType.ADD_ROOM_POINT, homeSelectionContainsOnlyOneRoom && selectionMode);

@@ -548,6 +548,8 @@ public class HomePane extends JRootPane implements HomeView {
       createAction(ActionType.SEND_TO_BACK, preferences, planController, "sendSelectionToBack");
       createAction(ActionType.BRING_FORWARD, preferences, planController, "bringSelectionForward");
       createAction(ActionType.SEND_BACKWARD, preferences, planController, "sendSelectionBackward");
+      createAction(ActionType.GROUP_PLAN_GRAPHICS, preferences, planController, "groupSelectedPlanGraphics");
+      createAction(ActionType.UNGROUP_PLAN_GRAPHICS, preferences, planController, "ungroupSelectedPlanGraphics");
       createAction(ActionType.DELETE_LEVEL, preferences, planController, "deleteSelectedLevel");
       createAction(ActionType.ZOOM_IN, preferences, controller, "zoomIn");
       createAction(ActionType.ZOOM_OUT, preferences, controller, "zoomOut");
@@ -3765,6 +3767,8 @@ public class HomePane extends JRootPane implements HomeView {
       addActionToPopupMenu(ActionType.UNGROUP_FURNITURE, planViewPopup);
       planViewPopup.add(createAlignOrDistributeMenu(home, preferences, true));
       planViewPopup.add(createArrangeMenu(home, preferences, true));
+      addActionToPopupMenu(ActionType.GROUP_PLAN_GRAPHICS, planViewPopup);
+      addActionToPopupMenu(ActionType.UNGROUP_PLAN_GRAPHICS, planViewPopup);
       addActionToPopupMenu(ActionType.RESET_FURNITURE_ELEVATION, planViewPopup);
       addActionToPopupMenu(ActionType.MODIFY_COMPASS, planViewPopup);
       addActionToPopupMenu(ActionType.MODIFY_WALL, planViewPopup);
