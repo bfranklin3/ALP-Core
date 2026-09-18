@@ -38,6 +38,7 @@ import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoableEditSupport;
 
+import com.eteks.sweethome3d.model.AlpHardscapeCatalogUtils;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.Home;
@@ -64,8 +65,8 @@ public class HomeFurnitureController implements Controller {
   public enum Property {ICON, NAME, NAME_VISIBLE, PLAN_BOUNDS_VISIBLE, DESCRIPTION, ADDITIONAL_PROPERTIES, PRICE, VALUE_ADDED_TAX_PERCENTAGE,
       X, Y, ELEVATION, BASE_PLAN_ITEM,
       ANGLE, ANGLE_IN_DEGREES, ROLL, PITCH, HORIZONTAL_AXIS, WIDTH, DEPTH, HEIGHT, PROPORTIONAL,
-      COLOR, FILL_COLOR, PLAN_FILL_OPACITY, PAINT, SHININESS, VISIBLE, MODEL_MIRRORED, MODEL_TRANSFORMATIONS, LIGHT_POWER,
-      RESIZABLE, DEFORMABLE, TEXTURABLE, PLAN_FILL_COLOR_EDITABLE}
+      COLOR, FILL_COLOR, OUTLINE_COLOR, PLAN_FILL_OPACITY, PAINT, SHININESS, VISIBLE, MODEL_MIRRORED, MODEL_TRANSFORMATIONS, LIGHT_POWER,
+      RESIZABLE, DEFORMABLE, TEXTURABLE, PLAN_FILL_COLOR_EDITABLE, OUTLINE_COLOR_EDITABLE}
 
   /**
    * The possible values for {@linkplain #getPaint() paint type}.
@@ -124,6 +125,7 @@ public class HomeFurnitureController implements Controller {
   private List<Transformation []> modelPresetTransformations;
   private Integer            color;
   private Integer            fillColor;
+  private Integer            outlineColor;
   private Float              planFillOpacity;
   private FurniturePaint     paint;
   private FurnitureShininess shininess;
@@ -138,6 +140,7 @@ public class HomeFurnitureController implements Controller {
   private boolean            widthDepthDeformable;
   private boolean            texturable;
   private boolean            planFillColorEditable;
+  private boolean            outlineColorEditable;
   private boolean            visibleEditable;
 
   private boolean            doorOrWindow;
@@ -315,8 +318,10 @@ public class HomeFurnitureController implements Controller {
       setHeight(null, true, false);
       setColor(null);
       setFillColor(null);
+      setOutlineColor(null);
       setPlanFillOpacity(null);
       setPlanFillColorEditable(false);
+      setOutlineColorEditable(false);
       if (textureController != null) {
         textureController.setTexture(null);
       }
@@ -621,6 +626,35 @@ public class HomeFurnitureController implements Controller {
         }
       }
       setPlanFillColorEditable(planFillColorEditable);
+
+      Integer outlineColor = firstPieceExceptGroup.getOutlineColor();
+      if (outlineColor != null) {
+        for (int i = 1; i < selectedFurnitureWithoutGroups.size(); i++) {
+          if (!outlineColor.equals(selectedFurnitureWithoutGroups.get(i).getOutlineColor())) {
+            outlineColor = null;
+            break;
+          }
+        }
+      } else {
+        for (int i = 1; i < selectedFurnitureWithoutGroups.size(); i++) {
+          if (selectedFurnitureWithoutGroups.get(i).getOutlineColor() != null) {
+            outlineColor = null;
+            break;
+          }
+        }
+      }
+      setOutlineColor(outlineColor);
+
+      boolean outlineColorEditable = AlpHardscapeCatalogUtils.isHardscape(firstPieceExceptGroup)
+          && firstPieceExceptGroup.hasPlanIconFill();
+      for (int i = 1; i < selectedFurnitureWithoutGroups.size(); i++) {
+        HomePieceOfFurniture piece = selectedFurnitureWithoutGroups.get(i);
+        if (outlineColorEditable != (AlpHardscapeCatalogUtils.isHardscape(piece) && piece.hasPlanIconFill())) {
+          outlineColorEditable = false;
+          break;
+        }
+      }
+      setOutlineColorEditable(outlineColorEditable);
 
       HomeTexture texture = firstPieceExceptGroup.getTexture();
       if (texture != null) {
@@ -1549,6 +1583,43 @@ public class HomeFurnitureController implements Controller {
   }
 
   /**
+   * Sets the edited plan outline color for hardscape symbols.
+   */
+  public void setOutlineColor(Integer outlineColor) {
+    if (outlineColor != this.outlineColor) {
+      Integer oldOutlineColor = this.outlineColor;
+      this.outlineColor = outlineColor;
+      this.propertyChangeSupport.firePropertyChange(Property.OUTLINE_COLOR.name(), oldOutlineColor, outlineColor);
+    }
+  }
+
+  /**
+   * Returns the edited plan outline color for hardscape symbols.
+   */
+  public Integer getOutlineColor() {
+    return this.outlineColor;
+  }
+
+  /**
+   * Sets whether selected furniture supports plan outline color editing.
+   */
+  public void setOutlineColorEditable(boolean outlineColorEditable) {
+    if (outlineColorEditable != this.outlineColorEditable) {
+      boolean oldOutlineColorEditable = this.outlineColorEditable;
+      this.outlineColorEditable = outlineColorEditable;
+      this.propertyChangeSupport.firePropertyChange(Property.OUTLINE_COLOR_EDITABLE.name(),
+          oldOutlineColorEditable, outlineColorEditable);
+    }
+  }
+
+  /**
+   * Returns whether selected furniture supports plan outline color editing.
+   */
+  public boolean isOutlineColorEditable() {
+    return this.outlineColorEditable;
+  }
+
+  /**
    * Sets whether the piece is colored, textured, uses customized materials or unknown painted.
    */
   public void setPaint(FurniturePaint paint) {
@@ -1860,6 +1931,10 @@ public class HomeFurnitureController implements Controller {
       Float planFillOpacity = isPlanFillColorEditable()
           ? getPlanFillOpacity()
           : null;
+      Integer outlineColor = isOutlineColorEditable()
+          ? getOutlineColor()
+          : null;
+      boolean applyOutlineColor = isOutlineColorEditable();
       TextureChoiceController textureController = getTextureController();
       HomeTexture texture;
       if (textureController != null && paint == FurniturePaint.TEXTURED) {
@@ -1905,7 +1980,7 @@ public class HomeFurnitureController implements Controller {
           x, y, elevation, angle, roll, pitch, horizontalAxis, basePlanItem,
           width, depth, height, proportional, modelTransformations,
           this.wallThickness, this.wallDistance, this.wallWidth, this.wallLeft, this.wallHeight, this.wallTop, this.sashes,
-          paint, color, fillColor, removeFillColor, planFillOpacity, texture, modelMaterials, defaultShininess, shininess, visible, modelMirrored, lightPower);
+          paint, color, fillColor, removeFillColor, planFillOpacity, outlineColor, applyOutlineColor, texture, modelMaterials, defaultShininess, shininess, visible, modelMirrored, lightPower);
       if (this.undoSupport != null) {
         List<Selectable> newSelection = this.home.getSelectedItems();
         this.undoSupport.postEdit(new FurnitureModificationUndoableEdit(this.home, this.preferences,
@@ -1914,7 +1989,7 @@ public class HomeFurnitureController implements Controller {
             x, y, elevation, angle, roll, pitch, horizontalAxis, basePlanItem,
             width, depth, height, proportional, modelTransformations,
             this.wallThickness, this.wallDistance, this.wallWidth, this.wallLeft, this.wallHeight, this.wallTop, this.sashes,
-            paint, color, fillColor, removeFillColor, planFillOpacity, texture, modelMaterials, defaultShininess, shininess, visible, modelMirrored, lightPower));
+            paint, color, fillColor, removeFillColor, planFillOpacity, outlineColor, applyOutlineColor, texture, modelMaterials, defaultShininess, shininess, visible, modelMirrored, lightPower));
       }
       if (name != null) {
         this.preferences.addAutoCompletionString("HomePieceOfFurnitureName", name);
@@ -1965,6 +2040,8 @@ public class HomeFurnitureController implements Controller {
     private final Integer                     fillColor;
     private final boolean                     removeFillColor;
     private final Float                       planFillOpacity;
+    private final Integer                     outlineColor;
+    private final boolean                     applyOutlineColor;
     private final HomeTexture                 texture;
     private final HomeMaterial []             modelMaterials;
     private final boolean                     defaultShininess;
@@ -1995,6 +2072,7 @@ public class HomeFurnitureController implements Controller {
                                               Float width, Float depth, Float height, boolean proportional, Transformation [] modelTransformations,
                                               float wallThickness, float wallDistance, float wallWidth, float wallLeft, float wallHeight, float wallTop, Sash [] sashes,
                                               FurniturePaint paint, Integer color, Integer fillColor, boolean removeFillColor, Float planFillOpacity,
+                                              Integer outlineColor, boolean applyOutlineColor,
                                               HomeTexture texture, HomeMaterial [] modelMaterials,
                                               boolean defaultShininess, Float shininess,
                                               Boolean visible,
@@ -2040,6 +2118,8 @@ public class HomeFurnitureController implements Controller {
       this.fillColor = fillColor;
       this.removeFillColor = removeFillColor;
       this.planFillOpacity = planFillOpacity;
+      this.outlineColor = outlineColor;
+      this.applyOutlineColor = applyOutlineColor;
       this.texture = texture;
       this.modelMaterials = modelMaterials;
       this.defaultShininess = defaultShininess;
@@ -2075,7 +2155,8 @@ public class HomeFurnitureController implements Controller {
           this.x, this.y, this.elevation, this.angle, this.roll, this.pitch, this.horizontalAxis, this.basePlanItem,
           this.width, this.depth, this.height, this.proportional, this.modelTransformations,
           this.wallThickness, this.wallDistance, this.wallWidth, this.wallLeft, this.wallHeight, this.wallTop, this.sashes,
-          this.paint, this.color, this.fillColor, this.removeFillColor, this.planFillOpacity, this.texture, this.modelMaterials,
+          this.paint, this.color, this.fillColor, this.removeFillColor, this.planFillOpacity,
+          this.outlineColor, this.applyOutlineColor, this.texture, this.modelMaterials,
           this.defaultShininess, this.shininess,
           this.visible, this.modelMirrored, this.lightPower);
       // Force size in plan in case internal size update performed in PlanController can't be done again
@@ -2100,6 +2181,7 @@ public class HomeFurnitureController implements Controller {
                                         Float width, Float depth, Float height, boolean proportional, Transformation [] modelTransformations,
                                         float wallThickness, float wallDistance, float wallWidth, float wallLeft, float wallHeight, float wallTop, Sash [] sashes,
                                         FurniturePaint paint, Integer color, Integer fillColor, boolean removeFillColor, Float planFillOpacity,
+                                        Integer outlineColor, boolean applyOutlineColor,
                                         HomeTexture texture, HomeMaterial [] modelMaterials,
                                         boolean defaultShininess, Float shininess,
                                         Boolean visible, Boolean modelMirrored, Float lightPower) {
@@ -2262,6 +2344,11 @@ public class HomeFurnitureController implements Controller {
       if (piece.hasPlanIconFill() && planFillOpacity != null) {
         piece.setPlanFillOpacity(planFillOpacity);
       }
+      if (applyOutlineColor
+          && AlpHardscapeCatalogUtils.isHardscape(piece)
+          && piece.hasPlanIconFill()) {
+        piece.setOutlineColor(outlineColor);
+      }
       if (modelTransformations != null) {
         piece.setModelTransformations(modelTransformations.length > 0 ? modelTransformations : null);
       }
@@ -2312,6 +2399,7 @@ public class HomeFurnitureController implements Controller {
     private final Transformation []    modelTransformations;
     private final Integer              color;
     private final Integer              fillColor;
+    private final Integer              outlineColor;
     private final float                planFillOpacity;
     private final HomeTexture          texture;
     private final HomeMaterial []      modelMaterials;
@@ -2357,6 +2445,7 @@ public class HomeFurnitureController implements Controller {
       this.modelTransformations = piece.getModelTransformations();
       this.color = piece.getColor();
       this.fillColor = piece.getFillColor();
+      this.outlineColor = piece.getOutlineColor();
       this.planFillOpacity = piece.getPlanFillOpacity();
       this.texture = piece.getTexture();
       this.modelMaterials = piece.getModelMaterials();
@@ -2417,6 +2506,9 @@ public class HomeFurnitureController implements Controller {
       if (this.piece.hasPlanIconFill()) {
         this.piece.setFillColor(this.fillColor);
         this.piece.setPlanFillOpacity(this.planFillOpacity);
+      }
+      if (AlpHardscapeCatalogUtils.isHardscape(this.piece) && this.piece.hasPlanIconFill()) {
+        this.piece.setOutlineColor(this.outlineColor);
       }
       this.piece.setVisible(this.visible);
     }

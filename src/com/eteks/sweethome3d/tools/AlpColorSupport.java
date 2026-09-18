@@ -40,6 +40,13 @@ public final class AlpColorSupport {
   }
 
   /**
+   * Returns whether plan outline is explicitly removed.
+   */
+  public static boolean isPlanOutlineNone(Integer outlineColor) {
+    return isTransparentColor(outlineColor);
+  }
+
+  /**
    * Returns whether plan wash uses the library default (un-tinted watercolor).
    */
   public static boolean isDefaultPlanWash(Integer fillColor) {

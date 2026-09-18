@@ -60,7 +60,7 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
   public enum Property {CATALOG_ID, NAME, NAME_VISIBLE, NAME_X_OFFSET, NAME_Y_OFFSET, NAME_STYLE, NAME_ANGLE,
       DESCRIPTION, INFORMATION, CREATOR, LICENSE, PRICE, VALUE_ADDED_TAX_PERCENTAGE, CURRENCY, ICON, PLAN_ICON, MODEL,
       WIDTH, WIDTH_IN_PLAN, DEPTH, DEPTH_IN_PLAN, HEIGHT, HEIGHT_IN_PLAN,
-      COLOR, FILL_COLOR, PLAN_FILL_OPACITY, PLAN_BOUNDS_VISIBLE, TEXTURE, MODEL_MATERIALS, MODEL_TRANSFORMATIONS,
+      COLOR, FILL_COLOR, OUTLINE_COLOR, PLAN_FILL_OPACITY, PLAN_BOUNDS_VISIBLE, TEXTURE, MODEL_MATERIALS, MODEL_TRANSFORMATIONS,
       STAIRCASE_CUT_OUT_SHAPE, SHININESS, VISIBLE,
       X, Y, ELEVATION, ANGLE, PITCH, ROLL, MODEL_ROTATION, MODEL_FLAGS, MODEL_MIRRORED,
       /** @deprecated */ BACK_FACE_SHOWN, MOVABLE, LEVEL};
@@ -347,6 +347,7 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
   private HomeMaterial []        modelMaterials;
   private Integer                color;
   private Integer                fillColor;
+  private Integer                outlineColor;
   private float                  planFillOpacity = DEFAULT_PLAN_FILL_OPACITY;
   private HomeTexture            texture;
   private Float                  shininess;
@@ -436,6 +437,7 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
     if (piece instanceof HomePieceOfFurniture) {
       HomePieceOfFurniture homePiece = (HomePieceOfFurniture)piece;
       this.fillColor = homePiece.getFillColor();
+      this.outlineColor = homePiece.getOutlineColor();
       this.planFillOpacity = homePiece.getPlanFillOpacity();
     }
     this.modelRotation = piece.getModelRotation();
@@ -1164,6 +1166,26 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
       Integer oldFillColor = this.fillColor;
       this.fillColor = fillColor;
       firePropertyChange(Property.FILL_COLOR.name(), oldFillColor, fillColor);
+    }
+  }
+
+  /**
+   * Returns the plan symbol outline color, or <code>null</code> for the default black outline.
+   */
+  public Integer getOutlineColor() {
+    return this.outlineColor;
+  }
+
+  /**
+   * Sets the plan symbol outline color. Use {@link com.eteks.sweethome3d.tools.AlpColorSupport#TRANSPARENT_COLOR}
+   * to hide the outline.
+   */
+  public void setOutlineColor(Integer outlineColor) {
+    if (outlineColor != this.outlineColor
+        && (outlineColor == null || !outlineColor.equals(this.outlineColor))) {
+      Integer oldOutlineColor = this.outlineColor;
+      this.outlineColor = outlineColor;
+      firePropertyChange(Property.OUTLINE_COLOR.name(), oldOutlineColor, outlineColor);
     }
   }
 

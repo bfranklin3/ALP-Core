@@ -1516,6 +1516,10 @@ public class HomeXMLHandler extends DefaultHandler {
       if (fillColor != null) {
         piece.setFillColor(fillColor);
       }
+      Integer outlineColor = parseOptionalColor(attributes, "outlineColor");
+      if (outlineColor != null) {
+        piece.setOutlineColor(outlineColor);
+      }
       Float planFillOpacity = parseOptionalFloat(attributes, "planFillOpacity");
       if (planFillOpacity != null) {
         piece.setPlanFillOpacity(planFillOpacity);

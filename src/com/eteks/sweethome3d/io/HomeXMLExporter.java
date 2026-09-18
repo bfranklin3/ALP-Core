@@ -455,6 +455,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
       writer.writeBooleanAttribute("visible", piece.isVisible(), true);
       writer.writeColorAttribute("color", piece.getColor());
       writer.writeColorAttribute("fillColor", piece.getFillColor());
+      writer.writeColorAttribute("outlineColor", piece.getOutlineColor());
       writer.writeFloatAttribute("planFillOpacity", piece.getPlanFillOpacity(),
           HomePieceOfFurniture.DEFAULT_PLAN_FILL_OPACITY);
       if (piece.getShininess() != null) {

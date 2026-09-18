@@ -36,6 +36,7 @@ import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoableEditSupport;
 
+import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.CollectionEvent;
 import com.eteks.sweethome3d.model.CollectionListener;
 import com.eteks.sweethome3d.model.DoorOrWindow;
@@ -44,6 +45,7 @@ import com.eteks.sweethome3d.model.HomeDoorOrWindow;
 import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.ObjectProperty;
+import com.eteks.sweethome3d.model.AlpHardscapeCatalogUtils;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomeShelfUnit;
 import com.eteks.sweethome3d.model.Level;
@@ -618,7 +620,12 @@ public class FurnitureController implements Controller {
     } else if (piece instanceof ShelfUnit) {
       return new HomeShelfUnit((ShelfUnit)piece, copiedProperties);
     } else {
-      return new HomePieceOfFurniture(piece, copiedProperties);
+      HomePieceOfFurniture homePiece = new HomePieceOfFurniture(piece, copiedProperties);
+      if (piece instanceof CatalogPieceOfFurniture) {
+        AlpHardscapeCatalogUtils.applyCatalogPlanLayers(homePiece, (CatalogPieceOfFurniture)piece);
+      }
+      AlpHardscapeCatalogUtils.applyDefaultFinishColor(homePiece);
+      return homePiece;
     }
   }
 

@@ -3085,6 +3085,8 @@ public class SelectionInspectorPane extends JPanel {
     private NullableSpinner.NullableSpinnerNumberModel angleSpinnerModel;
     private JLabel                          colorLabel;
     private ColorButton                     colorButton;
+    private JLabel                          hardscapeOutlineColorLabel;
+    private ColorButton                     hardscapeOutlineColorButton;
     private JPanel                          paintPanel;
     private JPanel                          plantStylePanel;
     private JLabel                          plantStyleLabel;
@@ -3315,6 +3317,23 @@ public class SelectionInspectorPane extends JPanel {
               }
               furnitureController.setColor(colorButton.getColor());
               applyFurnitureChanges(false, true);
+            }
+          });
+
+      this.hardscapeOutlineColorLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, SelectionInspectorPane.class, "hardscapeOutlineColorLabel.text"));
+      this.hardscapeOutlineColorButton = new ColorButton(this.preferences);
+      this.hardscapeOutlineColorButton.setNullColorAllowed(true);
+      this.hardscapeOutlineColorButton.setColorDialogTitle(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "outlineColorDialog.title"));
+      this.hardscapeOutlineColorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              if (updatingFromController) {
+                return;
+              }
+              furnitureController.setOutlineColor(hardscapeOutlineColorButton.getColor());
+              applyHardscapeOutlineChange();
             }
           });
 
@@ -3576,6 +3595,14 @@ public class SelectionInspectorPane extends JPanel {
       this.paintPanel.add(this.colorButton, new GridBagConstraints(
           1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
+      configureInspectorFieldLabel(this.preferences, SelectionInspectorPane.class,
+          "hardscapeOutlineColorLabel.mnemonic", this.hardscapeOutlineColorLabel, this.hardscapeOutlineColorButton);
+      this.paintPanel.add(this.hardscapeOutlineColorLabel, new GridBagConstraints(
+          0, 1, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(standardGap, 8, 0, standardGap), 0, 0));
+      this.paintPanel.add(this.hardscapeOutlineColorButton, new GridBagConstraints(
+          1, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, 10), 0, 0));
       fieldsPanel.add(this.paintPanel, new GridBagConstraints(
           0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
@@ -3737,12 +3764,33 @@ public class SelectionInspectorPane extends JPanel {
         this.heightLabel.setEnabled(resizable);
         this.heightSpinner.setEnabled(resizable);
         refreshPlantAppearancePanels();
+        refreshHardscapeOutlinePanel();
         refreshPlantAreaFillPanel();
         refreshPlantDetailsPanel();
       } finally {
         this.updatingFromController = false;
       }
       syncNameFieldFromModel();
+    }
+
+    private void refreshHardscapeOutlinePanel() {
+      boolean visible = this.furnitureController.isOutlineColorEditable();
+      this.hardscapeOutlineColorLabel.setVisible(visible);
+      this.hardscapeOutlineColorButton.setVisible(visible);
+      if (visible) {
+        Integer outlineColor = this.furnitureController.getOutlineColor();
+        if (AlpColorSupport.isPlanOutlineNone(outlineColor)) {
+          this.hardscapeOutlineColorButton.setColor(AlpColorSupport.TRANSPARENT_COLOR);
+        } else {
+          this.hardscapeOutlineColorButton.setColor(outlineColor);
+        }
+      }
+    }
+
+    private void applyHardscapeOutlineChange() {
+      syncControllerFurnitureFieldsForModify(false, false);
+      clearControllerDimensions();
+      this.furnitureController.modifyFurniture();
     }
 
     private void refreshPlantAppearancePanels() {
