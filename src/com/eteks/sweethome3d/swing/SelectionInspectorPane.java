@@ -78,6 +78,7 @@ import com.eteks.sweethome3d.model.CollectionListener;
 import com.eteks.sweethome3d.model.DimensionLine;
 import com.eteks.sweethome3d.model.AlpPlantAreaFill;
 import com.eteks.sweethome3d.model.AlpPlantMetadata;
+import com.eteks.sweethome3d.model.AlpHardscapeCatalogUtils;
 import com.eteks.sweethome3d.model.AlpPlantUtils;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.Home;
@@ -4194,6 +4195,19 @@ public class SelectionInspectorPane extends JPanel {
           title = MessageFormat.format(this.preferences.getLocalizedString(
               SelectionInspectorPane.class, "summarySinglePlantNamed.title"), displayName.trim());
           subtitle = buildPlantIdentitySubtitle(piece, metadata);
+        } else if (AlpHardscapeCatalogUtils.isHardscape(piece)) {
+          String name = piece.getName();
+          if (name == null || name.trim().length() == 0) {
+            name = piece.getCatalogId() != null ? piece.getCatalogId() : "";
+          }
+          title = MessageFormat.format(this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "summarySingleHardscapeNamed.title"), name.trim());
+          String levelName = getCommonLevelName(furniture);
+          subtitle = levelName != null
+              ? MessageFormat.format(this.preferences.getLocalizedString(
+                  SelectionInspectorPane.class, "summaryLayer.text"), levelName)
+              : this.preferences.getLocalizedString(
+                  SelectionInspectorPane.class, "summaryMixedLevels.text");
         } else {
           String name = piece.getName();
           if (name != null && name.trim().length() > 0) {
