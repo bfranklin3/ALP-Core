@@ -1113,4 +1113,14 @@ public class Room extends HomeObject implements Selectable, Elevatable {
         : null;
     return clone;
   }
+
+  /**
+   * Returns a copy for paste with a new id and no inherited plant fill recipe.
+   */
+  @Override
+  public HomeObject duplicate() {
+    Room copy = (Room)super.duplicate();
+    AlpPlantAreaFill.clearRecipe(copy);
+    return copy;
+  }
 }
