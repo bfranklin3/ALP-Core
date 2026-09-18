@@ -1354,6 +1354,94 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   }
 
   /**
+   * Creates a modifiable deep copy with new identity and footprint size.
+   * Copies plan icons, metadata properties, and 3D model from the source.
+   */
+  public static CatalogPieceOfFurniture createModifiableCopy(CatalogPieceOfFurniture source,
+                                                               String newId,
+                                                               String newName,
+                                                               String newDescription,
+                                                               float width,
+                                                               float depth,
+                                                               Map<String, String> stringPropertyOverrides) {
+    Map<String, String> stringProperties = new HashMap<String, String>();
+    Map<String, Content> contentProperties = new HashMap<String, Content>();
+    splitProperties(source, stringProperties, contentProperties);
+    if (stringPropertyOverrides != null) {
+      stringProperties.putAll(stringPropertyOverrides);
+    }
+    float height = source.getHeight();
+    if (source.isProportional() && source.getWidth() > 1E-6f) {
+      height = source.getHeight() * (width / source.getWidth());
+    }
+    return new CatalogPieceOfFurniture(
+        newId, newName, newDescription,
+        source.getInformation(), source.getLicense(),
+        source.getTags() != null ? source.getTags().clone() : new String [0],
+        source.getCreationDate(), source.getGrade(),
+        source.getIcon(), source.getPlanIcon(), source.getModel(),
+        width, depth, height,
+        source.getElevation(), source.getDropOnTopElevation(),
+        source.isMovable(), source.isDoorOrWindow(), source.getStaircaseCutOutShape(),
+        source.getColor(), source.getModelRotation(), source.getModelFlags(),
+        source.getModelSize(), source.getCreator(),
+        source.isResizable(), source.isDeformable(), source.isTexturable(),
+        source.isHorizontallyRotatable(),
+        source.getPrice(), source.getValueAddedTaxPercentage(), source.getCurrency(),
+        stringProperties, contentProperties,
+        source.getIconYaw(), source.getIconPitch(), source.getIconScale(),
+        source.isProportional(), true);
+  }
+
+  /**
+   * Reconstructs a modifiable catalog piece saved in user preferences.
+   */
+  public static CatalogPieceOfFurniture createModifiableFromPersistence(
+      String id, String name, String description,
+      Content icon, Content planIcon, Content model,
+      float width, float depth, float height, float elevation,
+      boolean movable, boolean doorOrWindow, String staircaseCutOutShape,
+      Integer color, float [][] modelRotation, int modelFlags, Long modelSize,
+      String creator, boolean resizable, boolean deformable, boolean texturable,
+      float iconYaw, float iconPitch, float iconScale, boolean proportional,
+      Map<String, String> stringProperties, Map<String, Content> contentProperties) {
+    if (doorOrWindow) {
+      return new CatalogDoorOrWindow(name, icon, model,
+          width, depth, height, elevation, movable, 1, 0, new Sash [0],
+          color, modelRotation, modelFlags, modelSize, creator, iconYaw, iconPitch, iconScale, proportional);
+    }
+    return new CatalogPieceOfFurniture(
+        id, name, description,
+        null, null, new String [0], null, null,
+        icon, planIcon, model,
+        width, depth, height, elevation, 1f,
+        movable, false, staircaseCutOutShape,
+        color, modelRotation, modelFlags, modelSize, creator,
+        resizable, deformable, texturable, true,
+        null, null, null,
+        stringProperties, contentProperties,
+        iconYaw, iconPitch, iconScale, proportional, true);
+  }
+
+  private static void splitProperties(CatalogPieceOfFurniture source,
+                                      Map<String, String> stringProperties,
+                                      Map<String, Content> contentProperties) {
+    for (String key : source.getPropertyNames()) {
+      if (source.isContentProperty(key)) {
+        Content content = source.getContentProperty(key);
+        if (content != null) {
+          contentProperties.put(key, content);
+        }
+      } else {
+        String value = source.getProperty(key);
+        if (value != null) {
+          stringProperties.put(key, value);
+        }
+      }
+    }
+  }
+
+  /**
    * Returns a clone of this piece.
    * @since 5.8
    */
