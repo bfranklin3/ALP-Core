@@ -65,6 +65,11 @@ import org.xml.sax.helpers.DefaultHandler;
 
 import com.eteks.sweethome3d.model.AlpLevelDefaults;
 import com.eteks.sweethome3d.model.AlpOutputPresets;
+import com.eteks.sweethome3d.model.AlpPlantAreaFill;
+import com.eteks.sweethome3d.model.AlpPlantCatalogUtils;
+import com.eteks.sweethome3d.model.AlpPlantMetadata;
+import com.eteks.sweethome3d.model.AlpTransformReplicateSupport;
+import com.eteks.sweethome3d.model.AlpPlantUtils;
 import com.eteks.sweethome3d.model.AspectRatio;
 import com.eteks.sweethome3d.model.BackgroundImage;
 import com.eteks.sweethome3d.model.Camera;
@@ -826,6 +831,7 @@ public class HomeController implements Controller {
     boolean homeSelectionContainsDeletableFurniture = false;
     boolean homeSelectionContainsOneCopiableItemOrMore = false;
     boolean homeSelectionContainsOneMovablePieceOfFurnitureOrMore = false;
+    boolean homeSelectionContainsOneTransformablePieceOfFurniture = false;
     boolean homeSelectionContainsTwoMovablePiecesOfFurnitureOrMore = false;
     boolean homeSelectionContainsTwoMovableGroupablePiecesOfFurnitureOrMore = false;
     boolean homeSelectionContainsThreeMovablePiecesOfFurnitureOrMore = false;
@@ -881,6 +887,7 @@ public class HomeController implements Controller {
           }
         }
       }
+      homeSelectionContainsOneTransformablePieceOfFurniture = canTransformReplicateSelectedFurniture();
       if (homeSelectionContainsTwoMovablePiecesOfFurnitureOrMore) {
         homeSelectionContainsTwoMovableGroupablePiecesOfFurnitureOrMore = true;
         List<HomePieceOfFurniture> furniture = this.home.getFurniture();
@@ -1049,6 +1056,12 @@ public class HomeController implements Controller {
         homeSelectionContainsThreeMovablePiecesOfFurnitureOrMore);
     view.setEnabled(HomeView.ActionType.RESET_FURNITURE_ELEVATION,
         homeSelectionContainsOneMovablePieceOfFurnitureOrMore);
+    view.setEnabled(HomeView.ActionType.MOVE_BY_DISTANCE,
+        homeSelectionContainsOneTransformablePieceOfFurniture);
+    view.setEnabled(HomeView.ActionType.REPLICATE_IN_LINE,
+        homeSelectionContainsOneTransformablePieceOfFurniture);
+    view.setEnabled(HomeView.ActionType.FIT_COPIES_BETWEEN_POINTS,
+        homeSelectionContainsOneTransformablePieceOfFurniture);
     view.setEnabled(HomeView.ActionType.GROUP_FURNITURE,
         homeSelectionContainsTwoMovableGroupablePiecesOfFurnitureOrMore
         && viewableLevel);
@@ -1378,6 +1391,113 @@ public class HomeController implements Controller {
   }
 
   /**
+   * Returns {@code true} when the current selection can be moved or replicated
+   * with the ALP precision placement commands.
+   */
+  public boolean canTransformReplicateSelectedFurniture() {
+    return getSelectedTransformReplicatePiece() != null;
+  }
+
+  /**
+   * Returns the default spacing to use for the selected piece.
+   */
+  public float getSelectedTransformReplicateDefaultSpacing() {
+    HomePieceOfFurniture piece = getSelectedTransformReplicatePiece();
+    if (piece == null) {
+      return this.preferences.getLengthUnit().getStepSize() * 4;
+    }
+    AlpPlantMetadata metadata = AlpPlantMetadata.fromPiece(piece);
+    if (metadata != null) {
+      return metadata.getDefaultSpacing();
+    }
+    return Math.max(piece.getWidth(), piece.getDepth());
+  }
+
+  /**
+   * Moves the selected piece by an exact plan-space offset.
+   */
+  public void moveSelectedFurnitureByDistance(float dx, float dy) {
+    if (getSelectedTransformReplicatePiece() != null
+        && (dx != 0 || dy != 0)) {
+      setMode(PlanController.Mode.SELECTION);
+      getPlanController().moveSelection(dx, dy);
+    }
+  }
+
+  /**
+   * Creates editable copies of the selected piece along a straight vector.
+   */
+  public void replicateSelectedFurnitureInLine(int copies, float spacing, float angleInDegrees) {
+    if (copies <= 0 || spacing <= 0) {
+      return;
+    }
+    float [] step = AlpTransformReplicateSupport.computeStepVector(spacing, angleInDegrees);
+    replicateSelectedFurniture(copies, step [0], step [1]);
+  }
+
+  /**
+   * Creates editable copies between the selected piece center and an implied end
+   * point defined by distance and angle. Total count includes the source piece.
+   */
+  public void fitSelectedFurnitureCopiesBetweenPoints(int totalCount, float distance, float angleInDegrees) {
+    if (totalCount < 2 || distance <= 0) {
+      return;
+    }
+    replicateSelectedFurnitureInLine(totalCount - 1,
+        AlpTransformReplicateSupport.computeFitSpacing(distance, totalCount), angleInDegrees);
+  }
+
+  private void replicateSelectedFurniture(int copies, float stepDx, float stepDy) {
+    HomePieceOfFurniture source = getSelectedTransformReplicatePiece();
+    if (source == null) {
+      return;
+    }
+    setMode(PlanController.Mode.SELECTION);
+    List<Selectable> copiedItems = new ArrayList<Selectable>();
+    for (int i = 1; i <= copies; i++) {
+      List<Selectable> duplicatedItems = Home.duplicate(Collections.singletonList(source));
+      if (duplicatedItems.isEmpty()
+          || !(duplicatedItems.get(0) instanceof HomePieceOfFurniture)) {
+        continue;
+      }
+      HomePieceOfFurniture copy = (HomePieceOfFurniture)duplicatedItems.get(0);
+      copy.move(stepDx * i, stepDy * i);
+      copiedItems.add(copy);
+    }
+    if (!copiedItems.isEmpty()) {
+      getPlanController().addItems(copiedItems);
+      List<Selectable> newSelection = new ArrayList<Selectable>();
+      newSelection.add(source);
+      newSelection.addAll(copiedItems);
+      this.home.setSelectedItems(newSelection);
+    }
+  }
+
+  private HomePieceOfFurniture getSelectedTransformReplicatePiece() {
+    if (getPlanController().isModificationState()) {
+      return null;
+    }
+    List<Selectable> selectedItems = this.home.getSelectedItems();
+    if (selectedItems.size() != 1
+        || !(selectedItems.get(0) instanceof HomePieceOfFurniture)) {
+      return null;
+    }
+    HomePieceOfFurniture piece = (HomePieceOfFurniture)selectedItems.get(0);
+    if (piece instanceof HomeFurnitureGroup
+        || piece.isDoorOrWindow()
+        || !piece.isMovable()
+        || !this.home.getFurniture().contains(piece)) {
+      return null;
+    }
+    Level level = piece.getLevel();
+    if (level != null
+        && (!level.isViewable() || level.isLocked())) {
+      return null;
+    }
+    return piece;
+  }
+
+  /**
    * Adds the selected furniture in catalog to home and selects it.
    */
   public void addHomeFurniture() {
@@ -1422,6 +1542,128 @@ public class HomeController implements Controller {
                || this.focusedView == getPlanController().getView()
                || this.focusedView == getHomeController3D().getView()) {
       getFurnitureController().modifySelectedFurniture();
+    }
+  }
+
+  /**
+   * Returns the sole selected planting area, or {@code null}.
+   */
+  public Room getSingleSelectedArea() {
+    List<Room> rooms = Home.getRoomsSubList(this.home.getSelectedItems());
+    return rooms.size() == 1 ? rooms.get(0) : null;
+  }
+
+  /**
+   * Returns a selected ALP plant template, if any.
+   */
+  public HomePieceOfFurniture getSelectedPlantTemplate() {
+    for (Selectable item : this.home.getSelectedItems()) {
+      if (item instanceof HomePieceOfFurniture) {
+        HomePieceOfFurniture piece = (HomePieceOfFurniture)item;
+        if (AlpPlantUtils.isPlant(piece)) {
+          return piece;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns the ALP catalog plant to duplicate from library or plan selection.
+   */
+  public CatalogPieceOfFurniture getDuplicatePlantTypeSource() {
+    CatalogPieceOfFurniture catalogPlant = getSingleSelectedCatalogPlant();
+    if (catalogPlant != null) {
+      return catalogPlant;
+    }
+    HomePieceOfFurniture placedPlant = getSelectedPlantTemplate();
+    if (placedPlant != null) {
+      String catalogId = placedPlant.getCatalogId();
+      if (catalogId != null) {
+        CatalogPieceOfFurniture piece = this.preferences.getFurnitureCatalog().getPieceOfFurnitureWithId(catalogId);
+        if (AlpPlantCatalogUtils.isCatalogPlant(piece)) {
+          return piece;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns the sole selected ALP catalog plant type, or {@code null}.
+   */
+  public CatalogPieceOfFurniture getSingleSelectedCatalogPlant() {
+    List<CatalogPieceOfFurniture> selected =
+        getFurnitureCatalogController().getSelectedFurniture();
+    if (selected.size() != 1) {
+      return null;
+    }
+    CatalogPieceOfFurniture piece = selected.get(0);
+    return AlpPlantCatalogUtils.isCatalogPlant(piece) ? piece : null;
+  }
+
+  /**
+   * Adds a duplicated user plant type to the catalog (SPIKE-45A).
+   */
+  public void addDuplicateCatalogPlantType(CatalogPieceOfFurniture duplicate) {
+    if (duplicate == null) {
+      return;
+    }
+    FurnitureCategory category = AlpPlantCatalogUtils.findOrCreateUserPlantsCategory(
+        this.preferences.getFurnitureCatalog());
+    this.preferences.getFurnitureCatalog().add(category, duplicate);
+    getFurnitureCatalogController().setSelectedFurniture(
+        Collections.singletonList(duplicate));
+  }
+
+  /**
+   * Generates or regenerates editable plant instances for an area fill recipe (SPIKE-38A).
+   */
+  public void applyPlantAreaFill(Room room, AlpPlantAreaFill.Recipe recipe) {
+    if (room == null || recipe == null) {
+      return;
+    }
+    CatalogPieceOfFurniture catalogPiece = this.preferences.getFurnitureCatalog().getPieceOfFurnitureWithId(
+        recipe.getSymbolCatalogId());
+    if (catalogPiece == null) {
+      return;
+    }
+    HomePieceOfFurniture metadataProbe = getFurnitureController().createHomePieceOfFurniture(catalogPiece);
+    AlpPlantMetadata metadata = AlpPlantMetadata.fromPiece(metadataProbe);
+    if (metadata == null) {
+      return;
+    }
+
+    UndoableEditSupport undoSupport = getUndoableEditSupport();
+    if (undoSupport != null) {
+      undoSupport.beginUpdate();
+    }
+
+    List<HomePieceOfFurniture> existingPlants = AlpPlantAreaFill.findGeneratedPlants(this.home, room);
+    if (!existingPlants.isEmpty()) {
+      getFurnitureController().deleteFurniture(existingPlants);
+    }
+
+    List<HomePieceOfFurniture> newPlants = new ArrayList<HomePieceOfFurniture>();
+    for (AlpPlantAreaFill.Placement placement : AlpPlantAreaFill.buildPlacements(room, metadata, recipe)) {
+      HomePieceOfFurniture plant = getFurnitureController().createHomePieceOfFurniture(catalogPiece);
+      plant.setX(placement.getX());
+      plant.setY(placement.getY());
+      plant.setWidth(placement.getWidth());
+      plant.setDepth(placement.getDepth());
+      plant.setAngle(placement.getAngle());
+      plant.setElevation(0);
+      AlpPlantAreaFill.markGeneratedPlant(plant, recipe.getFillId());
+      newPlants.add(plant);
+    }
+    if (!newPlants.isEmpty()) {
+      getFurnitureController().addFurnitureOnLevel(newPlants, room.getLevel());
+    }
+    AlpPlantAreaFill.saveRecipe(room, recipe);
+
+    if (undoSupport != null) {
+      undoSupport.postEdit(new LocalizedUndoableEdit(this.preferences, HomeController.class, "undoPlantAreaFillName"));
+      undoSupport.endUpdate();
     }
   }
 
@@ -2436,6 +2678,7 @@ public class HomeController implements Controller {
                 piece.isResizable(), piece.isDeformable(), piece.isTexturable(), piece.isHorizontallyRotatable(),
                 piece.getPrice(), piece.getValueAddedTaxPercentage(), piece.getCurrency()));
         replacingPiece.setNameVisible(piece.isNameVisible());
+        replacingPiece.setPlanBoundsVisible(piece.isPlanBoundsVisible());
         replacingPiece.setNameXOffset(piece.getNameXOffset());
         replacingPiece.setNameYOffset(piece.getNameYOffset());
         replacingPiece.setNameStyle(piece.getNameStyle());

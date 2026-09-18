@@ -43,6 +43,7 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
+import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -129,6 +130,8 @@ import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JTree;
+import javax.swing.tree.TreePath;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -180,6 +183,7 @@ import com.eteks.sweethome3d.j3d.Ground3D;
 import com.eteks.sweethome3d.j3d.OBJWriter;
 import com.eteks.sweethome3d.j3d.Object3DBranchFactory;
 import com.eteks.sweethome3d.model.AlpLevelDefaults;
+import com.eteks.sweethome3d.model.AlpPlantAreaFill;
 import com.eteks.sweethome3d.model.BackgroundImage;
 import com.eteks.sweethome3d.model.Camera;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
@@ -274,6 +278,7 @@ public class HomePane extends JRootPane implements HomeView {
   private List<Action>          pluginActions;
   private JComponent            textFormattingPanel;
   private MultipleLevelsPlanPanel planPanel;
+  private Action                  duplicatePlantTypeAction;
 
   /**
    * Creates home view associated with its controller.
@@ -376,6 +381,7 @@ public class HomePane extends JRootPane implements HomeView {
     createAction(ActionType.DISTRIBUTE_FURNITURE_HORIZONTALLY, preferences, furnitureController, "distributeSelectedFurnitureHorizontally");
     createAction(ActionType.DISTRIBUTE_FURNITURE_VERTICALLY, preferences, furnitureController, "distributeSelectedFurnitureVertically");
     createAction(ActionType.RESET_FURNITURE_ELEVATION, preferences, furnitureController, "resetFurnitureElevation");
+    createTransformReplicateActions(preferences, controller);
     final HomeController3D homeController3D = controller.getHomeController3D();
     if (homeController3D.getView() != null) {
       createAction(ActionType.IMPORT_FURNITURE, preferences, controller, "importFurniture");
@@ -592,6 +598,50 @@ public class HomePane extends JRootPane implements HomeView {
     createAction(ActionType.ABOUT, preferences, controller, "about");
 
     createAdditionalActions(home, controller);
+  }
+
+  /**
+   * Creates actions for ALP precision move and linear replicate commands.
+   */
+  private void createTransformReplicateActions(final UserPreferences preferences,
+                                               final HomeController controller) {
+    getActionMap().put(ActionType.MOVE_BY_DISTANCE,
+        new ResourceAction(preferences, HomePane.class, ActionType.MOVE_BY_DISTANCE.name()) {
+          @Override
+          public void actionPerformed(ActionEvent ev) {
+            AlpTransformReplicateDialog.MoveByDistanceResult result =
+                AlpTransformReplicateDialog.showMoveByDistanceDialog(HomePane.this, preferences);
+            if (result != null) {
+              controller.moveSelectedFurnitureByDistance(result.getDx(), result.getDy());
+            }
+          }
+        });
+    getActionMap().put(ActionType.REPLICATE_IN_LINE,
+        new ResourceAction(preferences, HomePane.class, ActionType.REPLICATE_IN_LINE.name()) {
+          @Override
+          public void actionPerformed(ActionEvent ev) {
+            AlpTransformReplicateDialog.ReplicateInLineResult result =
+                AlpTransformReplicateDialog.showReplicateInLineDialog(HomePane.this, preferences,
+                    controller.getSelectedTransformReplicateDefaultSpacing());
+            if (result != null) {
+              controller.replicateSelectedFurnitureInLine(
+                  result.getCopies(), result.getSpacing(), result.getAngleInDegrees());
+            }
+          }
+        });
+    getActionMap().put(ActionType.FIT_COPIES_BETWEEN_POINTS,
+        new ResourceAction(preferences, HomePane.class, ActionType.FIT_COPIES_BETWEEN_POINTS.name()) {
+          @Override
+          public void actionPerformed(ActionEvent ev) {
+            AlpTransformReplicateDialog.FitCopiesBetweenPointsResult result =
+                AlpTransformReplicateDialog.showFitCopiesBetweenPointsDialog(HomePane.this, preferences,
+                    controller.getSelectedTransformReplicateDefaultSpacing());
+            if (result != null) {
+              controller.fitSelectedFurnitureCopiesBetweenPoints(
+                  result.getTotalCount(), result.getDistance(), result.getAngleInDegrees());
+            }
+          }
+        });
   }
 
   /**
@@ -1293,6 +1343,7 @@ public class HomePane extends JRootPane implements HomeView {
     addActionToMenu(ActionType.ADD_HOME_FURNITURE, furnitureMenu);
     addActionToMenu(ActionType.ADD_FURNITURE_TO_GROUP, furnitureMenu);
     addActionToMenu(ActionType.MODIFY_FURNITURE, furnitureMenu);
+    furnitureMenu.add(createDuplicatePlantTypeMenuItem(controller, preferences));
     addActionToMenu(ActionType.GROUP_FURNITURE, furnitureMenu);
     addActionToMenu(ActionType.UNGROUP_FURNITURE, furnitureMenu);
     furnitureMenu.addSeparator();
@@ -1308,6 +1359,10 @@ public class HomePane extends JRootPane implements HomeView {
     addActionToMenu(ActionType.DISTRIBUTE_FURNITURE_HORIZONTALLY, furnitureMenu);
     addActionToMenu(ActionType.DISTRIBUTE_FURNITURE_VERTICALLY, furnitureMenu);
     addActionToMenu(ActionType.RESET_FURNITURE_ELEVATION, furnitureMenu);
+    furnitureMenu.addSeparator();
+    addActionToMenu(ActionType.MOVE_BY_DISTANCE, furnitureMenu);
+    addActionToMenu(ActionType.REPLICATE_IN_LINE, furnitureMenu);
+    addActionToMenu(ActionType.FIT_COPIES_BETWEEN_POINTS, furnitureMenu);
     furnitureMenu.addSeparator();
     addActionToMenu(ActionType.IMPORT_FURNITURE, furnitureMenu);
     addActionToMenu(ActionType.IMPORT_FURNITURE_LIBRARY, furnitureMenu);
@@ -1346,6 +1401,14 @@ public class HomePane extends JRootPane implements HomeView {
     addActionToMenu(ActionType.REVERSE_WALL_DIRECTION, planMenu);
     addActionToMenu(ActionType.SPLIT_WALL, planMenu);
     addActionToMenu(ActionType.MODIFY_ROOM, planMenu);
+    JMenuItem fillAreaWithPlantsMenuItem = createFillAreaWithPlantsMenuItem(controller, preferences, home, false);
+    if (fillAreaWithPlantsMenuItem != null) {
+      planMenu.add(fillAreaWithPlantsMenuItem);
+    }
+    JMenuItem regeneratePlantFillMenuItem = createRegeneratePlantAreaFillMenuItem(controller, preferences, home, false);
+    if (regeneratePlantFillMenuItem != null) {
+      planMenu.add(regeneratePlantFillMenuItem);
+    }
     addActionToMenu(ActionType.MODIFY_POLYLINE, planMenu);
     addActionToMenu(ActionType.MODIFY_DIMENSION_LINE, planMenu);
     addActionToMenu(ActionType.MODIFY_LABEL, planMenu);
@@ -2033,6 +2096,186 @@ public class HomePane extends JRootPane implements HomeView {
     } else {
       return null;
     }
+  }
+
+  /**
+   * Returns Fill area with plants menu item (SPIKE-38A).
+   */
+  private JMenuItem createFillAreaWithPlantsMenuItem(final HomeController controller,
+                                                     final UserPreferences preferences,
+                                                     final Home home,
+                                                     boolean popup) {
+    final Action action = new AbstractAction(preferences.getLocalizedString(HomePane.class, "fillAreaWithPlants.name")) {
+        public void actionPerformed(ActionEvent ev) {
+          Room room = controller.getSingleSelectedArea();
+          if (room == null) {
+            return;
+          }
+          AlpPlantAreaFillDialog dialog = new AlpPlantAreaFillDialog(
+              preferences, room, preferences.getFurnitureCatalog(),
+              controller.getFurnitureController(), controller.getSelectedPlantTemplate(), false);
+          AlpPlantAreaFill.Recipe recipe = dialog.showDialog(HomePane.this);
+          if (recipe != null) {
+            controller.applyPlantAreaFill(room, recipe);
+          }
+        }
+      };
+    final JMenuItem menuItem = new JMenuItem(action);
+    SelectionListener selectionListener = new SelectionListener() {
+        public void selectionChanged(SelectionEvent ev) {
+          updateFillAreaWithPlantsActionEnabled(controller, action);
+        }
+      };
+    home.addSelectionListener(selectionListener);
+    updateFillAreaWithPlantsActionEnabled(controller, action);
+    return menuItem;
+  }
+
+  /**
+   * Returns Regenerate plant fill menu item (SPIKE-38A).
+   */
+  private JMenuItem createRegeneratePlantAreaFillMenuItem(final HomeController controller,
+                                                          final UserPreferences preferences,
+                                                          final Home home,
+                                                          boolean popup) {
+    final Action action = new AbstractAction(preferences.getLocalizedString(HomePane.class, "regeneratePlantAreaFill.name")) {
+        public void actionPerformed(ActionEvent ev) {
+          Room room = controller.getSingleSelectedArea();
+          if (room == null || !AlpPlantAreaFill.hasRecipe(room)) {
+            return;
+          }
+          AlpPlantAreaFillDialog dialog = new AlpPlantAreaFillDialog(
+              preferences, room, preferences.getFurnitureCatalog(),
+              controller.getFurnitureController(), controller.getSelectedPlantTemplate(), true);
+          AlpPlantAreaFill.Recipe recipe = dialog.showDialog(HomePane.this);
+          if (recipe != null) {
+            controller.applyPlantAreaFill(room, recipe);
+          }
+        }
+      };
+    final JMenuItem menuItem = new JMenuItem(action);
+    home.addSelectionListener(new SelectionListener() {
+        public void selectionChanged(SelectionEvent ev) {
+          updateRegeneratePlantAreaFillActionEnabled(controller, action);
+        }
+      });
+    updateRegeneratePlantAreaFillActionEnabled(controller, action);
+    return menuItem;
+  }
+
+  private static void updateFillAreaWithPlantsActionEnabled(HomeController controller, Action action) {
+    action.setEnabled(controller.getSingleSelectedArea() != null);
+  }
+
+  private static void updateRegeneratePlantAreaFillActionEnabled(HomeController controller, Action action) {
+    Room room = controller.getSingleSelectedArea();
+    action.setEnabled(room != null && AlpPlantAreaFill.hasRecipe(room));
+  }
+
+  /**
+   * Returns Duplicate plant type action (SPIKE-45A), shared by menu bar and popups.
+   */
+  private Action getDuplicatePlantTypeAction(final HomeController controller,
+                                             final UserPreferences preferences) {
+    if (this.duplicatePlantTypeAction == null) {
+      this.duplicatePlantTypeAction = new AbstractAction(
+          preferences.getLocalizedString(HomePane.class, "duplicatePlantType.name")) {
+          public void actionPerformed(ActionEvent ev) {
+            CatalogPieceOfFurniture source = controller.getDuplicatePlantTypeSource();
+            if (source == null) {
+              return;
+            }
+            AlpDuplicatePlantTypeDialog dialog = new AlpDuplicatePlantTypeDialog(
+                preferences, preferences.getFurnitureCatalog(),
+                controller.getFurnitureController(), source);
+            CatalogPieceOfFurniture duplicate = dialog.showDialog(HomePane.this);
+            if (duplicate != null) {
+              controller.addDuplicateCatalogPlantType(duplicate);
+            }
+          }
+        };
+      controller.getFurnitureCatalogController().addSelectionListener(new SelectionListener() {
+          public void selectionChanged(SelectionEvent ev) {
+            updateDuplicatePlantTypeActionEnabled(controller, duplicatePlantTypeAction);
+          }
+        });
+      home.addSelectionListener(new SelectionListener() {
+          public void selectionChanged(SelectionEvent ev) {
+            updateDuplicatePlantTypeActionEnabled(controller, duplicatePlantTypeAction);
+          }
+        });
+      updateDuplicatePlantTypeActionEnabled(controller, this.duplicatePlantTypeAction);
+    }
+    return this.duplicatePlantTypeAction;
+  }
+
+  /**
+   * Returns Duplicate plant type menu item for the catalog (SPIKE-45A).
+   */
+  private JMenuItem createDuplicatePlantTypeMenuItem(final HomeController controller,
+                                                     final UserPreferences preferences) {
+    return new JMenuItem(getDuplicatePlantTypeAction(controller, preferences));
+  }
+
+  private static void updateDuplicatePlantTypeActionEnabled(HomeController controller, Action action) {
+    action.setEnabled(controller.getDuplicatePlantTypeSource() != null);
+  }
+
+  private PopupMenuListener createCatalogPopupSelectionListener(final HomeController controller) {
+    return new PopupMenuListener() {
+        public void popupMenuWillBecomeVisible(PopupMenuEvent ev) {
+          JPopupMenu popupMenu = (JPopupMenu)ev.getSource();
+          Component invoker = popupMenu.getInvoker();
+          if (invoker == null) {
+            return;
+          }
+          Point point = invoker.getMousePosition();
+          if (point == null) {
+            Point screenLocation = MouseInfo.getPointerInfo().getLocation();
+            point = new Point(screenLocation);
+            SwingUtilities.convertPointFromScreen(point, invoker);
+          }
+          CatalogPieceOfFurniture piece = getCatalogPieceAt(invoker, point);
+          if (piece != null) {
+            controller.getFurnitureCatalogController().setSelectedFurniture(
+                Collections.singletonList(piece));
+          }
+          if (duplicatePlantTypeAction != null) {
+            updateDuplicatePlantTypeActionEnabled(controller, duplicatePlantTypeAction);
+          }
+        }
+
+        public void popupMenuWillBecomeInvisible(PopupMenuEvent ev) {
+        }
+
+        public void popupMenuCanceled(PopupMenuEvent ev) {
+        }
+      };
+  }
+
+  private CatalogPieceOfFurniture getCatalogPieceAt(Component invoker, Point point) {
+    Component catalogComponent = invoker;
+    if (invoker instanceof JViewport) {
+      catalogComponent = ((JViewport)invoker).getView();
+    }
+    if (catalogComponent instanceof FurnitureCatalogTree) {
+      FurnitureCatalogTree tree = (FurnitureCatalogTree)catalogComponent;
+      TreePath path = tree.getPathForLocation(point.x, point.y);
+      if (path != null
+          && path.getLastPathComponent() instanceof CatalogPieceOfFurniture) {
+        return (CatalogPieceOfFurniture)path.getLastPathComponent();
+      }
+    } else if (catalogComponent instanceof JList) {
+      JList list = (JList)catalogComponent;
+      int index = list.locationToIndex(point);
+      if (index >= 0) {
+        Object value = list.getModel().getElementAt(index);
+        if (value instanceof CatalogPieceOfFurniture) {
+          return (CatalogPieceOfFurniture)value;
+        }
+      }
+    }
+    return null;
   }
 
   /**
@@ -3512,8 +3755,10 @@ public class HomePane extends JRootPane implements HomeView {
       addActionToPopupMenu(ActionType.ADD_HOME_FURNITURE, catalogViewPopup);
       addActionToPopupMenu(ActionType.ADD_FURNITURE_TO_GROUP, catalogViewPopup);
       addActionToPopupMenu(ActionType.MODIFY_FURNITURE, catalogViewPopup);
+      catalogViewPopup.add(createDuplicatePlantTypeMenuItem(controller, preferences));
       catalogViewPopup.addSeparator();
       addActionToPopupMenu(ActionType.IMPORT_FURNITURE, catalogViewPopup);
+      catalogViewPopup.addPopupMenuListener(createCatalogPopupSelectionListener(controller));
       SwingTools.hideDisabledMenuItems(catalogViewPopup);
       catalogView.setComponentPopupMenu(catalogViewPopup);
 
@@ -3522,6 +3767,8 @@ public class HomePane extends JRootPane implements HomeView {
       if (catalogView instanceof Scrollable) {
         JScrollPane catalogScrollPane = SwingTools.createScrollPane(catalogView);
         AlpCatalogStyles.applyCatalogScrollPane(catalogScrollPane);
+        catalogScrollPane.setComponentPopupMenu(catalogViewPopup);
+        catalogScrollPane.getViewport().setComponentPopupMenu(catalogViewPopup);
         catalogView = catalogScrollPane;
       }
     }
@@ -3766,12 +4013,16 @@ public class HomePane extends JRootPane implements HomeView {
       addActionToPopupMenu(ActionType.FLIP_HORIZONTALLY, planViewPopup);
       addActionToPopupMenu(ActionType.FLIP_VERTICALLY, planViewPopup);
       addActionToPopupMenu(ActionType.MODIFY_FURNITURE, planViewPopup);
+      planViewPopup.add(createDuplicatePlantTypeMenuItem(controller, preferences));
       addActionToPopupMenu(ActionType.GROUP_FURNITURE, planViewPopup);
       addActionToPopupMenu(ActionType.UNGROUP_FURNITURE, planViewPopup);
       addActionToPopupMenu(ActionType.GROUP_PLAN_ASSEMBLY, planViewPopup);
       addActionToPopupMenu(ActionType.UNGROUP_PLAN_ASSEMBLY, planViewPopup);
       planViewPopup.add(createAlignOrDistributeMenu(home, preferences, true));
       planViewPopup.add(createArrangeMenu(home, preferences, true));
+      addActionToPopupMenu(ActionType.MOVE_BY_DISTANCE, planViewPopup);
+      addActionToPopupMenu(ActionType.REPLICATE_IN_LINE, planViewPopup);
+      addActionToPopupMenu(ActionType.FIT_COPIES_BETWEEN_POINTS, planViewPopup);
       addActionToPopupMenu(ActionType.GROUP_PLAN_GRAPHICS, planViewPopup);
       addActionToPopupMenu(ActionType.UNGROUP_PLAN_GRAPHICS, planViewPopup);
       addActionToPopupMenu(ActionType.RESET_FURNITURE_ELEVATION, planViewPopup);
@@ -3782,6 +4033,14 @@ public class HomePane extends JRootPane implements HomeView {
       addActionToPopupMenu(ActionType.SPLIT_WALL, planViewPopup);
       addActionToPopupMenu(ActionType.INCLUDE_WALL_OPENINGS, planViewPopup);
       addActionToPopupMenu(ActionType.MODIFY_ROOM, planViewPopup);
+      JMenuItem fillAreaWithPlantsMenuItem = createFillAreaWithPlantsMenuItem(controller, preferences, home, true);
+      if (fillAreaWithPlantsMenuItem != null) {
+        planViewPopup.add(fillAreaWithPlantsMenuItem);
+      }
+      JMenuItem regeneratePlantFillMenuItem = createRegeneratePlantAreaFillMenuItem(controller, preferences, home, true);
+      if (regeneratePlantFillMenuItem != null) {
+        planViewPopup.add(regeneratePlantFillMenuItem);
+      }
       JMenuItem addRoomPointMenuItem = addActionToPopupMenu(ActionType.ADD_ROOM_POINT, planViewPopup);
       JMenuItem deleteRoomPointMenuItem = addActionToPopupMenu(ActionType.DELETE_ROOM_POINT, planViewPopup);
       JMenuItem recomputeRoomPointsMenuItem = addActionToPopupMenu(ActionType.RECOMPUTE_ROOM_POINTS, planViewPopup);
