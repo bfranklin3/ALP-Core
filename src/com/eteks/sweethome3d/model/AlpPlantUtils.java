@@ -12,12 +12,36 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.eteks.sweethome3d.tools.AlpColorSupport;
+
 /**
  * Helpers for landscape plant furniture and schedule takeoff.
  */
 public final class AlpPlantUtils {
   /** Catalog ID prefix for ALP plant library entries. */
   public static final String PLANT_CATALOG_ID_PREFIX = "alp-plt-";
+  /** Catalog ID prefix for user-authored ALP plant types (SPIKE-45A). */
+  public static final String USER_PLANT_CATALOG_ID_PREFIX = "alp-usr-";
+  /** Custom property storing the active plant style preset. */
+  public static final String PLANT_STYLE_PRESET_PROPERTY = "alp.plantStylePreset";
+  /** Untinted library watercolor wash ({@code fillColor == null}). */
+  public static final String PLANT_STYLE_PRESET_DEFAULT_WASH = "defaultWash";
+  /** Draft grayscale preset identifier. */
+  public static final String PLANT_STYLE_PRESET_DRAFT_GRAY = "draftGray";
+  /** Soft presentation preset identifier. */
+  public static final String PLANT_STYLE_PRESET_SOFT_GREEN = "softGreen";
+  /** Understory preset: soft-green wash at reduced opacity (SPIKE-47B). */
+  public static final String PLANT_STYLE_PRESET_UNDERSTORY = "understory";
+  /** Bundled plan wash opacity for {@link #PLANT_STYLE_PRESET_UNDERSTORY}. */
+  public static final float PLANT_STYLE_UNDERSTORY_OPACITY = 0.6f;
+  /** Epsilon for comparing plan wash opacity values. */
+  public static final float PLAN_FILL_OPACITY_EPSILON = 0.005f;
+  /** Display-only state when {@code fillColor} does not match a known preset. */
+  public static final String PLANT_STYLE_PRESET_CUSTOM = "custom";
+  /** Outline-only plan fill ({@link AlpColorSupport#TRANSPARENT_COLOR}). */
+  public static final String PLANT_STYLE_PRESET_NONE = "none";
+  /** Default custom plan-fill tint when unchecking Default wash in the inspector. */
+  public static final Integer DEFAULT_PLAN_FILL_TINT = Integer.valueOf(0xFF608040);
 
   private AlpPlantUtils() {
   }
@@ -30,7 +54,216 @@ public final class AlpPlantUtils {
       return false;
     }
     String catalogId = piece.getCatalogId();
-    return catalogId != null && catalogId.startsWith(PLANT_CATALOG_ID_PREFIX);
+    return catalogId != null
+        && (catalogId.startsWith(PLANT_CATALOG_ID_PREFIX)
+            || catalogId.startsWith(USER_PLANT_CATALOG_ID_PREFIX));
+  }
+
+  /**
+   * Returns the normalized style preset stored on a plant piece.
+   */
+  public static String getPlantStylePreset(HomePieceOfFurniture piece) {
+    if (!isPlant(piece)) {
+      return null;
+    }
+    return normalizePlantStylePreset(piece.getProperty(PLANT_STYLE_PRESET_PROPERTY));
+  }
+
+  /**
+   * Returns the normalized preset identifier stored on a piece.
+   */
+  public static String normalizePlantStylePreset(String preset) {
+    if (PLANT_STYLE_PRESET_DEFAULT_WASH.equals(preset)) {
+      return PLANT_STYLE_PRESET_DEFAULT_WASH;
+    } else if (PLANT_STYLE_PRESET_DRAFT_GRAY.equals(preset)) {
+      return PLANT_STYLE_PRESET_DRAFT_GRAY;
+    } else if (PLANT_STYLE_PRESET_SOFT_GREEN.equals(preset)) {
+      return PLANT_STYLE_PRESET_SOFT_GREEN;
+    } else if (PLANT_STYLE_PRESET_UNDERSTORY.equals(preset)) {
+      return PLANT_STYLE_PRESET_UNDERSTORY;
+    } else if (PLANT_STYLE_PRESET_NONE.equals(preset)) {
+      return PLANT_STYLE_PRESET_NONE;
+    } else if (PLANT_STYLE_PRESET_CUSTOM.equals(preset)) {
+      return PLANT_STYLE_PRESET_CUSTOM;
+    }
+    return PLANT_STYLE_PRESET_SOFT_GREEN;
+  }
+
+  /**
+   * Returns the display preset inferred from a plan fill color value.
+   */
+  public static String resolvePlantStylePresetDisplay(Integer fillColor) {
+    return resolvePlantStylePresetDisplay(fillColor, HomePieceOfFurniture.DEFAULT_PLAN_FILL_OPACITY);
+  }
+
+  /**
+   * Returns the display preset inferred from plan fill color and wash opacity (SPIKE-47B Hybrid).
+   */
+  public static String resolvePlantStylePresetDisplay(Integer fillColor, float planFillOpacity) {
+    if (AlpColorSupport.isPlanFillNone(fillColor)) {
+      return PLANT_STYLE_PRESET_NONE;
+    }
+    if (AlpColorSupport.isDefaultPlanWash(fillColor)) {
+      return PLANT_STYLE_PRESET_DEFAULT_WASH;
+    }
+    if (plantStyleFillColorsMatch(fillColor,
+        getPlantStylePresetFillColor(PLANT_STYLE_PRESET_DRAFT_GRAY))) {
+      if (planFillOpacitiesMatch(planFillOpacity, HomePieceOfFurniture.DEFAULT_PLAN_FILL_OPACITY)) {
+        return PLANT_STYLE_PRESET_DRAFT_GRAY;
+      }
+      return PLANT_STYLE_PRESET_CUSTOM;
+    }
+    if (plantStyleFillColorsMatch(fillColor,
+        getPlantStylePresetFillColor(PLANT_STYLE_PRESET_SOFT_GREEN))) {
+      if (planFillOpacitiesMatch(planFillOpacity, PLANT_STYLE_UNDERSTORY_OPACITY)) {
+        return PLANT_STYLE_PRESET_UNDERSTORY;
+      }
+      if (planFillOpacitiesMatch(planFillOpacity, HomePieceOfFurniture.DEFAULT_PLAN_FILL_OPACITY)) {
+        return PLANT_STYLE_PRESET_SOFT_GREEN;
+      }
+      return PLANT_STYLE_PRESET_CUSTOM;
+    }
+    return PLANT_STYLE_PRESET_CUSTOM;
+  }
+
+  /**
+   * Returns the display preset inferred from plan fill color and wash state.
+   * Honors a stored selectable preset when it still matches the piece (Hybrid SPIKE-47B).
+   */
+  public static String resolvePlantStylePresetDisplay(HomePieceOfFurniture piece) {
+    if (!isPlant(piece) || !piece.hasPlanIconFill()) {
+      return null;
+    }
+    Integer fillColor = piece.getFillColor();
+    float planFillOpacity = piece.getPlanFillOpacity();
+    String storedRaw = piece.getProperty(PLANT_STYLE_PRESET_PROPERTY);
+    if (storedRaw != null && storedRaw.length() > 0) {
+      if (PLANT_STYLE_PRESET_CUSTOM.equals(storedRaw)) {
+        return PLANT_STYLE_PRESET_CUSTOM;
+      }
+      String normalized = normalizePlantStylePreset(storedRaw);
+      if (isSelectablePlantStylePreset(normalized)
+          && plantStylePresetMatchesPiece(normalized, fillColor, planFillOpacity)) {
+        return normalized;
+      }
+      return PLANT_STYLE_PRESET_CUSTOM;
+    }
+    return resolvePlantStylePresetDisplay(fillColor, planFillOpacity);
+  }
+
+  /**
+   * Returns whether a selectable preset still matches fill color and opacity on a piece.
+   */
+  public static boolean plantStylePresetMatchesPiece(String preset, Integer fillColor,
+                                                     float planFillOpacity) {
+    if (preset == null) {
+      return false;
+    }
+    String normalized = normalizePlantStylePreset(preset);
+    if (PLANT_STYLE_PRESET_NONE.equals(normalized)) {
+      return AlpColorSupport.isPlanFillNone(fillColor);
+    }
+    if (PLANT_STYLE_PRESET_DEFAULT_WASH.equals(normalized)) {
+      return AlpColorSupport.isDefaultPlanWash(fillColor);
+    }
+    if (PLANT_STYLE_PRESET_DRAFT_GRAY.equals(normalized)) {
+      return plantStyleFillColorsMatch(fillColor,
+          getPlantStylePresetFillColor(PLANT_STYLE_PRESET_DRAFT_GRAY));
+    }
+    if (PLANT_STYLE_PRESET_SOFT_GREEN.equals(normalized)) {
+      return plantStyleFillColorsMatch(fillColor,
+          getPlantStylePresetFillColor(PLANT_STYLE_PRESET_SOFT_GREEN));
+    }
+    if (PLANT_STYLE_PRESET_UNDERSTORY.equals(normalized)) {
+      return plantStyleFillColorsMatch(fillColor,
+          getPlantStylePresetFillColor(PLANT_STYLE_PRESET_UNDERSTORY))
+          && planFillOpacitiesMatch(planFillOpacity, PLANT_STYLE_UNDERSTORY_OPACITY);
+    }
+    return false;
+  }
+
+  /**
+   * Returns the preset property to store after a manual opacity edit (Hybrid honesty).
+   */
+  public static String resolvePlantStylePresetPropertyAfterOpacityChange(
+      HomePieceOfFurniture piece, Integer fillColor, float planFillOpacity) {
+    if (piece != null) {
+      String storedRaw = piece.getProperty(PLANT_STYLE_PRESET_PROPERTY);
+      if (storedRaw != null && !PLANT_STYLE_PRESET_CUSTOM.equals(storedRaw)) {
+        String normalized = normalizePlantStylePreset(storedRaw);
+        if (PLANT_STYLE_PRESET_UNDERSTORY.equals(normalized)) {
+          if (planFillOpacitiesMatch(planFillOpacity, PLANT_STYLE_UNDERSTORY_OPACITY)
+              && plantStyleFillColorsMatch(fillColor,
+                  getPlantStylePresetFillColor(PLANT_STYLE_PRESET_UNDERSTORY))) {
+            return PLANT_STYLE_PRESET_UNDERSTORY;
+          }
+          return PLANT_STYLE_PRESET_CUSTOM;
+        }
+        if (isSelectablePlantStylePreset(normalized)
+            && plantStylePresetMatchesPiece(normalized, fillColor, planFillOpacity)) {
+          return normalized;
+        }
+      }
+    }
+    return resolvePlantStylePresetDisplay(fillColor, planFillOpacity);
+  }
+
+  /**
+   * Returns whether the preset can be chosen from the inspector dropdown.
+   */
+  public static boolean isSelectablePlantStylePreset(String preset) {
+    return PLANT_STYLE_PRESET_DEFAULT_WASH.equals(preset)
+        || PLANT_STYLE_PRESET_DRAFT_GRAY.equals(preset)
+        || PLANT_STYLE_PRESET_SOFT_GREEN.equals(preset)
+        || PLANT_STYLE_PRESET_UNDERSTORY.equals(preset)
+        || PLANT_STYLE_PRESET_NONE.equals(preset);
+  }
+
+  /**
+   * Returns bundled plan wash opacity for a selectable preset, or {@code null} to preserve current.
+   */
+  public static Float getPlantStylePresetAppliedOpacity(String preset) {
+    if (PLANT_STYLE_PRESET_UNDERSTORY.equals(normalizePlantStylePreset(preset))) {
+      return Float.valueOf(PLANT_STYLE_UNDERSTORY_OPACITY);
+    }
+    return null;
+  }
+
+  /**
+   * Returns the plan fill tint associated with a selectable preset.
+   */
+  public static Integer getPlantStylePresetFillColor(String preset) {
+    String normalizedPreset = normalizePlantStylePreset(preset);
+    if (PLANT_STYLE_PRESET_DRAFT_GRAY.equals(normalizedPreset)) {
+      return Integer.valueOf(0xFFA8A8A8);
+    } else if (PLANT_STYLE_PRESET_SOFT_GREEN.equals(normalizedPreset)
+        || PLANT_STYLE_PRESET_UNDERSTORY.equals(normalizedPreset)) {
+      return Integer.valueOf(0xFFA8C98B);
+    }
+    return null;
+  }
+
+  /**
+   * Returns the plan fill color to apply for a selectable preset choice.
+   */
+  public static Integer getPlantStylePresetAppliedFillColor(String preset) {
+    if (PLANT_STYLE_PRESET_DEFAULT_WASH.equals(preset)) {
+      return null;
+    } else if (PLANT_STYLE_PRESET_NONE.equals(preset)) {
+      return AlpColorSupport.TRANSPARENT_COLOR;
+    }
+    return getPlantStylePresetFillColor(preset);
+  }
+
+  private static boolean plantStyleFillColorsMatch(Integer fillColor, Integer presetFillColor) {
+    if (fillColor == null || presetFillColor == null) {
+      return false;
+    }
+    return (fillColor.intValue() & 0xFFFFFF) == (presetFillColor.intValue() & 0xFFFFFF);
+  }
+
+  private static boolean planFillOpacitiesMatch(float opacity, float expectedOpacity) {
+    return Math.abs(opacity - expectedOpacity) < PLAN_FILL_OPACITY_EPSILON;
   }
 
   /**
@@ -208,12 +441,7 @@ public final class AlpPlantUtils {
   }
 
   private static String getDisplayName(HomePieceOfFurniture piece) {
-    String name = piece.getName();
-    if (name != null && name.trim().length() > 0) {
-      return name.trim();
-    }
-    String catalogId = piece.getCatalogId();
-    return catalogId != null ? catalogId.trim() : "";
+    return AlpPlantMetadata.getScheduleName(piece);
   }
 
   private static String getReference(HomePieceOfFurniture piece) {

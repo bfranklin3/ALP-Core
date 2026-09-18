@@ -475,16 +475,13 @@ public class FurnitureTable extends JTable implements FurnitureView, Printable {
               && row >= 0) {
             Object columnId = getColumnModel().getColumn(column).getIdentifier();
             if (columnId == HomePieceOfFurniture.SortableProperty.VISIBLE) {
-              Component visibilityComponent = getCellRenderer(row, column).
-                  getTableCellRendererComponent(FurnitureTable.this, getValueAt(row, column), false, false, row, column);
-              if (visibilityComponent.isEnabled()) {
-                Rectangle cellRect = getCellRect(row, column, false);
-                // Center visibilityComponent in cell rect
-                visibilityComponent.setSize(visibilityComponent.getPreferredSize());
-                visibilityComponent.setLocation(cellRect.x + (cellRect.width - visibilityComponent.getWidth()) / 2,
-                        cellRect.y + (cellRect.height - visibilityComponent.getHeight()) / 2);
-                // Check if mouse point is exactly on the visibility component
-                isVisibleColumn = visibilityComponent.getBounds().contains(ev.getPoint());
+              Object piece = getValueAt(row, column);
+              if (piece instanceof HomePieceOfFurniture) {
+                Component visibilityComponent = getCellRenderer(row, column).
+                    getTableCellRendererComponent(FurnitureTable.this, piece, false, false, row, column);
+                if (visibilityComponent.isEnabled()) {
+                  isVisibleColumn = true;
+                }
               }
             } else if (columnId == HomePieceOfFurniture.SortableProperty.NAME) {
               TableCellRenderer cellRenderer = getCellRenderer(row, column);
@@ -503,7 +500,8 @@ public class FurnitureTable extends JTable implements FurnitureView, Printable {
               }
             }
             if (isVisibleColumn) {
-              controller.toggleSelectedFurnitureVisibility();
+              HomePieceOfFurniture piece = (HomePieceOfFurniture)getValueAt(row, column);
+              controller.toggleFurnitureVisibility(piece);
             } else if (isInformationIcon) {
               FurnitureTreeTableModel tableModel = (FurnitureTreeTableModel)getModel();
               String information = ((HomePieceOfFurniture)tableModel.getValueAt(row, 0)).getInformation();

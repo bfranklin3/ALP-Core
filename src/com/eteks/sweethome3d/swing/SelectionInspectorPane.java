@@ -12,6 +12,7 @@ package com.eteks.sweethome3d.swing;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -36,7 +37,9 @@ import java.text.DecimalFormat;
 import java.text.Format;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import java.text.MessageFormat;
 
@@ -57,6 +60,7 @@ import javax.swing.Icon;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
@@ -72,6 +76,10 @@ import javax.swing.event.DocumentListener;
 import com.eteks.sweethome3d.model.CollectionEvent;
 import com.eteks.sweethome3d.model.CollectionListener;
 import com.eteks.sweethome3d.model.DimensionLine;
+import com.eteks.sweethome3d.model.AlpPlantAreaFill;
+import com.eteks.sweethome3d.model.AlpPlantMetadata;
+import com.eteks.sweethome3d.model.AlpPlantUtils;
+import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomeTexture;
@@ -80,6 +88,7 @@ import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.LevelCategory;
 import com.eteks.sweethome3d.model.LevelPlantTakeoff;
 import com.eteks.sweethome3d.model.Library;
+import com.eteks.sweethome3d.model.ObjectProperty;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Selectable;
@@ -546,6 +555,9 @@ public class SelectionInspectorPane extends JPanel {
    * Enables only the active inspector card so tab order skips hidden panels.
    */
   private void updateInspectorPanelsEnabled() {
+    if (!this.showingRoomInspector) {
+      this.roomInspectorPanel.discardStaleControllerState();
+    }
     setInspectorCardEnabled(this.roomInspectorPanel, this.showingRoomInspector);
     setInspectorCardEnabled(this.polylineInspectorPanel, this.showingPolylineInspector);
     setInspectorCardEnabled(this.labelInspectorPanel, this.showingLabelInspector);
@@ -796,6 +808,10 @@ public class SelectionInspectorPane extends JPanel {
     private String                 nameFieldSyncedValue;
     private boolean                nameFieldUserEdited;
     private boolean                updatingFromController;
+    private Float                  lastRefreshedFloorOpacity;
+    private Float                  lastRefreshedOutlineThickness;
+    private static final float     OPACITY_REFRESH_EPSILON = 0.001f;
+    private static final float     OUTLINE_REFRESH_EPSILON = 0.01f;
 
     RoomInspectorPanel(Home home,
                        UserPreferences preferences,
@@ -886,7 +902,7 @@ public class SelectionInspectorPane extends JPanel {
               return;
             }
             roomController.setNameVisible(nameVisibleCheckBox.getValue());
-            applyRoomChanges();
+            applyRoomChanges(true, false, false, false, false, false);
           }
         });
 
@@ -903,7 +919,7 @@ public class SelectionInspectorPane extends JPanel {
               return;
             }
             roomController.setAreaVisible(areaVisibleCheckBox.getValue());
-            applyRoomChanges();
+            applyRoomChanges(false, true, false, false, false, false);
           }
         });
 
@@ -920,7 +936,7 @@ public class SelectionInspectorPane extends JPanel {
               pendingFloorTextureMode = false;
               roomController.setFloorColor(floorColorButton.getColor());
               roomController.setFloorPaint(RoomController.RoomPaint.COLORED);
-              applyRoomChanges();
+              applyRoomChanges(false, false, true, true, false, false);
               updateFloorOpacityEnabled();
             }
           });
@@ -943,7 +959,7 @@ public class SelectionInspectorPane extends JPanel {
               }
               pendingFloorTextureMode = false;
               roomController.setFloorPaint(RoomController.RoomPaint.COLORED);
-              applyRoomChanges();
+              applyRoomChanges(false, false, true, true, false, false);
               updateFloorPaintControlsVisibility();
             }
           });
@@ -959,7 +975,7 @@ public class SelectionInspectorPane extends JPanel {
               // them to their default paint, so wait until a texture is actually chosen
               if (roomController.getFloorTextureController().getTexture() != null) {
                 pendingFloorTextureMode = false;
-                applyRoomChanges();
+                applyRoomChanges(false, false, true, true, false, false);
               } else {
                 pendingFloorTextureMode = true;
               }
@@ -1041,7 +1057,7 @@ public class SelectionInspectorPane extends JPanel {
                   pendingFloorTextureMode = false;
                   roomController.setFloorPaint(RoomController.RoomPaint.TEXTURED);
                 }
-                applyRoomChanges();
+                applyRoomChanges(false, false, true, true, false, false);
               }
             });
       }
@@ -1062,10 +1078,15 @@ public class SelectionInspectorPane extends JPanel {
               return;
             }
             Number value = (Number)floorOpacitySpinnerModel.getValue();
-            roomController.setFloorOpacity(value != null
+            Float newOpacity = value != null
                 ? value.floatValue() / 100f
-                : null);
-            applyRoomChanges();
+                : null;
+            if (isSameSpinnerFloat(newOpacity, lastRefreshedFloorOpacity)) {
+              return;
+            }
+            lastRefreshedFloorOpacity = newOpacity;
+            roomController.setFloorOpacity(newOpacity);
+            applyRoomChanges(false, false, false, true, false, false);
           }
         });
 
@@ -1083,7 +1104,7 @@ public class SelectionInspectorPane extends JPanel {
                 return;
               }
               roomController.setSmoothed(smoothedCheckBox.getValue());
-              applyRoomChanges();
+              applyRoomChanges(false, false, false, false, true, false);
             }
           });
       }
@@ -1099,8 +1120,13 @@ public class SelectionInspectorPane extends JPanel {
             if (updatingFromController) {
               return;
             }
-            roomController.setOutlineThickness(outlineThicknessSpinnerModel.getLength());
-            applyRoomChanges();
+            Float newThickness = outlineThicknessSpinnerModel.getLength();
+            if (isSameSpinnerLength(newThickness, lastRefreshedOutlineThickness)) {
+              return;
+            }
+            lastRefreshedOutlineThickness = newThickness;
+            roomController.setOutlineThickness(newThickness);
+            applyRoomChanges(false, false, false, false, false, true);
           }
         });
 
@@ -1118,7 +1144,7 @@ public class SelectionInspectorPane extends JPanel {
             }
             roomController.setOutlineDashStyle(
                 (Polyline.DashStyle)outlineDashStyleComboBox.getSelectedItem());
-            applyRoomChanges();
+            applyRoomChanges(false, false, false, false, false, true);
           }
         });
 
@@ -1135,7 +1161,7 @@ public class SelectionInspectorPane extends JPanel {
                 return;
               }
               roomController.setOutlineColor(outlineColorButton.getColor());
-              applyRoomChanges();
+              applyRoomChanges(false, false, false, false, false, true);
             }
           });
     }
@@ -1398,6 +1424,8 @@ public class SelectionInspectorPane extends JPanel {
         this.floorOpacitySpinnerModel.setValue(floorOpacity != null
             ? floorOpacity * 100
             : null);
+        this.lastRefreshedFloorOpacity = floorOpacity;
+        syncSpinnerEditorFromModel(this.floorOpacitySpinner);
         updateFloorOpacityEnabled();
 
         if (this.smoothedCheckBox != null) {
@@ -1408,6 +1436,8 @@ public class SelectionInspectorPane extends JPanel {
         Float outlineThickness = this.roomController.getOutlineThickness();
         this.outlineThicknessSpinnerModel.setNullable(outlineThickness == null);
         this.outlineThicknessSpinnerModel.setLength(outlineThickness);
+        this.lastRefreshedOutlineThickness = outlineThickness;
+        syncSpinnerEditorFromModel(this.outlineThicknessSpinner);
 
         this.outlineDashStyleComboBox.setSelectedItem(this.roomController.getOutlineDashStyle());
 
@@ -1641,7 +1671,7 @@ public class SelectionInspectorPane extends JPanel {
       SelectionInspectorPane.this.suppressSelectionListener = true;
       try {
         this.home.setSelectedItems(new ArrayList<Selectable>(targetRooms));
-        applyRoomChanges();
+        applyRoomChanges(false, false, false, false, false, false);
         this.home.setSelectedItems(savedSelection);
       } finally {
         SelectionInspectorPane.this.suppressSelectionListener = false;
@@ -1699,16 +1729,96 @@ public class SelectionInspectorPane extends JPanel {
       return name;
     }
 
-    private void applyRoomChanges() {
+    private void applyRoomChanges(boolean applyNameVisible, boolean applyAreaVisible,
+                                  boolean applyFloorAppearance, boolean applyFloorOpacity,
+                                  boolean applySmoothed, boolean applyOutlineAppearance) {
       if (this.updatingFromController) {
         return;
       }
-      if (Home.getRoomsSubList(this.home.getSelectedItems()).isEmpty()) {
+      if (!SelectionInspectorPane.this.showingRoomInspector) {
         return;
       }
+      List<Selectable> selectedItems = this.home.getSelectedItems();
+      List<Room> rooms = Home.getRoomsSubList(selectedItems);
+      if (rooms.isEmpty() || rooms.size() != selectedItems.size()) {
+        return;
+      }
+      syncControllerRoomFieldsForModify(applyNameVisible, applyAreaVisible,
+          applyFloorAppearance, applyFloorOpacity, applySmoothed, applyOutlineAppearance);
       syncControllerNameForModify();
       this.roomController.modifyRooms();
       markNameFieldSynced();
+    }
+
+    /**
+     * Clears live-edit controller state when the room inspector is hidden so stale
+     * values cannot be applied to a later mixed or different selection.
+     */
+    void discardStaleControllerState() {
+      this.updatingFromController = true;
+      try {
+        syncControllerRoomFieldsForModify(false, false, false, false, false, false);
+        this.roomController.setName(null);
+      } finally {
+        this.updatingFromController = false;
+      }
+    }
+
+    private void syncControllerRoomFieldsForModify(boolean applyNameVisible,
+                                                   boolean applyAreaVisible,
+                                                   boolean applyFloorAppearance,
+                                                   boolean applyFloorOpacity,
+                                                   boolean applySmoothed,
+                                                   boolean applyOutlineAppearance) {
+      if (!applyNameVisible) {
+        this.roomController.setNameVisible(null);
+      }
+      if (!applyAreaVisible) {
+        this.roomController.setAreaVisible(null);
+      }
+      if (!applyFloorAppearance) {
+        this.roomController.setFloorPaint(null);
+        this.roomController.setFloorColor(null);
+        this.roomController.getFloorTextureController().setTexture(null);
+      }
+      if (!applyFloorOpacity) {
+        this.roomController.setFloorOpacity(null);
+      }
+      if (!applySmoothed) {
+        this.roomController.setSmoothed(null);
+      }
+      if (!applyOutlineAppearance) {
+        this.roomController.setOutlineThickness(null);
+        this.roomController.setOutlineDashStyle(null);
+        this.roomController.setOutlineColor(null);
+      }
+    }
+
+    private boolean isSameSpinnerFloat(Float a, Float b) {
+      if (a == null && b == null) {
+        return true;
+      }
+      if (a == null || b == null) {
+        return false;
+      }
+      return Math.abs(a.floatValue() - b.floatValue()) < OPACITY_REFRESH_EPSILON;
+    }
+
+    private boolean isSameSpinnerLength(Float a, Float b) {
+      if (a == null && b == null) {
+        return true;
+      }
+      if (a == null || b == null) {
+        return false;
+      }
+      return Math.abs(a.floatValue() - b.floatValue()) < OUTLINE_REFRESH_EPSILON;
+    }
+
+    private void syncSpinnerEditorFromModel(JSpinner spinner) {
+      JComponent editor = spinner.getEditor();
+      if (editor instanceof JSpinner.DefaultEditor) {
+        ((JSpinner.DefaultEditor)editor).getTextField().setValue(spinner.getValue());
+      }
     }
 
     private void markNameFieldSynced() {
@@ -2959,6 +3069,8 @@ public class SelectionInspectorPane extends JPanel {
     private JLabel                          summaryLabel;
     private JButton                         openFullEditorButton;
     private AutoCompleteTextField           nameTextField;
+    private NullableCheckBox                nameVisibleCheckBox;
+    private NullableCheckBox                planBoundsVisibleCheckBox;
     private JLabel                          widthLabel;
     private NullableSpinner                 widthSpinner;
     private NullableSpinner.NullableSpinnerLengthModel widthSpinnerModel;
@@ -2973,8 +3085,40 @@ public class SelectionInspectorPane extends JPanel {
     private NullableSpinner.NullableSpinnerNumberModel angleSpinnerModel;
     private JLabel                          colorLabel;
     private ColorButton                     colorButton;
+    private JPanel                          paintPanel;
+    private JPanel                          plantStylePanel;
+    private JLabel                          plantStyleLabel;
+    private JComboBox<String>               plantStyleComboBox;
+    private JPanel                          planFillPanel;
+    private JCheckBox                       defaultPlanFillColorCheckBox;
+    private ColorButton                     planFillColorButton;
+    private JLabel                          planFillOpacityLabel;
+    private NullableSpinner                 planFillOpacitySpinner;
+    private NullableSpinner.NullableSpinnerNumberModel planFillOpacitySpinnerModel;
+    private JLabel                          planFillOpacityHintLabel;
+    private JPanel                          plantAreaFillPanel;
+    private JLabel                          plantAreaFillParentLabel;
+    private JLabel                          plantAreaFillRecipeLabel;
+    private JLabel                          plantAreaFillVariationLabel;
+    private JButton                         selectParentAreaButton;
+    private JButton                         regenerateAreaFillButton;
+    private JButton                         detachFromAreaFillButton;
+    private JButton                         plantDetailsToggleButton;
+    private JPanel                          plantDetailsPanel;
+    private JLabel                          plantDetailsScheduleLabel;
+    private JLabel                          plantDetailsCommonLabel;
+    private JLabel                          plantDetailsBotanicalLabel;
+    private JLabel                          plantDetailsSpacingLabel;
+    private JLabel                          plantDetailsVariationLabel;
+    private boolean                         plantDetailsExpanded;
+    private String                          lastPlantDetailsKey;
+    private boolean                         updatingPlanFillPanel;
     private boolean                         nameFieldUserEdited;
     private boolean                         updatingFromController;
+    private Float                           lastRefreshedWidth;
+    private Float                           lastRefreshedDepth;
+    private Float                           lastRefreshedHeight;
+    private static final float              DIMENSION_REFRESH_EPSILON = 0.01f;
 
     FurnitureInspectorPanel(Home home,
                             UserPreferences preferences,
@@ -3002,6 +3146,7 @@ public class SelectionInspectorPane extends JPanel {
           public void actionPerformed(ActionEvent ev) {
             commitPendingEdits();
             homeController.getPlanController().modifySelectedFurniture();
+            refresh();
           }
         });
     }
@@ -3043,6 +3188,40 @@ public class SelectionInspectorPane extends JPanel {
           }
         });
 
+      this.nameVisibleCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(
+          this.preferences, SelectionInspectorPane.class, "nameVisibleCheckBox.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.nameVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "nameVisibleCheckBox.mnemonic")).getKeyCode());
+      }
+      this.nameVisibleCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            furnitureController.setNameVisible(nameVisibleCheckBox.getValue());
+            applyFurnitureChanges(false, false, false, true, false);
+          }
+        });
+
+      this.planBoundsVisibleCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(
+          this.preferences, SelectionInspectorPane.class, "planBoundsVisibleCheckBox.text"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.planBoundsVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "planBoundsVisibleCheckBox.mnemonic")).getKeyCode());
+      }
+      this.planBoundsVisibleCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            furnitureController.setPlanBoundsVisible(planBoundsVisibleCheckBox.getValue());
+            applyFurnitureChanges(false, false, false, false, true);
+          }
+        });
+
       this.widthLabel = new JLabel(SwingTools.getLocalizedLabelText(
           this.preferences, HomeFurniturePanel.class, "widthLabel.text", unitName));
       this.widthSpinnerModel = new NullableSpinner.NullableSpinnerLengthModel(
@@ -3053,8 +3232,13 @@ public class SelectionInspectorPane extends JPanel {
             if (updatingFromController) {
               return;
             }
-            furnitureController.setWidth(widthSpinnerModel.getLength());
-            applyFurnitureChanges(false, false);
+            Float newWidth = widthSpinnerModel.getLength();
+            if (isSameSpinnerLength(newWidth, lastRefreshedWidth)) {
+              return;
+            }
+            furnitureController.setWidth(newWidth);
+            lastRefreshedWidth = newWidth;
+            applyFurnitureChanges(false, false, true);
           }
         });
 
@@ -3068,8 +3252,13 @@ public class SelectionInspectorPane extends JPanel {
             if (updatingFromController) {
               return;
             }
-            furnitureController.setDepth(depthSpinnerModel.getLength());
-            applyFurnitureChanges(false, false);
+            Float newDepth = depthSpinnerModel.getLength();
+            if (isSameSpinnerLength(newDepth, lastRefreshedDepth)) {
+              return;
+            }
+            furnitureController.setDepth(newDepth);
+            lastRefreshedDepth = newDepth;
+            applyFurnitureChanges(false, false, true);
           }
         });
 
@@ -3083,8 +3272,13 @@ public class SelectionInspectorPane extends JPanel {
             if (updatingFromController) {
               return;
             }
-            furnitureController.setHeight(heightSpinnerModel.getLength());
-            applyFurnitureChanges(false, false);
+            Float newHeight = heightSpinnerModel.getLength();
+            if (isSameSpinnerLength(newHeight, lastRefreshedHeight)) {
+              return;
+            }
+            furnitureController.setHeight(newHeight);
+            lastRefreshedHeight = newHeight;
+            applyFurnitureChanges(false, false, true);
           }
         });
 
@@ -3104,7 +3298,7 @@ public class SelectionInspectorPane extends JPanel {
             } else {
               furnitureController.setAngle((float)Math.toRadians(value.doubleValue()));
             }
-            applyFurnitureChanges(false, false);
+            applyFurnitureChanges(false, false, false);
           }
         });
 
@@ -3123,6 +3317,173 @@ public class SelectionInspectorPane extends JPanel {
               applyFurnitureChanges(false, true);
             }
           });
+
+      this.plantStyleLabel = new JLabel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "plantStyleLabel.text"));
+      this.plantStyleComboBox = new JComboBox<String>(new String [] {
+          this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "plantStyleDefaultWash.text"),
+          this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "plantStyleSoftGreen.text"),
+          this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "plantStyleDraftGray.text"),
+          this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "plantStyleUnderstory.text"),
+          this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "plantStyleCustom.text"),
+          this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "plantStyleNone.text")
+      });
+      this.plantStyleComboBox.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            if (updatingFromController) {
+              return;
+            }
+            String selectedPreset = getSelectedPresetId();
+            if (selectedPreset != null
+                && AlpPlantUtils.isSelectablePlantStylePreset(selectedPreset)) {
+              applyPlantPresetChange(selectedPreset);
+            } else if (AlpPlantUtils.PLANT_STYLE_PRESET_CUSTOM.equals(selectedPreset)) {
+              refreshPlantAppearancePanels();
+            }
+          }
+        });
+
+      this.defaultPlanFillColorCheckBox = new JCheckBox(SwingTools.getLocalizedLabelText(
+          this.preferences, HomeFurniturePanel.class, "defaultPlanFillColorCheckBox.text"));
+      this.defaultPlanFillColorCheckBox.setToolTipText(this.preferences.getLocalizedString(
+          HomeFurniturePanel.class, "defaultPlanFillColorCheckBox.tooltip"));
+      this.defaultPlanFillColorCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController || updatingPlanFillPanel) {
+              return;
+            }
+            if (defaultPlanFillColorCheckBox.isSelected()) {
+              applyPlantFillAndPreset(null,
+                  AlpPlantUtils.PLANT_STYLE_PRESET_DEFAULT_WASH);
+            } else {
+              planFillColorButton.setEnabled(true);
+              Integer fillColor = furnitureController.getFillColor();
+              if (AlpColorSupport.isDefaultPlanWash(fillColor)) {
+                applyPlantFillAndPreset(AlpPlantUtils.DEFAULT_PLAN_FILL_TINT,
+                    AlpPlantUtils.PLANT_STYLE_PRESET_CUSTOM);
+              }
+            }
+          }
+        });
+      this.planFillColorButton = new ColorButton(this.preferences);
+      this.planFillColorButton.setNullColorAllowed(true);
+      this.planFillColorButton.setColorDialogTitle(this.preferences.getLocalizedString(
+          HomeFurniturePanel.class, "planFillColorDialog.title"));
+      this.planFillColorButton.setToolTipText(this.preferences.getLocalizedString(
+          HomeFurniturePanel.class, "planFillColorButton.tooltip"));
+      this.planFillColorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              if (updatingFromController || updatingPlanFillPanel) {
+                return;
+              }
+              Integer chosenColor = planFillColorButton.getColor();
+              if (AlpColorSupport.isPlanFillNone(chosenColor)) {
+                applyPlantFillAndPreset(AlpColorSupport.TRANSPARENT_COLOR,
+                    AlpPlantUtils.PLANT_STYLE_PRESET_NONE);
+              } else {
+                applyPlantFillAndPreset(chosenColor,
+                    resolvePlantStylePresetForController());
+              }
+            }
+          });
+      this.planFillOpacityLabel = new JLabel(SwingTools.getLocalizedLabelText(
+          this.preferences, HomeFurniturePanel.class, "planFillOpacityLabel.text", "%"));
+      this.planFillOpacitySpinnerModel = new NullableSpinner.NullableSpinnerNumberModel(
+          100f, 0f, 100f, 5f) {
+          @Override
+          Format getFormat() {
+            return new DecimalFormat("0.#");
+          }
+        };
+      this.planFillOpacitySpinner = new NullableSpinner(this.planFillOpacitySpinnerModel);
+      this.planFillOpacityHintLabel = new JLabel(this.preferences.getLocalizedString(
+          HomeFurniturePanel.class, "planFillOpacityHint.text"));
+      this.planFillOpacityHintLabel.setForeground(new Color(0x666666));
+      this.planFillOpacityHintLabel.setFont(this.planFillOpacityHintLabel.getFont().deriveFont(
+          this.planFillOpacityHintLabel.getFont().getSize2D() - 1f));
+      this.planFillOpacitySpinnerModel.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            if (updatingFromController || updatingPlanFillPanel) {
+              return;
+            }
+            Number value = (Number)planFillOpacitySpinnerModel.getValue();
+            applyPlanFillOpacityChange(value != null
+                ? value.floatValue() / 100f
+                : null);
+          }
+        });
+      this.home.addPropertyChangeListener(Home.Property.DRAFT_MODE,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              updatePlanFillOpacityEnabled();
+            }
+          });
+      createPlantInspectorPanels();
+    }
+
+    private void createPlantInspectorPanels() {
+      this.plantAreaFillParentLabel = new JLabel();
+      this.plantAreaFillRecipeLabel = new JLabel();
+      this.plantAreaFillVariationLabel = new JLabel();
+
+      this.selectParentAreaButton = new JButton(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "plantAreaFillSelectAreaButton.text"));
+      this.selectParentAreaButton.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            selectParentAreaForSelectedPlant();
+          }
+        });
+
+      this.regenerateAreaFillButton = new JButton(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "plantAreaFillRegenerateButton.text"));
+      this.regenerateAreaFillButton.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            regenerateAreaFillForSelectedPlant();
+          }
+        });
+
+      this.detachFromAreaFillButton = new JButton(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "plantAreaFillDetachButton.text"));
+      this.detachFromAreaFillButton.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            detachSelectedPlantFromAreaFill();
+          }
+        });
+
+      this.plantDetailsToggleButton = new JButton(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "plantDetailsShowButton.text"));
+      this.plantDetailsToggleButton.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent ev) {
+            plantDetailsExpanded = !plantDetailsExpanded;
+            updatePlantDetailsToggleLabel();
+            refreshPlantDetailsPanel();
+          }
+        });
+
+      this.plantDetailsScheduleLabel = createPlantDetailsValueLabel();
+      this.plantDetailsCommonLabel = createPlantDetailsValueLabel();
+      this.plantDetailsBotanicalLabel = createPlantDetailsValueLabel();
+      this.plantDetailsSpacingLabel = createPlantDetailsValueLabel();
+      this.plantDetailsVariationLabel = createPlantDetailsValueLabel();
+    }
+
+    private JLabel createPlantDetailsValueLabel() {
+      JLabel label = new JLabel();
+      label.setForeground(new Color(0x666666));
+      return label;
+    }
+
+    private void updatePlantDetailsToggleLabel() {
+      this.plantDetailsToggleButton.setText(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class,
+          this.plantDetailsExpanded ? "plantDetailsHideButton.text" : "plantDetailsShowButton.text"));
     }
 
     private void layoutFields() {
@@ -3151,6 +3512,12 @@ public class SelectionInspectorPane extends JPanel {
       namePanel.add(this.nameTextField, new GridBagConstraints(
           1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
+      namePanel.add(this.nameVisibleCheckBox, new GridBagConstraints(
+          0, 1, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      namePanel.add(this.planBoundsVisibleCheckBox, new GridBagConstraints(
+          0, 2, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
       fieldsPanel.add(namePanel, new GridBagConstraints(
           0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, fieldInsets, 0, 0));
@@ -3199,18 +3566,109 @@ public class SelectionInspectorPane extends JPanel {
           0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, fieldInsets, 0, 0));
 
-      JPanel paintPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+      this.paintPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
           HomeFurniturePanel.class, "colorAndTexturePanel.title"));
       configureInspectorFieldLabel(this.preferences, HomeFurniturePanel.class,
           "colorRadioButton.mnemonic", this.colorLabel, this.colorButton);
-      paintPanel.add(this.colorLabel, new GridBagConstraints(
+      this.paintPanel.add(this.colorLabel, new GridBagConstraints(
           0, 0, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
-      paintPanel.add(this.colorButton, new GridBagConstraints(
+      this.paintPanel.add(this.colorButton, new GridBagConstraints(
           1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
-      fieldsPanel.add(paintPanel, new GridBagConstraints(
-          0, row, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+      fieldsPanel.add(this.paintPanel, new GridBagConstraints(
+          0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
+
+      this.plantStylePanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "plantStylePanel.title"));
+      if (!OperatingSystem.isMacOSX()) {
+        this.plantStyleLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "plantStyleLabel.mnemonic")).getKeyCode());
+      }
+      this.plantStyleLabel.setLabelFor(this.plantStyleComboBox);
+      this.plantStylePanel.add(this.plantStyleLabel, new GridBagConstraints(
+          0, 0, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, standardGap), 0, 0));
+      this.plantStylePanel.add(this.plantStyleComboBox, new GridBagConstraints(
+          1, 0, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 10), 0, 0));
+      fieldsPanel.add(this.plantStylePanel, new GridBagConstraints(
+          0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, 0), 0, 0));
+
+      this.planFillPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          HomeFurniturePanel.class, "planFillPanel.title"));
+      this.planFillPanel.add(this.defaultPlanFillColorCheckBox, new GridBagConstraints(
+          0, 0, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, new Insets(0, 8, standardGap, 10), 0, 0));
+      this.planFillPanel.add(this.planFillColorButton, new GridBagConstraints(
+          0, 1, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      configureInspectorFieldLabel(this.preferences, HomeFurniturePanel.class,
+          "planFillOpacityLabel.mnemonic", this.planFillOpacityLabel, this.planFillOpacitySpinner);
+      this.planFillPanel.add(this.planFillOpacityLabel, new GridBagConstraints(
+          0, 2, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.HORIZONTAL, new Insets(standardGap, 8, 0, standardGap), 0, 0));
+      this.planFillPanel.add(this.planFillOpacitySpinner, new GridBagConstraints(
+          1, 2, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, 10), 0, 0));
+      this.planFillPanel.add(this.planFillOpacityHintLabel, new GridBagConstraints(
+          0, 3, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(standardGap / 2, 8, 0, 10), 0, 0));
+      fieldsPanel.add(this.planFillPanel, new GridBagConstraints(
+          0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, 0), 0, 0));
+
+      this.plantAreaFillPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "plantAreaFillPanel.title"));
+      int areaFillRow = 0;
+      this.plantAreaFillPanel.add(this.plantAreaFillParentLabel, new GridBagConstraints(
+          0, areaFillRow++, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, standardGap, 10), 0, 0));
+      this.plantAreaFillPanel.add(this.plantAreaFillRecipeLabel, new GridBagConstraints(
+          0, areaFillRow++, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, standardGap, 10), 0, 0));
+      this.plantAreaFillPanel.add(this.plantAreaFillVariationLabel, new GridBagConstraints(
+          0, areaFillRow++, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, standardGap, 10), 0, 0));
+      this.plantAreaFillPanel.add(this.selectParentAreaButton, new GridBagConstraints(
+          0, areaFillRow++, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, standardGap, 10), 0, 0));
+      this.plantAreaFillPanel.add(this.regenerateAreaFillButton, new GridBagConstraints(
+          0, areaFillRow++, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, standardGap, 10), 0, 0));
+      this.plantAreaFillPanel.add(this.detachFromAreaFillButton, new GridBagConstraints(
+          0, areaFillRow++, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, 0, 10), 0, 0));
+      fieldsPanel.add(this.plantAreaFillPanel, new GridBagConstraints(
+          0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, 0), 0, 0));
+
+      JPanel plantDetailsWrapper = new JPanel(new GridBagLayout());
+      plantDetailsWrapper.add(this.plantDetailsToggleButton, new GridBagConstraints(
+          0, 0, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, new Insets(standardGap, 0, standardGap, 0), 0, 0));
+      this.plantDetailsPanel = SwingTools.createTitledPanel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "plantDetailsPanel.title"));
+      int detailsRow = 0;
+      addPlantDetailsRow(this.plantDetailsPanel, detailsRow++,
+          "plantDetailsScheduleLabel.text", this.plantDetailsScheduleLabel);
+      addPlantDetailsRow(this.plantDetailsPanel, detailsRow++,
+          "plantDetailsCommonLabel.text", this.plantDetailsCommonLabel);
+      addPlantDetailsRow(this.plantDetailsPanel, detailsRow++,
+          "plantDetailsBotanicalLabel.text", this.plantDetailsBotanicalLabel);
+      addPlantDetailsRow(this.plantDetailsPanel, detailsRow++,
+          "plantDetailsSpacingLabel.text", this.plantDetailsSpacingLabel);
+      addPlantDetailsRow(this.plantDetailsPanel, detailsRow,
+          "plantDetailsVariationLabel.text", this.plantDetailsVariationLabel);
+      this.plantDetailsPanel.setVisible(false);
+      plantDetailsWrapper.add(this.plantDetailsPanel, new GridBagConstraints(
+          0, 1, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
+      fieldsPanel.add(plantDetailsWrapper, new GridBagConstraints(
+          0, row++, 1, 1, 1, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
       JPanel headerPanel = new JPanel(new GridBagLayout());
@@ -3239,17 +3697,29 @@ public class SelectionInspectorPane extends JPanel {
       try {
         this.furnitureController.refreshProperties();
 
+        this.nameVisibleCheckBox.setNullable(this.furnitureController.getNameVisible() == null);
+        this.nameVisibleCheckBox.setValue(this.furnitureController.getNameVisible());
+
+        this.planBoundsVisibleCheckBox.setNullable(this.furnitureController.getPlanBoundsVisible() == null);
+        this.planBoundsVisibleCheckBox.setValue(this.furnitureController.getPlanBoundsVisible());
+
         Float width = this.furnitureController.getWidth();
         this.widthSpinnerModel.setNullable(width == null);
         this.widthSpinnerModel.setLength(width);
+        syncSpinnerEditorFromModel(this.widthSpinner);
+        this.lastRefreshedWidth = width;
 
         Float depth = this.furnitureController.getDepth();
         this.depthSpinnerModel.setNullable(depth == null);
         this.depthSpinnerModel.setLength(depth);
+        syncSpinnerEditorFromModel(this.depthSpinner);
+        this.lastRefreshedDepth = depth;
 
         Float height = this.furnitureController.getHeight();
         this.heightSpinnerModel.setNullable(height == null);
         this.heightSpinnerModel.setLength(height);
+        syncSpinnerEditorFromModel(this.heightSpinner);
+        this.lastRefreshedHeight = height;
 
         Float angle = this.furnitureController.getAngle();
         this.angleSpinnerModel.setNullable(angle == null);
@@ -3266,10 +3736,366 @@ public class SelectionInspectorPane extends JPanel {
         this.depthSpinner.setEnabled(resizable);
         this.heightLabel.setEnabled(resizable);
         this.heightSpinner.setEnabled(resizable);
+        refreshPlantAppearancePanels();
+        refreshPlantAreaFillPanel();
+        refreshPlantDetailsPanel();
       } finally {
         this.updatingFromController = false;
       }
       syncNameFieldFromModel();
+    }
+
+    private void refreshPlantAppearancePanels() {
+      HomePieceOfFurniture selectedPlant = getSelectedSinglePlant();
+      boolean plantAppearanceVisible = selectedPlant != null && selectedPlant.hasPlanIconFill();
+      this.plantStylePanel.setVisible(plantAppearanceVisible);
+      this.planFillPanel.setVisible(plantAppearanceVisible);
+      this.paintPanel.setVisible(!plantAppearanceVisible);
+      this.openFullEditorButton.setVisible(selectedPlant == null || !plantAppearanceVisible);
+      if (plantAppearanceVisible) {
+        setSelectedPresetId(AlpPlantUtils.resolvePlantStylePresetDisplay(selectedPlant));
+        updatePlanFillPanelFromController();
+      }
+      revalidate();
+      repaint();
+    }
+
+    private void refreshPlantAreaFillPanel() {
+      HomePieceOfFurniture selectedPlant = getSelectedSinglePlant();
+      boolean visible = selectedPlant != null && AlpPlantAreaFill.isGeneratedPlant(selectedPlant);
+      this.plantAreaFillPanel.setVisible(visible);
+      if (!visible) {
+        return;
+      }
+      Room parentRoom = AlpPlantAreaFill.findParentRoom(this.home, selectedPlant);
+      AlpPlantAreaFill.Recipe recipe = parentRoom != null
+          ? AlpPlantAreaFill.getRecipe(parentRoom) : null;
+      String areaName = formatAreaName(parentRoom);
+      this.plantAreaFillParentLabel.setText(MessageFormat.format(
+          this.preferences.getLocalizedString(
+              SelectionInspectorPane.class, "plantAreaFillParentLabel.text"),
+          areaName));
+      if (recipe != null) {
+        String symbolName = resolveCatalogPlantName(recipe.getSymbolCatalogId());
+        String tightSuffix = recipe.isTightFill()
+            ? this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "plantAreaFillRecipeTightSuffix.text")
+            : "";
+        this.plantAreaFillRecipeLabel.setText(MessageFormat.format(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "plantAreaFillRecipeLabel.text"),
+            symbolName, formatLength(recipe.getSpacing()), tightSuffix));
+        this.plantAreaFillVariationLabel.setText(MessageFormat.format(
+            this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "plantAreaFillVariationLabel.text"),
+            Float.valueOf(recipe.getSizeVariationPercent())));
+      } else {
+        this.plantAreaFillRecipeLabel.setText(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "plantAreaFillRecipeMissing.text"));
+        this.plantAreaFillVariationLabel.setText("");
+      }
+      boolean hasParent = parentRoom != null && recipe != null;
+      this.selectParentAreaButton.setEnabled(parentRoom != null);
+      this.regenerateAreaFillButton.setEnabled(hasParent);
+      this.detachFromAreaFillButton.setEnabled(true);
+    }
+
+    private void refreshPlantDetailsPanel() {
+      HomePieceOfFurniture selectedPlant = getSelectedSinglePlant();
+      boolean plantSelected = selectedPlant != null;
+      this.plantDetailsToggleButton.setVisible(plantSelected);
+      if (!plantSelected) {
+        this.plantDetailsPanel.setVisible(false);
+        this.lastPlantDetailsKey = null;
+        return;
+      }
+      String plantKey = selectedPlant.getCatalogId() + "@" + System.identityHashCode(selectedPlant);
+      if (!plantKey.equals(this.lastPlantDetailsKey)) {
+        this.plantDetailsExpanded = false;
+        this.lastPlantDetailsKey = plantKey;
+      }
+      AlpPlantMetadata metadata = AlpPlantMetadata.fromPiece(selectedPlant);
+      if (metadata != null) {
+        setPlantDetailsValue(this.plantDetailsScheduleLabel, metadata.getScheduleName());
+        setPlantDetailsValue(this.plantDetailsCommonLabel, metadata.getCommonName());
+        setPlantDetailsValue(this.plantDetailsBotanicalLabel, metadata.getBotanicalName());
+        this.plantDetailsSpacingLabel.setText(formatLength(metadata.getDefaultSpacing()));
+        this.plantDetailsVariationLabel.setText(formatPlantVariationSummary(metadata));
+      } else {
+        setPlantDetailsValue(this.plantDetailsScheduleLabel, selectedPlant.getName());
+        setPlantDetailsValue(this.plantDetailsCommonLabel, null);
+        setPlantDetailsValue(this.plantDetailsBotanicalLabel, null);
+        this.plantDetailsSpacingLabel.setText("\u2014");
+        this.plantDetailsVariationLabel.setText("\u2014");
+      }
+      this.plantDetailsPanel.setVisible(this.plantDetailsExpanded);
+      updatePlantDetailsToggleLabel();
+    }
+
+    private void setPlantDetailsValue(JLabel valueLabel, String value) {
+      if (value == null || value.trim().length() == 0) {
+        valueLabel.setText("\u2014");
+      } else {
+        valueLabel.setText(value.trim());
+      }
+    }
+
+    private String formatPlantVariationSummary(AlpPlantMetadata metadata) {
+      StringBuilder summary = new StringBuilder();
+      if (metadata.isSymmetrical()) {
+        summary.append(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "plantDetailsSymmetrical.text"));
+      } else {
+        summary.append(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "plantDetailsAsymmetrical.text"));
+      }
+      if (metadata.isSupportsRandomRotation()) {
+        if (summary.length() > 0) {
+          summary.append(" \u00b7 ");
+        }
+        summary.append(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "plantDetailsRandomRotation.text"));
+      }
+      if (metadata.isSupportsRandomScale()) {
+        if (summary.length() > 0) {
+          summary.append(" \u00b7 ");
+        }
+        summary.append(this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "plantDetailsRandomScale.text"));
+      }
+      return summary.toString();
+    }
+
+    private String formatAreaName(Room room) {
+      if (room == null) {
+        return this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "plantAreaFillUnknownArea.text");
+      }
+      String name = room.getName();
+      if (name != null && name.trim().length() > 0) {
+        return name.trim();
+      }
+      return this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "summarySingleArea.title");
+    }
+
+    private String resolveCatalogPlantName(String catalogId) {
+      if (catalogId == null) {
+        return "";
+      }
+      CatalogPieceOfFurniture catalogPiece = this.preferences.getFurnitureCatalog()
+          .getPieceOfFurnitureWithId(catalogId);
+      if (catalogPiece != null && catalogPiece.getName() != null) {
+        return catalogPiece.getName().trim();
+      }
+      return catalogId.trim();
+    }
+
+    private String formatLength(float lengthInCentimeter) {
+      return this.preferences.getLengthUnit().getFormat().format(lengthInCentimeter);
+    }
+
+    private void addPlantDetailsRow(JPanel panel, int row, String labelKey, JLabel valueLabel) {
+      JLabel label = new JLabel(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, labelKey));
+      int standardGap = Math.round(5 * SwingTools.getResolutionScale());
+      panel.add(label, new GridBagConstraints(
+          0, row, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 8, standardGap, 8), 0, 0));
+      panel.add(valueLabel, new GridBagConstraints(
+          1, row, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 10), 0, 0));
+    }
+
+    private void selectParentAreaForSelectedPlant() {
+      HomePieceOfFurniture plant = getSelectedSinglePlant();
+      if (plant == null) {
+        return;
+      }
+      Room parentRoom = AlpPlantAreaFill.findParentRoom(this.home, plant);
+      if (parentRoom != null) {
+        this.home.setSelectedItems(Arrays.asList(parentRoom));
+      }
+    }
+
+    private void regenerateAreaFillForSelectedPlant() {
+      HomePieceOfFurniture plant = getSelectedSinglePlant();
+      if (plant == null) {
+        return;
+      }
+      Room parentRoom = AlpPlantAreaFill.findParentRoom(this.home, plant);
+      if (parentRoom == null) {
+        return;
+      }
+      AlpPlantAreaFillDialog dialog = new AlpPlantAreaFillDialog(
+          this.preferences, parentRoom, this.preferences.getFurnitureCatalog(),
+          this.homeController.getFurnitureController(), plant, true);
+      AlpPlantAreaFill.Recipe recipe = dialog.showDialog(this);
+      if (recipe != null) {
+        this.homeController.applyPlantAreaFill(parentRoom, recipe);
+        refresh();
+      }
+    }
+
+    private void detachSelectedPlantFromAreaFill() {
+      HomePieceOfFurniture plant = getSelectedSinglePlant();
+      if (plant == null || !AlpPlantAreaFill.isGeneratedPlant(plant)) {
+        return;
+      }
+      syncControllerFurnitureFieldsForModify(false, false);
+      Map<ObjectProperty, Object> additionalProperties = new LinkedHashMap<ObjectProperty, Object>();
+      additionalProperties.put(
+          new ObjectProperty(AlpPlantAreaFill.PLANT_FILL_ID, ObjectProperty.Type.STRING), null);
+      additionalProperties.put(
+          new ObjectProperty(AlpPlantAreaFill.PLANT_FILL_GENERATED, ObjectProperty.Type.STRING), null);
+      this.furnitureController.setAdditionalProperties(additionalProperties);
+      this.furnitureController.modifyFurniture();
+      this.furnitureController.setAdditionalProperties(null);
+      refresh();
+    }
+
+    private void updatePlanFillPanelFromController() {
+      this.updatingPlanFillPanel = true;
+      try {
+        Integer fillColor = this.furnitureController.getFillColor();
+        boolean defaultWash = AlpColorSupport.isDefaultPlanWash(fillColor);
+        this.defaultPlanFillColorCheckBox.setSelected(defaultWash);
+        this.planFillColorButton.setEnabled(!defaultWash);
+        if (defaultWash) {
+          this.planFillColorButton.setColor(AlpPlantUtils.DEFAULT_PLAN_FILL_TINT);
+        } else if (AlpColorSupport.isPlanFillNone(fillColor)) {
+          this.planFillColorButton.setColor(AlpColorSupport.TRANSPARENT_COLOR);
+        } else {
+          this.planFillColorButton.setColor(fillColor);
+        }
+        Float planFillOpacity = this.furnitureController.getPlanFillOpacity();
+        this.planFillOpacitySpinnerModel.setNullable(planFillOpacity == null);
+        this.planFillOpacitySpinnerModel.setValue(planFillOpacity != null
+            ? planFillOpacity * 100
+            : null);
+        updatePlanFillOpacityEnabled();
+      } finally {
+        this.updatingPlanFillPanel = false;
+      }
+    }
+
+    private void updatePlanFillOpacityEnabled() {
+      Integer fillColor = this.furnitureController.getFillColor();
+      boolean transparentFill = AlpColorSupport.isPlanFillNone(fillColor);
+      boolean draftMode = this.home.isDraftMode();
+      boolean enabled = !transparentFill && !draftMode;
+      this.planFillOpacitySpinner.setEnabled(enabled);
+      this.planFillOpacityLabel.setEnabled(enabled);
+      this.planFillOpacityHintLabel.setEnabled(enabled);
+    }
+
+    private void applyPlanFillOpacityChange(Float planFillOpacity) {
+      if (getSelectedSinglePlant() == null || planFillOpacity == null) {
+        return;
+      }
+      syncControllerFurnitureFieldsForModify(false, false);
+      clearControllerDimensions();
+      this.furnitureController.setPlanFillOpacity(planFillOpacity);
+      Integer fillColor = this.furnitureController.getFillColor();
+      Map<ObjectProperty, Object> additionalProperties = new LinkedHashMap<ObjectProperty, Object>();
+      additionalProperties.put(
+          new ObjectProperty(AlpPlantUtils.PLANT_STYLE_PRESET_PROPERTY, ObjectProperty.Type.STRING),
+          AlpPlantUtils.resolvePlantStylePresetPropertyAfterOpacityChange(
+              getSelectedSinglePlant(), fillColor, planFillOpacity.floatValue()));
+      this.furnitureController.setAdditionalProperties(additionalProperties);
+      this.furnitureController.modifyFurniture();
+      this.furnitureController.setAdditionalProperties(null);
+      refresh();
+    }
+
+    private String resolvePlantStylePresetForController() {
+      Integer fillColor = this.furnitureController.getFillColor();
+      Float planFillOpacity = this.furnitureController.getPlanFillOpacity();
+      return AlpPlantUtils.resolvePlantStylePresetDisplay(fillColor,
+          planFillOpacity != null
+              ? planFillOpacity.floatValue()
+              : HomePieceOfFurniture.DEFAULT_PLAN_FILL_OPACITY);
+    }
+
+    private HomePieceOfFurniture getSelectedSinglePlant() {
+      List<HomePieceOfFurniture> furniture = Home.getFurnitureSubList(this.home.getSelectedItems());
+      if (furniture.size() != 1) {
+        return null;
+      }
+      HomePieceOfFurniture piece = furniture.get(0);
+      return AlpPlantUtils.isPlant(piece) ? piece : null;
+    }
+
+    private String getSelectedPresetId() {
+      switch (this.plantStyleComboBox.getSelectedIndex()) {
+        case 0 :
+          return AlpPlantUtils.PLANT_STYLE_PRESET_DEFAULT_WASH;
+        case 1 :
+          return AlpPlantUtils.PLANT_STYLE_PRESET_SOFT_GREEN;
+        case 2 :
+          return AlpPlantUtils.PLANT_STYLE_PRESET_DRAFT_GRAY;
+        case 3 :
+          return AlpPlantUtils.PLANT_STYLE_PRESET_UNDERSTORY;
+        case 4 :
+          return AlpPlantUtils.PLANT_STYLE_PRESET_CUSTOM;
+        case 5 :
+          return AlpPlantUtils.PLANT_STYLE_PRESET_NONE;
+        default :
+          return null;
+      }
+    }
+
+    private void setSelectedPresetId(String presetId) {
+      String displayPreset = presetId != null
+          ? AlpPlantUtils.normalizePlantStylePreset(presetId)
+          : AlpPlantUtils.PLANT_STYLE_PRESET_SOFT_GREEN;
+      if (AlpPlantUtils.PLANT_STYLE_PRESET_DEFAULT_WASH.equals(displayPreset)) {
+        this.plantStyleComboBox.setSelectedIndex(0);
+      } else if (AlpPlantUtils.PLANT_STYLE_PRESET_SOFT_GREEN.equals(displayPreset)) {
+        this.plantStyleComboBox.setSelectedIndex(1);
+      } else if (AlpPlantUtils.PLANT_STYLE_PRESET_DRAFT_GRAY.equals(displayPreset)) {
+        this.plantStyleComboBox.setSelectedIndex(2);
+      } else if (AlpPlantUtils.PLANT_STYLE_PRESET_UNDERSTORY.equals(displayPreset)) {
+        this.plantStyleComboBox.setSelectedIndex(3);
+      } else if (AlpPlantUtils.PLANT_STYLE_PRESET_NONE.equals(displayPreset)) {
+        this.plantStyleComboBox.setSelectedIndex(5);
+      } else if (AlpPlantUtils.PLANT_STYLE_PRESET_CUSTOM.equals(displayPreset)) {
+        this.plantStyleComboBox.setSelectedIndex(4);
+      } else {
+        this.plantStyleComboBox.setSelectedIndex(1);
+      }
+    }
+
+    private void applyPlantPresetChange(String presetId) {
+      applyPlantFillAndPreset(
+          AlpPlantUtils.getPlantStylePresetAppliedFillColor(presetId),
+          presetId,
+          AlpPlantUtils.getPlantStylePresetAppliedOpacity(presetId));
+    }
+
+    private void applyPlantFillAndPreset(Integer fillColor, String presetProperty) {
+      applyPlantFillAndPreset(fillColor, presetProperty, null);
+    }
+
+    private void applyPlantFillAndPreset(Integer fillColor, String presetProperty,
+                                         Float planFillOpacity) {
+      if (getSelectedSinglePlant() == null) {
+        return;
+      }
+      syncControllerFurnitureFieldsForModify(false, false);
+      clearControllerDimensions();
+      this.furnitureController.setFillColor(fillColor);
+      if (planFillOpacity != null) {
+        this.furnitureController.setPlanFillOpacity(planFillOpacity);
+      }
+      Map<ObjectProperty, Object> additionalProperties = new LinkedHashMap<ObjectProperty, Object>();
+      additionalProperties.put(
+          new ObjectProperty(AlpPlantUtils.PLANT_STYLE_PRESET_PROPERTY, ObjectProperty.Type.STRING),
+          presetProperty);
+      this.furnitureController.setAdditionalProperties(additionalProperties);
+      this.furnitureController.modifyFurniture();
+      this.furnitureController.setAdditionalProperties(null);
+      refresh();
     }
 
     void syncNameFieldFromModel() {
@@ -3308,28 +4134,84 @@ public class SelectionInspectorPane extends JPanel {
     private void updateSelectionSummary() {
       List<HomePieceOfFurniture> furniture = Home.getFurnitureSubList(this.home.getSelectedItems());
       String title;
+      String subtitle;
       if (furniture.size() == 1) {
         HomePieceOfFurniture piece = furniture.get(0);
-        String name = piece.getName();
-        if (name != null && name.trim().length() > 0) {
+        if (AlpPlantUtils.isPlant(piece)) {
+          AlpPlantMetadata metadata = AlpPlantMetadata.fromPiece(piece);
+          String displayName = metadata != null ? metadata.getDisplayName() : piece.getName();
+          if (displayName == null || displayName.trim().length() == 0) {
+            displayName = piece.getCatalogId() != null ? piece.getCatalogId() : "";
+          }
           title = MessageFormat.format(this.preferences.getLocalizedString(
-              SelectionInspectorPane.class, "summarySingleFurnitureNamed.title"), name.trim());
+              SelectionInspectorPane.class, "summarySinglePlantNamed.title"), displayName.trim());
+          subtitle = buildPlantIdentitySubtitle(piece, metadata);
         } else {
-          title = this.preferences.getLocalizedString(
-              SelectionInspectorPane.class, "summarySingleFurniture.title");
+          String name = piece.getName();
+          if (name != null && name.trim().length() > 0) {
+            title = MessageFormat.format(this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "summarySingleFurnitureNamed.title"), name.trim());
+          } else {
+            title = this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "summarySingleFurniture.title");
+          }
+          String levelName = getCommonLevelName(furniture);
+          subtitle = levelName != null
+              ? MessageFormat.format(this.preferences.getLocalizedString(
+                  SelectionInspectorPane.class, "summaryLayer.text"), levelName)
+              : this.preferences.getLocalizedString(
+                  SelectionInspectorPane.class, "summaryMixedLevels.text");
         }
       } else {
         title = MessageFormat.format(this.preferences.getLocalizedString(
             SelectionInspectorPane.class, "summaryMultipleFurniture.title"), furniture.size());
+        String levelName = getCommonLevelName(furniture);
+        subtitle = levelName != null
+            ? MessageFormat.format(this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "summaryLayer.text"), levelName)
+            : this.preferences.getLocalizedString(
+                SelectionInspectorPane.class, "summaryMixedLevels.text");
       }
-
-      String levelName = getCommonLevelName(furniture);
-      String subtitle = levelName != null
-          ? MessageFormat.format(this.preferences.getLocalizedString(
-              SelectionInspectorPane.class, "summaryLayer.text"), levelName)
-          : this.preferences.getLocalizedString(
-              SelectionInspectorPane.class, "summaryMixedLevels.text");
       AlpInspectorStyles.applySummaryText(this.summaryLabel, title, subtitle);
+    }
+
+    private String buildPlantIdentitySubtitle(HomePieceOfFurniture piece, AlpPlantMetadata metadata) {
+      String scheduleName = metadata != null ? metadata.getScheduleName() : piece.getName();
+      if (scheduleName == null || scheduleName.trim().length() == 0) {
+        scheduleName = this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "plantDetailsUnknown.text");
+      }
+      String category = resolvePlantCategoryName(piece.getCatalogId());
+      String levelName = getCommonLevelName(Home.getFurnitureSubList(this.home.getSelectedItems()));
+      if (levelName == null) {
+        levelName = this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "summaryMixedLevels.text");
+      }
+      String catalogId = piece.getCatalogId();
+      if (catalogId == null || catalogId.trim().length() == 0) {
+        catalogId = this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "plantDetailsUnknown.text");
+      }
+      return MessageFormat.format(this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "summaryPlantIdentity.text"),
+          scheduleName.trim(), category, catalogId.trim(), levelName);
+    }
+
+    private String resolvePlantCategoryName(String catalogId) {
+      if (catalogId == null) {
+        return this.preferences.getLocalizedString(
+            SelectionInspectorPane.class, "plantDetailsUnknown.text");
+      }
+      CatalogPieceOfFurniture catalogPiece = this.preferences.getFurnitureCatalog()
+          .getPieceOfFurnitureWithId(catalogId);
+      if (catalogPiece != null && catalogPiece.getCategory() != null) {
+        String categoryName = catalogPiece.getCategory().getName();
+        if (categoryName != null && categoryName.trim().length() > 0) {
+          return categoryName.trim();
+        }
+      }
+      return this.preferences.getLocalizedString(
+          SelectionInspectorPane.class, "plantDetailsUnknown.text");
     }
 
     private String getCommonLevelName(List<HomePieceOfFurniture> furniture) {
@@ -3434,16 +4316,69 @@ public class SelectionInspectorPane extends JPanel {
     }
 
     private void applyFurnitureChanges(boolean applyName, boolean applyColor) {
+      applyFurnitureChanges(applyName, applyColor, false);
+    }
+
+    private void applyFurnitureChanges(boolean applyName, boolean applyColor,
+                                       boolean applyDimensions) {
+      applyFurnitureChanges(applyName, applyColor, applyDimensions, false, false);
+    }
+
+    private void applyFurnitureChanges(boolean applyName, boolean applyColor,
+                                       boolean applyDimensions,
+                                       boolean applyNameVisible, boolean applyPlanBoundsVisible) {
       if (this.updatingFromController) {
         return;
       }
-      if (Home.getFurnitureSubList(this.home.getSelectedItems()).isEmpty()) {
+      if (!SelectionInspectorPane.this.showingFurnitureInspector) {
         return;
       }
+      List<Selectable> selectedItems = this.home.getSelectedItems();
+      List<HomePieceOfFurniture> furniture = Home.getFurnitureSubList(selectedItems);
+      if (furniture.isEmpty() || furniture.size() != selectedItems.size()) {
+        return;
+      }
+      if (!applyDimensions) {
+        clearControllerDimensions();
+      }
+      syncControllerFurnitureDisplayFieldsForModify(applyNameVisible, applyPlanBoundsVisible);
       syncControllerFurnitureFieldsForModify(applyName, applyColor);
       this.furnitureController.modifyFurniture();
       if (applyName) {
         markNameFieldSynced();
+      }
+    }
+
+    private void syncControllerFurnitureDisplayFieldsForModify(boolean applyNameVisible,
+                                                               boolean applyPlanBoundsVisible) {
+      if (!applyNameVisible) {
+        this.furnitureController.setNameVisible(null);
+      }
+      if (!applyPlanBoundsVisible) {
+        this.furnitureController.setPlanBoundsVisible(null);
+      }
+    }
+
+    private void clearControllerDimensions() {
+      this.furnitureController.setWidth(null);
+      this.furnitureController.setDepth(null);
+      this.furnitureController.setHeight(null);
+    }
+
+    private boolean isSameSpinnerLength(Float a, Float b) {
+      if (a == null && b == null) {
+        return true;
+      }
+      if (a == null || b == null) {
+        return false;
+      }
+      return Math.abs(a.floatValue() - b.floatValue()) < DIMENSION_REFRESH_EPSILON;
+    }
+
+    private void syncSpinnerEditorFromModel(JSpinner spinner) {
+      JComponent editor = spinner.getEditor();
+      if (editor instanceof JSpinner.DefaultEditor) {
+        ((JSpinner.DefaultEditor)editor).getTextField().setValue(spinner.getValue());
       }
     }
 

@@ -43,7 +43,7 @@ public class LayerItemsDeckPanel extends JPanel {
     AlpCatalogStyles.applyWorkspacePanel(this);
     setBorder(BorderFactory.createEmptyBorder(0, AlpInspectorStyles.scale(4), 0, AlpInspectorStyles.scale(4)));
 
-    this.furnitureTable = new FurnitureTable(home, preferences, null);
+    this.furnitureTable = new FurnitureTable(home, preferences, controller.getFurnitureController());
     this.furnitureTable.setFurnitureFilter(createLevelFilter());
     addRowSelectListener(this.furnitureTable, true);
 

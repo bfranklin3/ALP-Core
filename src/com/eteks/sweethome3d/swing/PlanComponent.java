@@ -36,6 +36,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Image;
 import java.awt.Insets;
 import java.awt.KeyEventPostProcessor;
 import java.awt.KeyboardFocusManager;
@@ -793,9 +794,12 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
           } else if (furnitureTopViewIconKeys != null
                       && (HomePieceOfFurniture.Property.PLAN_ICON.name().equals(ev.getPropertyName())
                           || HomePieceOfFurniture.Property.COLOR.name().equals(ev.getPropertyName())
+                          || HomePieceOfFurniture.Property.FILL_COLOR.name().equals(ev.getPropertyName())
+                          || HomePieceOfFurniture.Property.PLAN_FILL_OPACITY.name().equals(ev.getPropertyName())
                           || HomePieceOfFurniture.Property.TEXTURE.name().equals(ev.getPropertyName())
                           || HomePieceOfFurniture.Property.MODEL_MATERIALS.name().equals(ev.getPropertyName())
-                          || HomePieceOfFurniture.Property.SHININESS.name().equals(ev.getPropertyName()))) {
+                          || HomePieceOfFurniture.Property.SHININESS.name().equals(ev.getPropertyName())
+                          || HomePieceOfFurniture.PLAN_ICON_FILL_PROPERTY.equals(ev.getPropertyName()))) {
             // From version 5.2, these changes can happen only for individual pieces because groups
             // can't have their own color, texture, materials and shininess anymore
             furnitureTopViewIconKeys.remove((HomePieceOfFurniture)ev.getSource());
@@ -4379,7 +4383,8 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
                 paintPieceOfFurnitureTop(g2D, piece, pieceShape2D, pieceBorderStroke, planScale,
                     backgroundColor, foregroundColor, paintMode);
               }
-              if (paintMode == PaintMode.PAINT) {
+              if (paintMode == PaintMode.PAINT
+                  && piece.isPlanBoundsVisible()) {
                 // Draw selection outline rectangle
                 g2D.setStroke(pieceBorderStroke);
                 g2D.setPaint(furnitureOutlineColor);
@@ -4396,7 +4401,8 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
               g2D.setStroke(pieceBorderStroke);
               g2D.draw(pieceShape2D);
               if (piece instanceof HomeDoorOrWindow
-                  && paintMode == PaintMode.PAINT) {
+                  && paintMode == PaintMode.PAINT
+                  && piece.isPlanBoundsVisible()) {
                 // Draw outline rectangle
                 g2D.setPaint(furnitureOutlineColor);
                 g2D.draw(pieceShape);
@@ -4766,18 +4772,30 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       this.furnitureTopViewIconKeys = new WeakHashMap<HomePieceOfFurniture, HomePieceOfFurnitureTopViewIconKey>();
       this.furnitureTopViewIconsCache = new WeakHashMap<HomePieceOfFurnitureTopViewIconKey, PieceOfFurnitureTopViewIcon>();
     }
-    Content planIconContent = getPlanIconContentForPaint(piece, paintMode);
+    Content planIconFill = piece.getContentProperty(HomePieceOfFurniture.PLAN_ICON_FILL_PROPERTY);
+    Content planIconContent;
+    if (!isDraftMode(paintMode)
+        && planIconFill != null
+        && piece.getPlanIcon() != null) {
+      planIconContent = piece.getPlanIcon();
+    } else {
+      planIconContent = getPlanIconContentForPaint(piece, paintMode);
+    }
     HomePieceOfFurnitureTopViewIconKey topViewIconKey = this.furnitureTopViewIconKeys.get(piece);
     PieceOfFurnitureTopViewIcon icon;
     if (topViewIconKey == null) {
-      topViewIconKey = new HomePieceOfFurnitureTopViewIconKey(piece.clone(), planIconContent);
+      topViewIconKey = new HomePieceOfFurnitureTopViewIconKey(piece.clone(), planIconContent, planIconFill);
       icon = this.furnitureTopViewIconsCache.get(topViewIconKey);
       if (icon == null
           || icon.isWaitIcon()
              && paintMode != PaintMode.PAINT) {
         PlanComponent waitingComponent = paintMode == PaintMode.PAINT ? this : null;
-        // Prefer use plan icon if it exists
-        if (planIconContent != null) {
+        if (!isDraftMode(paintMode)
+            && planIconFill != null
+            && piece.getPlanIcon() != null
+            && !AlpColorSupport.isPlanFillNone(piece.getFillColor())) {
+          icon = new PieceOfFurnitureLayeredPlanIcon(piece, piece.getPlanIcon(), planIconFill, waitingComponent);
+        } else if (planIconContent != null) {
           icon = new PieceOfFurniturePlanIcon(piece, planIconContent, waitingComponent);
         } else {
           icon = new PieceOfFurnitureModelIcon(piece, this.object3dFactory, waitingComponent, this.preferences.getFurnitureModelIconSize());
@@ -6974,6 +6992,112 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
   }
 
   /**
+   * A proxy for layered plan icons: tinted wash fill under black line art (SPIKE-28).
+   */
+  private static class PieceOfFurnitureLayeredPlanIcon extends PieceOfFurnitureTopViewIcon {
+    private final Icon    fillIcon;
+    private final Icon    lineIcon;
+    private final Integer fillColor;
+    private final float   planFillOpacity;
+    private boolean       composited;
+
+    public PieceOfFurnitureLayeredPlanIcon(final HomePieceOfFurniture piece,
+                                           final Content lineContent,
+                                           final Content fillContent,
+                                           final Component waitingComponent) {
+      super(IconManager.getInstance().getIcon(lineContent, waitingComponent));
+      this.lineIcon = IconManager.getInstance().getIcon(lineContent, waitingComponent);
+      this.fillIcon = IconManager.getInstance().getIcon(fillContent, waitingComponent);
+      this.fillColor = piece.getFillColor();
+      this.planFillOpacity = piece.getPlanFillOpacity();
+    }
+
+    @Override
+    public boolean isWaitIcon() {
+      return super.isWaitIcon()
+          || IconManager.getInstance().isWaitIcon(this.fillIcon);
+    }
+
+    @Override
+    public boolean isErrorIcon() {
+      return super.isErrorIcon()
+          || IconManager.getInstance().isErrorIcon(this.fillIcon);
+    }
+
+    @Override
+    public void paintIcon(Component c, Graphics g, int x, int y) {
+      if (!isWaitIcon()
+          && !isErrorIcon()
+          && !this.composited) {
+        compositeIcon(c);
+        this.composited = true;
+      }
+      super.paintIcon(c, g, x, y);
+    }
+
+    private void compositeIcon(Component c) {
+      int width = Math.max(this.lineIcon.getIconWidth(), this.fillIcon.getIconWidth());
+      int height = Math.max(this.lineIcon.getIconHeight(), this.fillIcon.getIconHeight());
+      BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D imageGraphics = (Graphics2D)image.getGraphics();
+      imageGraphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+      int fillX = (width - this.fillIcon.getIconWidth()) / 2;
+      int fillY = (height - this.fillIcon.getIconHeight()) / 2;
+      int lineX = (width - this.lineIcon.getIconWidth()) / 2;
+      int lineY = (height - this.lineIcon.getIconHeight()) / 2;
+      if (!AlpColorSupport.isPlanFillNone(this.fillColor)) {
+        Composite oldComposite = null;
+        if (this.planFillOpacity < 1f) {
+          oldComposite = imageGraphics.getComposite();
+          imageGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, this.planFillOpacity));
+        }
+        paintIconToImage(c, this.fillIcon, imageGraphics, fillX, fillY, this.fillColor);
+        if (oldComposite != null) {
+          imageGraphics.setComposite(oldComposite);
+        }
+      }
+      this.lineIcon.paintIcon(c, imageGraphics, lineX, lineY);
+      imageGraphics.dispose();
+      setIcon(new ImageIcon(image));
+    }
+
+    private static void paintIconToImage(Component c, Icon icon, Graphics2D g, int x, int y, Integer tintColor) {
+      if (tintColor == null) {
+        icon.paintIcon(c, g, x, y);
+        return;
+      }
+      BufferedImage iconImage = new BufferedImage(icon.getIconWidth(), icon.getIconHeight(), BufferedImage.TYPE_INT_ARGB);
+      icon.paintIcon(c, iconImage.getGraphics(), 0, 0);
+      iconImage.getGraphics().dispose();
+      final int colorRed   = tintColor & 0xFF0000;
+      final int colorGreen = tintColor & 0xFF00;
+      final int colorBlue  = tintColor & 0xFF;
+      Image tintedImage = c.createImage(new FilteredImageSource(iconImage.getSource(),
+          new RGBImageFilter() {
+            {
+              canFilterIndexColorModel = true;
+            }
+
+            public int filterRGB(int px, int py, int argb) {
+              int alpha = argb & 0xFF000000;
+              if (alpha == 0) {
+                return 0;
+              }
+              int red   = (argb & 0x00FF0000) >> 16;
+              int green = (argb & 0x0000FF00) >> 8;
+              int blue  = argb & 0x000000FF;
+              int brightness = ((red + red + red + green + green + green + green + blue) >> 4) + 0x7F;
+              red   = (colorRed   * brightness / 0xFF) & 0xFF0000;
+              green = (colorGreen * brightness / 0xFF) & 0xFF00;
+              blue  = (colorBlue  * brightness / 0xFF) & 0xFF;
+              return alpha | red | green | blue;
+            }
+          }));
+      g.drawImage(tintedImage, x, y, null);
+    }
+  }
+
+  /**
    * A proxy for the furniture plan icon generated from its plan icon.
    */
   private static class PieceOfFurniturePlanIcon extends PieceOfFurnitureTopViewIcon {
@@ -7348,14 +7472,24 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
   private static class HomePieceOfFurnitureTopViewIconKey {
     private HomePieceOfFurniture piece;
     private Content              planIconContent;
+    private Content              planIconFillContent;
     private int                  hashCode;
 
     public HomePieceOfFurnitureTopViewIconKey(HomePieceOfFurniture piece, Content planIconContent) {
+      this(piece, planIconContent, null);
+    }
+
+    public HomePieceOfFurnitureTopViewIconKey(HomePieceOfFurniture piece, Content planIconContent,
+                                              Content planIconFillContent) {
       this.piece = piece;
       this.planIconContent = planIconContent;
+      this.planIconFillContent = planIconFillContent;
       this.hashCode = (planIconContent != null ? planIconContent.hashCode()
           : piece.getPlanIcon() != null ? piece.getPlanIcon().hashCode() : piece.getModel().hashCode())
-          + (piece.getColor() != null ? 37 * piece.getColor().hashCode() : 1234);
+          + (planIconFillContent != null ? 37 * planIconFillContent.hashCode() : 0)
+          + (piece.getColor() != null ? 37 * piece.getColor().hashCode() : 1234)
+          + (piece.getFillColor() != null ? 37 * piece.getFillColor().hashCode() : 5678)
+          + 37 * Float.floatToIntBits(piece.getPlanFillOpacity());
       if (piece.isHorizontallyRotated()
           || piece.getTexture() != null) {
         this.hashCode +=
@@ -7389,11 +7523,16 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         HomePieceOfFurnitureTopViewIconKey key2 = (HomePieceOfFurnitureTopViewIconKey)obj;
         return (this.planIconContent == key2.planIconContent
                 || this.planIconContent != null && this.planIconContent.equals(key2.planIconContent))
+            && (this.planIconFillContent == key2.planIconFillContent
+                || this.planIconFillContent != null && this.planIconFillContent.equals(key2.planIconFillContent))
             && (this.piece.getPlanIcon() != null
                   ? this.piece.getPlanIcon().equals(piece2.getPlanIcon())
                   : this.piece.getModel().equals(piece2.getModel()))
             && (this.piece.getColor() == piece2.getColor()
                 || this.piece.getColor() != null && this.piece.getColor().equals(piece2.getColor()))
+            && (this.piece.getFillColor() == piece2.getFillColor()
+                || this.piece.getFillColor() != null && this.piece.getFillColor().equals(piece2.getFillColor()))
+            && this.piece.getPlanFillOpacity() == piece2.getPlanFillOpacity()
             && (this.piece.getTexture() == piece2.getTexture()
                 || this.piece.getTexture() != null && this.piece.getTexture().equals(piece2.getTexture()))
             && (!this.piece.isHorizontallyRotated()

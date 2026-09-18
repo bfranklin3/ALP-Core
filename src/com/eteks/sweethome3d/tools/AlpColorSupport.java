@@ -33,6 +33,20 @@ public final class AlpColorSupport {
   }
 
   /**
+   * Returns whether plan wash fill is explicitly removed (outline only).
+   */
+  public static boolean isPlanFillNone(Integer fillColor) {
+    return TRANSPARENT_COLOR.equals(fillColor);
+  }
+
+  /**
+   * Returns whether plan wash uses the library default (un-tinted watercolor).
+   */
+  public static boolean isDefaultPlanWash(Integer fillColor) {
+    return fillColor == null;
+  }
+
+  /**
    * Paints the standard none swatch: white fill, gray border, red diagonal.
    */
   public static void paintTransparentColorIcon(Graphics g, int x, int y, int width, int height) {

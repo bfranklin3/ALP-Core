@@ -52,10 +52,15 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
    * The properties of a piece of furniture that may change. <code>PropertyChangeListener</code>s added
    * to a piece of furniture will be notified under a property name equal to the string value of one these properties.
    */
+  /** Catalog content property for SPIKE-28 watercolor wash layer (optional). */
+  public static final String PLAN_ICON_FILL_PROPERTY = "planIconFill";
+  /** Default plan wash opacity (SPIKE-47A). */
+  public static final float DEFAULT_PLAN_FILL_OPACITY = 1f;
+
   public enum Property {CATALOG_ID, NAME, NAME_VISIBLE, NAME_X_OFFSET, NAME_Y_OFFSET, NAME_STYLE, NAME_ANGLE,
       DESCRIPTION, INFORMATION, CREATOR, LICENSE, PRICE, VALUE_ADDED_TAX_PERCENTAGE, CURRENCY, ICON, PLAN_ICON, MODEL,
       WIDTH, WIDTH_IN_PLAN, DEPTH, DEPTH_IN_PLAN, HEIGHT, HEIGHT_IN_PLAN,
-      COLOR, TEXTURE, MODEL_MATERIALS, MODEL_TRANSFORMATIONS,
+      COLOR, FILL_COLOR, PLAN_FILL_OPACITY, PLAN_BOUNDS_VISIBLE, TEXTURE, MODEL_MATERIALS, MODEL_TRANSFORMATIONS,
       STAIRCASE_CUT_OUT_SHAPE, SHININESS, VISIBLE,
       X, Y, ELEVATION, ANGLE, PITCH, ROLL, MODEL_ROTATION, MODEL_FLAGS, MODEL_MIRRORED,
       /** @deprecated */ BACK_FACE_SHOWN, MOVABLE, LEVEL};
@@ -316,6 +321,7 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
   private String                 catalogId;
   private String                 name;
   private boolean                nameVisible;
+  private boolean                planBoundsVisible;
   private float                  nameXOffset;
   private float                  nameYOffset;
   private TextStyle              nameStyle;
@@ -340,6 +346,8 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
   private boolean                doorOrWindow;
   private HomeMaterial []        modelMaterials;
   private Integer                color;
+  private Integer                fillColor;
+  private float                  planFillOpacity = DEFAULT_PLAN_FILL_OPACITY;
   private HomeTexture            texture;
   private Float                  shininess;
   private float [][]             modelRotation;
@@ -425,6 +433,11 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
     this.movable = piece.isMovable();
     this.doorOrWindow = piece.isDoorOrWindow();
     this.color = piece.getColor();
+    if (piece instanceof HomePieceOfFurniture) {
+      HomePieceOfFurniture homePiece = (HomePieceOfFurniture)piece;
+      this.fillColor = homePiece.getFillColor();
+      this.planFillOpacity = homePiece.getPlanFillOpacity();
+    }
     this.modelRotation = piece.getModelRotation();
     this.staircaseCutOutShape = piece.getStaircaseCutOutShape();
     this.modelFlags = piece.getModelFlags();
@@ -439,6 +452,7 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
       HomePieceOfFurniture homePiece = (HomePieceOfFurniture)piece;
       this.catalogId = homePiece.getCatalogId();
       this.nameVisible = homePiece.isNameVisible();
+      this.planBoundsVisible = homePiece.isPlanBoundsVisible();
       this.nameXOffset = homePiece.getNameXOffset();
       this.nameYOffset = homePiece.getNameYOffset();
       this.nameAngle = homePiece.getNameAngle();
@@ -582,6 +596,24 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
     if (nameVisible != this.nameVisible) {
       this.nameVisible = nameVisible;
       firePropertyChange(Property.NAME_VISIBLE.name(), !nameVisible, nameVisible);
+    }
+  }
+
+  /**
+   * Returns whether the faint top-view placement bounds of this piece should be drawn.
+   */
+  public boolean isPlanBoundsVisible() {
+    return this.planBoundsVisible;
+  }
+
+  /**
+   * Sets whether the faint top-view placement bounds of this piece are visible.
+   * Selection outline when selected is independent of this flag.
+   */
+  public void setPlanBoundsVisible(boolean planBoundsVisible) {
+    if (planBoundsVisible != this.planBoundsVisible) {
+      this.planBoundsVisible = planBoundsVisible;
+      firePropertyChange(Property.PLAN_BOUNDS_VISIBLE.name(), !planBoundsVisible, planBoundsVisible);
     }
   }
 
@@ -1114,6 +1146,51 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
     } else {
       throw new IllegalStateException("Piece isn't texturable");
     }
+  }
+
+  /**
+   * Returns the plan symbol wash tint color (SPIKE-28), or <code>null</code> for catalog default wash.
+   */
+  public Integer getFillColor() {
+    return this.fillColor;
+  }
+
+  /**
+   * Sets the plan symbol wash tint color (SPIKE-28). Independent of {@link #getColor()} luminance tint.
+   */
+  public void setFillColor(Integer fillColor) {
+    if (fillColor != this.fillColor
+        && (fillColor == null || !fillColor.equals(this.fillColor))) {
+      Integer oldFillColor = this.fillColor;
+      this.fillColor = fillColor;
+      firePropertyChange(Property.FILL_COLOR.name(), oldFillColor, fillColor);
+    }
+  }
+
+  /**
+   * Returns plan wash opacity for layered symbols (SPIKE-47A), in range 0..1.
+   */
+  public float getPlanFillOpacity() {
+    return this.planFillOpacity;
+  }
+
+  /**
+   * Sets plan wash opacity for layered symbols (SPIKE-47A).
+   */
+  public void setPlanFillOpacity(float planFillOpacity) {
+    float clampedOpacity = Math.max(0f, Math.min(1f, planFillOpacity));
+    if (clampedOpacity != this.planFillOpacity) {
+      float oldPlanFillOpacity = this.planFillOpacity;
+      this.planFillOpacity = clampedOpacity;
+      firePropertyChange(Property.PLAN_FILL_OPACITY.name(), oldPlanFillOpacity, clampedOpacity);
+    }
+  }
+
+  /**
+   * Returns <code>true</code> if this piece has a catalog wash layer for layered plan rendering.
+   */
+  public boolean hasPlanIconFill() {
+    return getContentProperty(PLAN_ICON_FILL_PROPERTY) != null;
   }
 
   /**
@@ -1838,6 +1915,16 @@ public class HomePieceOfFurniture extends HomeObject implements PieceOfFurniture
     HomePieceOfFurniture clone = (HomePieceOfFurniture)super.clone();
     clone.level = null;
     return clone;
+  }
+
+  /**
+   * Returns a copy for paste with a new id and no inherited area-fill linkage.
+   */
+  @Override
+  public HomeObject duplicate() {
+    HomePieceOfFurniture copy = (HomePieceOfFurniture)super.duplicate();
+    AlpPlantAreaFill.clearGeneratedPlantLinkage(copy);
+    return copy;
   }
 
   /**

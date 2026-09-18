@@ -95,6 +95,7 @@ import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.ObjectProperty;
 import com.eteks.sweethome3d.model.Transformation;
 import com.eteks.sweethome3d.model.UserPreferences;
+import com.eteks.sweethome3d.tools.AlpColorSupport;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.tools.TemporaryURLContent;
 import com.eteks.sweethome3d.tools.URLContent;
@@ -114,6 +115,7 @@ public class HomeFurniturePanel extends JPanel implements DialogView {
   private JLabel                  nameLabel;
   private JTextField              nameTextField;
   private NullableCheckBox        nameVisibleCheckBox;
+  private NullableCheckBox        planBoundsVisibleCheckBox;
   private JLabel                  descriptionLabel;
   private JTextField              descriptionTextField;
   private JButton                 additionalPropertiesButton;
@@ -145,7 +147,16 @@ public class HomeFurniturePanel extends JPanel implements DialogView {
   private JButton                 modelTransformationsButton;
   private JRadioButton            defaultColorAndTextureRadioButton;
   private JRadioButton            colorRadioButton;
+  private static final Integer DEFAULT_PLAN_FILL_TINT = 0xFF608040;
+
   private ColorButton             colorButton;
+  private JCheckBox               defaultPlanFillColorCheckBox;
+  private ColorButton             planFillColorButton;
+  private JLabel                  planFillOpacityLabel;
+  private NullableSpinner         planFillOpacitySpinner;
+  private NullableSpinner.NullableSpinnerNumberModel planFillOpacitySpinnerModel;
+  private JPanel                  planFillPanel;
+  private boolean                 updatingPlanFillPanel;
   private JRadioButton            textureRadioButton;
   private JComponent              textureComponent;
   private JRadioButton            modelMaterialsRadioButton;
@@ -234,6 +245,30 @@ public class HomeFurniturePanel extends JPanel implements DialogView {
             controller.removePropertyChangeListener(HomeFurnitureController.Property.NAME_VISIBLE, nameVisibleChangeListener);
             controller.setNameVisible(nameVisibleCheckBox.getValue());
             controller.addPropertyChangeListener(HomeFurnitureController.Property.NAME_VISIBLE, nameVisibleChangeListener);
+          }
+        });
+    }
+
+    if (controller.isPropertyEditable(HomeFurnitureController.Property.PLAN_BOUNDS_VISIBLE)) {
+      this.planBoundsVisibleCheckBox = new NullableCheckBox(SwingTools.getLocalizedLabelText(preferences,
+          HomeFurniturePanel.class, "planBoundsVisibleCheckBox.text"));
+      this.planBoundsVisibleCheckBox.setNullable(controller.getPlanBoundsVisible() == null);
+      this.planBoundsVisibleCheckBox.setValue(controller.getPlanBoundsVisible());
+      final PropertyChangeListener planBoundsVisibleChangeListener = new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            planBoundsVisibleCheckBox.setNullable(ev.getNewValue() == null);
+            planBoundsVisibleCheckBox.setValue((Boolean)ev.getNewValue());
+          }
+        };
+      controller.addPropertyChangeListener(HomeFurnitureController.Property.PLAN_BOUNDS_VISIBLE,
+          planBoundsVisibleChangeListener);
+      this.planBoundsVisibleCheckBox.addChangeListener(new ChangeListener() {
+          public void stateChanged(ChangeEvent ev) {
+            controller.removePropertyChangeListener(
+                HomeFurnitureController.Property.PLAN_BOUNDS_VISIBLE, planBoundsVisibleChangeListener);
+            controller.setPlanBoundsVisible(planBoundsVisibleCheckBox.getValue());
+            controller.addPropertyChangeListener(
+                HomeFurnitureController.Property.PLAN_BOUNDS_VISIBLE, planBoundsVisibleChangeListener);
           }
         });
     }
@@ -1056,6 +1091,36 @@ public class HomeFurniturePanel extends JPanel implements DialogView {
   }
 
   /**
+   * Syncs plan fill controls with controller: default wash, custom tint, or none (outline only).
+   */
+  private void updatePlanFillPanelFromController() {
+    this.updatingPlanFillPanel = true;
+    try {
+      Integer fillColor = this.controller.getFillColor();
+      boolean defaultWash = AlpColorSupport.isDefaultPlanWash(fillColor);
+      this.defaultPlanFillColorCheckBox.setSelected(defaultWash);
+      this.planFillColorButton.setEnabled(!defaultWash);
+      if (defaultWash) {
+        this.planFillColorButton.setColor(DEFAULT_PLAN_FILL_TINT);
+      } else if (AlpColorSupport.isPlanFillNone(fillColor)) {
+        this.planFillColorButton.setColor(AlpColorSupport.TRANSPARENT_COLOR);
+      } else {
+        this.planFillColorButton.setColor(fillColor);
+      }
+      Float planFillOpacity = this.controller.getPlanFillOpacity();
+      this.planFillOpacitySpinnerModel.setNullable(planFillOpacity == null);
+      this.planFillOpacitySpinnerModel.setValue(planFillOpacity != null
+          ? planFillOpacity * 100
+          : null);
+      boolean opacityEnabled = !AlpColorSupport.isPlanFillNone(fillColor);
+      this.planFillOpacitySpinner.setEnabled(opacityEnabled);
+      this.planFillOpacityLabel.setEnabled(opacityEnabled);
+    } finally {
+      this.updatingPlanFillPanel = false;
+    }
+  }
+
+  /**
    * Updates size components depending on the fact that furniture is resizable or not.
    */
   private void updateSizeComponents(final HomeFurnitureController controller) {
@@ -1089,6 +1154,10 @@ public class HomeFurniturePanel extends JPanel implements DialogView {
       if (this.nameVisibleCheckBox != null) {
         this.nameVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
             HomeFurniturePanel.class, "nameVisibleCheckBox.mnemonic")).getKeyCode());
+      }
+      if (this.planBoundsVisibleCheckBox != null) {
+        this.planBoundsVisibleCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
+            HomeFurniturePanel.class, "planBoundsVisibleCheckBox.mnemonic")).getKeyCode());
       }
       if (this.descriptionLabel != null) {
         this.descriptionLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
@@ -1226,6 +1295,11 @@ public class HomeFurniturePanel extends JPanel implements DialogView {
       namePanel.add(this.nameVisibleCheckBox, new GridBagConstraints(
           4, 0, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, new Insets(0, 10, 0, 0), 0, 0));
+    }
+    if (this.planBoundsVisibleCheckBox != null) {
+      namePanel.add(this.planBoundsVisibleCheckBox, new GridBagConstraints(
+          4, 1, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, new Insets(standardGap, 10, 0, 0), 0, 0));
     }
     if (this.descriptionLabel != null) {
       namePanel.add(this.descriptionLabel, new GridBagConstraints(
@@ -1482,6 +1556,102 @@ public class HomeFurniturePanel extends JPanel implements DialogView {
           });
       paintPanel.setVisible(controller.isTexturable());
     }
+    this.planFillPanel = SwingTools.createTitledPanel(preferences.getLocalizedString(
+        HomeFurniturePanel.class, "planFillPanel.title"));
+    this.defaultPlanFillColorCheckBox = new JCheckBox(SwingTools.getLocalizedLabelText(preferences,
+        HomeFurniturePanel.class, "defaultPlanFillColorCheckBox.text"));
+    this.defaultPlanFillColorCheckBox.setToolTipText(preferences.getLocalizedString(
+        HomeFurniturePanel.class, "defaultPlanFillColorCheckBox.tooltip"));
+    this.defaultPlanFillColorCheckBox.addChangeListener(new ChangeListener() {
+        public void stateChanged(ChangeEvent ev) {
+          if (updatingPlanFillPanel) {
+            return;
+          }
+          if (defaultPlanFillColorCheckBox.isSelected()) {
+            controller.setFillColor(null);
+          } else {
+            planFillColorButton.setEnabled(true);
+            if (AlpColorSupport.isDefaultPlanWash(controller.getFillColor())) {
+              controller.setFillColor(DEFAULT_PLAN_FILL_TINT);
+            }
+          }
+        }
+      });
+    this.planFillColorButton = new ColorButton(preferences);
+    this.planFillColorButton.setNullColorAllowed(true);
+    this.planFillColorButton.setColorDialogTitle(preferences
+        .getLocalizedString(HomeFurniturePanel.class, "planFillColorDialog.title"));
+    this.planFillColorButton.setToolTipText(preferences.getLocalizedString(
+        HomeFurniturePanel.class, "planFillColorButton.tooltip"));
+    this.planFillColorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY, new PropertyChangeListener() {
+        public void propertyChange(PropertyChangeEvent ev) {
+          if (updatingPlanFillPanel) {
+            return;
+          }
+          Integer chosenColor = planFillColorButton.getColor();
+          if (AlpColorSupport.isPlanFillNone(chosenColor)) {
+            controller.setFillColor(AlpColorSupport.TRANSPARENT_COLOR);
+          } else {
+            controller.setFillColor(chosenColor);
+          }
+        }
+      });
+    controller.addPropertyChangeListener(HomeFurnitureController.Property.FILL_COLOR,
+        new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            updatePlanFillPanelFromController();
+          }
+        });
+    controller.addPropertyChangeListener(HomeFurnitureController.Property.PLAN_FILL_OPACITY,
+        new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            updatePlanFillPanelFromController();
+          }
+        });
+    this.planFillOpacityLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
+        HomeFurniturePanel.class, "planFillOpacityLabel.text", "%"));
+    this.planFillOpacitySpinnerModel = new NullableSpinner.NullableSpinnerNumberModel(
+        100f, 0f, 100f, 5f) {
+        @Override
+        Format getFormat() {
+          return new DecimalFormat("0.#");
+        }
+      };
+    this.planFillOpacitySpinner = new NullableSpinner(this.planFillOpacitySpinnerModel);
+    this.planFillOpacitySpinnerModel.addChangeListener(new ChangeListener() {
+        public void stateChanged(ChangeEvent ev) {
+          if (updatingPlanFillPanel) {
+            return;
+          }
+          Number value = (Number)planFillOpacitySpinnerModel.getValue();
+          controller.setPlanFillOpacity(value != null
+              ? value.floatValue() / 100f
+              : null);
+        }
+      });
+    updatePlanFillPanelFromController();
+    this.planFillPanel.add(this.defaultPlanFillColorCheckBox, new GridBagConstraints(
+        0, 0, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+        GridBagConstraints.NONE, labelInsets, 0, 0));
+    this.planFillPanel.add(this.planFillColorButton, new GridBagConstraints(
+        0, 1, 2, 1, 1, 0, GridBagConstraints.LINE_START,
+        GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, 0), 0, 0));
+    this.planFillPanel.add(this.planFillOpacityLabel, new GridBagConstraints(
+        0, 2, 1, 1, 0, 0, labelAlignment,
+        GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, standardGap), 0, 0));
+    this.planFillPanel.add(this.planFillOpacitySpinner, new GridBagConstraints(
+        1, 2, 1, 1, 1, 0, GridBagConstraints.LINE_START,
+        GridBagConstraints.HORIZONTAL, new Insets(standardGap, 0, 0, 0), 0, 0));
+    add(this.planFillPanel, new GridBagConstraints(
+        0, 4, 1, 1, 0, 0, labelAlignment,
+        GridBagConstraints.BOTH, new Insets(0, 0, rowGap, 0), 0, 0));
+    controller.addPropertyChangeListener(HomeFurnitureController.Property.PLAN_FILL_COLOR_EDITABLE,
+        new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            planFillPanel.setVisible(controller.isPlanFillColorEditable());
+          }
+        });
+    this.planFillPanel.setVisible(controller.isPlanFillColorEditable());
     if (this.defaultShininessRadioButton != null) {
       // Shininess panel
       final JPanel shininessPanel = SwingTools.createTitledPanel(preferences.getLocalizedString(
@@ -1515,21 +1685,21 @@ public class HomeFurniturePanel extends JPanel implements DialogView {
     // Last row
     if (this.visibleCheckBox != null) {
       add(this.visibleCheckBox, new GridBagConstraints(
-          0, 3, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          0, 5, 1, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, new Insets(0, 10, 0, 0), 0, 0));
     }
     if (this.additionalPropertiesButton != null) {
       add(this.additionalPropertiesButton, new GridBagConstraints(
-          1, this.lightPowerLabel != null && !orientationPanelDisplayed ? 4 : 3,
+          1, this.lightPowerLabel != null && !orientationPanelDisplayed ? 6 : 5,
           orientationPanelDisplayed ? 1 : 2, 1, 0, 0, GridBagConstraints.CENTER,
           GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
     }
     if (this.lightPowerLabel != null) {
       add(this.lightPowerLabel, new GridBagConstraints(
-          orientationPanelDisplayed ? 2 : 1, 3, 1, 1, 0, 0, labelAlignment,
+          orientationPanelDisplayed ? 2 : 1, 5, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, new Insets(0, 10, 0, standardGap), 0, 0));
       add(this.lightPowerSpinner, new GridBagConstraints(
-          orientationPanelDisplayed ? 3 : 2, 3, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          orientationPanelDisplayed ? 3 : 2, 5, 1, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, new Insets(0, 0, 0, standardGap), 0, 0));
     }
   }

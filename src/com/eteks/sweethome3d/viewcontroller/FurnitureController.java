@@ -195,6 +195,19 @@ public class FurnitureController implements Controller {
   }
 
   /**
+   * Adds furniture on a specific level (SPIKE-38A area scatter).
+   */
+  public void addFurnitureOnLevel(List<HomePieceOfFurniture> furniture, Level level) {
+    if (level == null) {
+      addFurniture(furniture);
+      return;
+    }
+    Level [] levels = new Level [furniture.size()];
+    Arrays.fill(levels, level);
+    addFurniture(furniture, levels, null, null);
+  }
+
+  /**
    * Controls new furniture added to the given group.
    * Once added the furniture will be selected in view
    * and undo support will receive a new undoable edit.
@@ -814,10 +827,22 @@ public class FurnitureController implements Controller {
    * Controls the modification of the visibility of the selected piece of furniture.
    */
   public void toggleSelectedFurnitureVisibility() {
-    if (Home.getFurnitureSubList(this.home.getSelectedItems()).size() == 1) {
+    List<HomePieceOfFurniture> selectedFurniture = Home.getFurnitureSubList(this.home.getSelectedItems());
+    if (selectedFurniture.size() == 1) {
+      toggleFurnitureVisibility(selectedFurniture.get(0));
+    }
+  }
+
+  /**
+   * Toggles visibility of the given piece (selects it first).
+   */
+  public void toggleFurnitureVisibility(HomePieceOfFurniture piece) {
+    if (piece != null) {
+      setSelectedFurniture(Arrays.asList(piece));
       HomeFurnitureController controller = new HomeFurnitureController(this.home, this.preferences,
           this.viewFactory, this.contentManager, this.undoSupport);
-      controller.setVisible(!controller.getVisible());
+      Boolean visible = controller.getVisible();
+      controller.setVisible(visible == null || !visible);
       controller.modifyFurniture();
     }
   }
