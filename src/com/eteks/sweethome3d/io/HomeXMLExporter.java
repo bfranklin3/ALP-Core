@@ -454,6 +454,9 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
       writer.writeBooleanAttribute("modelMirrored", piece.isModelMirrored(), false);
       writer.writeBooleanAttribute("visible", piece.isVisible(), true);
       writer.writeColorAttribute("color", piece.getColor());
+      writer.writeColorAttribute("fillColor", piece.getFillColor());
+      writer.writeFloatAttribute("planFillOpacity", piece.getPlanFillOpacity(),
+          HomePieceOfFurniture.DEFAULT_PLAN_FILL_OPACITY);
       if (piece.getShininess() != null) {
         writer.writeFloatAttribute("shininess", piece.getShininess());
       }
@@ -496,6 +499,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
       writer.writeAttribute("staircaseCutOutShape", piece.getStaircaseCutOutShape(), null);
       writer.writeFloatAttribute("dropOnTopElevation", piece.getDropOnTopElevation(), 1f);
       writer.writeBooleanAttribute("nameVisible", piece.isNameVisible(), false);
+      writer.writeBooleanAttribute("planBoundsVisible", piece.isPlanBoundsVisible(), false);
       writer.writeFloatAttribute("nameAngle", piece.getNameAngle(), 0f);
       writer.writeFloatAttribute("nameXOffset", piece.getNameXOffset(), 0f);
       writer.writeFloatAttribute("nameYOffset", piece.getNameYOffset(), 0f);

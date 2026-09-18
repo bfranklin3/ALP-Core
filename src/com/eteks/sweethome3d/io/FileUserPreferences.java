@@ -150,6 +150,16 @@ public class FileUserPreferences extends UserPreferences {
   private static final String FURNITURE_ICON_PITCH                      = "furnitureIconPitch#";
   private static final String FURNITURE_ICON_SCALE                      = "furnitureIconScale#";
   private static final String FURNITURE_PROPORTIONAL                    = "furnitureProportional#";
+  private static final String FURNITURE_ID                              = "furnitureId#";
+  private static final String FURNITURE_DESCRIPTION                     = "furnitureDescription#";
+  private static final String FURNITURE_PLAN_ICON                       = "furniturePlanIcon#";
+  private static final String FURNITURE_RESIZABLE                       = "furnitureResizable#";
+  private static final String FURNITURE_DEFORMABLE                      = "furnitureDeformable#";
+  private static final String FURNITURE_TEXTUREABLE                     = "furnitureTexturable#";
+  private static final String FURNITURE_EXTRA_PROPERTY_COUNT            = "furnitureExtraPropertyCount#";
+  private static final String FURNITURE_EXTRA_PROPERTY_NAME             = "furnitureExtraPropertyName#";
+  private static final String FURNITURE_EXTRA_PROPERTY_VALUE            = "furnitureExtraPropertyValue#";
+  private static final String FURNITURE_EXTRA_PROPERTY_CONTENT          = "furnitureExtraPropertyContent#";
 
   private static final String TEXTURE_NAME                              = "textureName#";
   private static final String TEXTURE_CREATOR                           = "textureCreator#";
@@ -800,6 +810,26 @@ public class FileUserPreferences extends UserPreferences {
     float iconScale = preferences.getFloat(FURNITURE_ICON_SCALE + index, 1);
     boolean proportional = preferences.getBoolean(FURNITURE_PROPORTIONAL + index, true);
 
+    if (hasExtendedModifiableFurnitureData(preferences, index)) {
+      String id = preferences.get(FURNITURE_ID + index, null);
+      String description = preferences.get(FURNITURE_DESCRIPTION + index, null);
+      URLContent planIcon = getContent(preferences, FURNITURE_PLAN_ICON + index, preferencesFolder);
+      boolean resizable = preferences.getBoolean(FURNITURE_RESIZABLE + index, true);
+      boolean deformable = preferences.getBoolean(FURNITURE_DEFORMABLE + index, false);
+      boolean texturable = preferences.getBoolean(FURNITURE_TEXTUREABLE + index, false);
+      Map<String, String> stringProperties = new HashMap<String, String>();
+      Map<String, Content> contentProperties = new HashMap<String, Content>();
+      readModifiableFurnitureExtraProperties(preferences, index, preferencesFolder,
+          stringProperties, contentProperties);
+      return CatalogPieceOfFurniture.createModifiableFromPersistence(
+          id, name, description, icon, planIcon, model,
+          width, depth, height, elevation, movable, doorOrWindow, staircaseCutOutShape,
+          color, modelRotation, modelFlags, modelSize, creator,
+          resizable, deformable, texturable,
+          iconYaw, iconPitch, iconScale, proportional,
+          stringProperties, contentProperties);
+    }
+
     if (doorOrWindow) {
       return new CatalogDoorOrWindow(name, icon, model,
           width, depth, height, elevation, movable, 1, 0, new Sash [0],
@@ -822,6 +852,109 @@ public class FileUserPreferences extends UserPreferences {
   protected FurnitureCategory readModifiableFurnitureCategory(Preferences preferences, int index) {
     String category = preferences.get(FURNITURE_CATEGORY + index, "");
     return new FurnitureCategory(category);
+  }
+
+  private boolean hasExtendedModifiableFurnitureData(Preferences preferences, int index) {
+    return preferences.get(FURNITURE_ID + index, null) != null
+        || preferences.get(FURNITURE_PLAN_ICON + index, null) != null
+        || preferences.getInt(FURNITURE_EXTRA_PROPERTY_COUNT + index, 0) > 0;
+  }
+
+  private void readModifiableFurnitureExtraProperties(Preferences preferences,
+                                                      int index,
+                                                      File preferencesFolder,
+                                                      Map<String, String> stringProperties,
+                                                      Map<String, Content> contentProperties) {
+    int propertyCount = preferences.getInt(FURNITURE_EXTRA_PROPERTY_COUNT + index, 0);
+    for (int j = 1; j <= propertyCount; j++) {
+      String propertyName = preferences.get(FURNITURE_EXTRA_PROPERTY_NAME + index + "#" + j, null);
+      if (propertyName == null) {
+        continue;
+      }
+      String contentKey = FURNITURE_EXTRA_PROPERTY_CONTENT + index + "#" + j;
+      if (preferences.get(contentKey, null) != null) {
+        Content content = getContent(preferences, contentKey, preferencesFolder);
+        if (content != null) {
+          contentProperties.put(propertyName, content);
+        }
+      } else {
+        stringProperties.put(propertyName,
+            preferences.get(FURNITURE_EXTRA_PROPERTY_VALUE + index + "#" + j, ""));
+      }
+    }
+  }
+
+  private void writeExtendedModifiableFurnitureData(Preferences preferences,
+                                                    int index,
+                                                    CatalogPieceOfFurniture piece,
+                                                    Set<URL> furnitureContentURLs) throws RecorderException {
+    if (!shouldPersistExtendedModifiableFurnitureData(piece)) {
+      removeExtendedModifiableFurnitureData(preferences, index);
+      return;
+    }
+    if (piece.getId() != null) {
+      preferences.put(FURNITURE_ID + index, piece.getId());
+    } else {
+      preferences.remove(FURNITURE_ID + index);
+    }
+    if (piece.getDescription() != null) {
+      preferences.put(FURNITURE_DESCRIPTION + index, piece.getDescription());
+    } else {
+      preferences.remove(FURNITURE_DESCRIPTION + index);
+    }
+    if (piece.getPlanIcon() != null) {
+      putContent(preferences, FURNITURE_PLAN_ICON + index, piece.getPlanIcon(),
+          FURNITURE_CONTENT_PREFIX, furnitureContentURLs);
+    } else {
+      preferences.remove(FURNITURE_PLAN_ICON + index);
+    }
+    preferences.putBoolean(FURNITURE_RESIZABLE + index, piece.isResizable());
+    preferences.putBoolean(FURNITURE_DEFORMABLE + index, piece.isDeformable());
+    preferences.putBoolean(FURNITURE_TEXTUREABLE + index, piece.isTexturable());
+
+    int propertyIndex = 1;
+    for (String propertyName : piece.getPropertyNames()) {
+      preferences.put(FURNITURE_EXTRA_PROPERTY_NAME + index + "#" + propertyIndex, propertyName);
+      if (piece.isContentProperty(propertyName)) {
+        putContent(preferences, FURNITURE_EXTRA_PROPERTY_CONTENT + index + "#" + propertyIndex,
+            piece.getContentProperty(propertyName), FURNITURE_CONTENT_PREFIX, furnitureContentURLs);
+        preferences.remove(FURNITURE_EXTRA_PROPERTY_VALUE + index + "#" + propertyIndex);
+      } else {
+        preferences.put(FURNITURE_EXTRA_PROPERTY_VALUE + index + "#" + propertyIndex,
+            piece.getProperty(propertyName));
+        preferences.remove(FURNITURE_EXTRA_PROPERTY_CONTENT + index + "#" + propertyIndex);
+      }
+      propertyIndex++;
+    }
+    preferences.putInt(FURNITURE_EXTRA_PROPERTY_COUNT + index, propertyIndex - 1);
+    removeObsoleteExtraPropertyKeys(preferences, index, propertyIndex - 1);
+  }
+
+  private boolean shouldPersistExtendedModifiableFurnitureData(CatalogPieceOfFurniture piece) {
+    return piece.getId() != null
+        || piece.getPlanIcon() != null
+        || !piece.getPropertyNames().isEmpty();
+  }
+
+  private void removeExtendedModifiableFurnitureData(Preferences preferences, int index) {
+    preferences.remove(FURNITURE_ID + index);
+    preferences.remove(FURNITURE_DESCRIPTION + index);
+    preferences.remove(FURNITURE_PLAN_ICON + index);
+    preferences.remove(FURNITURE_RESIZABLE + index);
+    preferences.remove(FURNITURE_DEFORMABLE + index);
+    preferences.remove(FURNITURE_TEXTUREABLE + index);
+    int propertyCount = preferences.getInt(FURNITURE_EXTRA_PROPERTY_COUNT + index, 0);
+    preferences.remove(FURNITURE_EXTRA_PROPERTY_COUNT + index);
+    removeObsoleteExtraPropertyKeys(preferences, index, propertyCount);
+  }
+
+  private void removeObsoleteExtraPropertyKeys(Preferences preferences, int index, int propertyCount) {
+    for (int j = propertyCount + 1;
+         preferences.get(FURNITURE_EXTRA_PROPERTY_NAME + index + "#" + j, null) != null; j++) {
+      preferences.remove(FURNITURE_EXTRA_PROPERTY_NAME + index + "#" + j);
+      preferences.remove(FURNITURE_EXTRA_PROPERTY_VALUE + index + "#" + j);
+      preferences.remove(FURNITURE_EXTRA_PROPERTY_CONTENT + index + "#" + j);
+    }
   }
 
   /**
@@ -1140,6 +1273,7 @@ public class FileUserPreferences extends UserPreferences {
           preferences.putFloat(FURNITURE_ICON_PITCH + i, piece.getIconPitch());
           preferences.putFloat(FURNITURE_ICON_SCALE + i, piece.getIconScale());
           preferences.putBoolean(FURNITURE_PROPORTIONAL + i, piece.isProportional());
+          writeExtendedModifiableFurnitureData(preferences, i, piece, furnitureContentURLs);
           i++;
         }
       }
@@ -1167,6 +1301,7 @@ public class FileUserPreferences extends UserPreferences {
       preferences.remove(FURNITURE_ICON_PITCH + i);
       preferences.remove(FURNITURE_ICON_SCALE + i);
       preferences.remove(FURNITURE_PROPORTIONAL + i);
+      removeExtendedModifiableFurnitureData(preferences, i);
     }
     deleteObsoleteContent(furnitureContentURLs, FURNITURE_CONTENT_PREFIX);
   }

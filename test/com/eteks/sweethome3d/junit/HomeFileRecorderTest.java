@@ -150,6 +150,31 @@ public class HomeFileRecorderTest extends TestCase {
         legacyHome.getRooms().get(0).isNameVisible());
   }
 
+  public void testFurniturePlanBoundsVisibleRoundTrip() throws RecorderException {
+    Home home = new Home();
+    FurnitureCatalog catalog = new DefaultFurnitureCatalog();
+    HomePieceOfFurniture visibleBounds = new HomePieceOfFurniture(
+        catalog.getCategories().get(0).getFurniture().get(0));
+    visibleBounds.setPlanBoundsVisible(true);
+    home.addPieceOfFurniture(visibleBounds);
+
+    HomePieceOfFurniture hiddenBounds = new HomePieceOfFurniture(
+        catalog.getCategories().get(1).getFurniture().get(0));
+    hiddenBounds.setPlanBoundsVisible(false);
+    home.addPieceOfFurniture(hiddenBounds);
+
+    String testFile = new File("test-plan-bounds-visible.sh3d").getAbsolutePath();
+    HomeFileRecorder recorder = new HomeFileRecorder();
+    try {
+      recorder.writeHome(home, testFile);
+      Home readHome = recorder.readHome(testFile);
+      assertTrue(readHome.getFurniture().get(0).isPlanBoundsVisible());
+      assertFalse(readHome.getFurniture().get(1).isPlanBoundsVisible());
+    } finally {
+      new File(testFile).delete();
+    }
+  }
+
   public void testPlanDrawOrderRoundTrip() throws RecorderException {
     Home home = new Home();
     Level level = new Level("Proposed", 0, 0, 250);

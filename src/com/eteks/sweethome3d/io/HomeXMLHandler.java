@@ -216,6 +216,7 @@ import com.eteks.sweethome3d.tools.URLContent;
  *       creator CDATA #IMPLIED
  *       modelMirrored (false | true) "false"
  *       nameVisible (false | true) "false"
+ *       planBoundsVisible (false | true) "false"
  *       nameAngle CDATA "0"
  *       nameXOffset CDATA "0"
  *       nameYOffset CDATA "0"
@@ -1433,6 +1434,7 @@ public class HomeXMLHandler extends DefaultHandler {
     setProperties(piece, elementName, attributes);
     piece.setNameStyle(this.textStyles.peek().get("nameStyle"));
     piece.setNameVisible("true".equals(attributes.get("nameVisible")));
+    piece.setPlanBoundsVisible("true".equals(attributes.get("planBoundsVisible")));
     Float nameAngle = parseOptionalFloat(attributes, "nameAngle");
     if (nameAngle != null) {
       piece.setNameAngle(nameAngle);
@@ -1509,6 +1511,14 @@ public class HomeXMLHandler extends DefaultHandler {
         if (shininess != null) {
           piece.setShininess(shininess);
         }
+      }
+      Integer fillColor = parseOptionalColor(attributes, "fillColor");
+      if (fillColor != null) {
+        piece.setFillColor(fillColor);
+      }
+      Float planFillOpacity = parseOptionalFloat(attributes, "planFillOpacity");
+      if (planFillOpacity != null) {
+        piece.setPlanFillOpacity(planFillOpacity);
       }
       if (piece.isDeformable()) {
         if (this.transformations.size() > 0) {
